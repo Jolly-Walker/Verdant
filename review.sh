@@ -50,7 +50,7 @@ CODE QUALITY:
 
 STACK:
 - Next.js 14 App Router, TypeScript, RainbowKit v2, wagmi v2, viem v2, Tailwind, Supabase
-- Use @aave/contract-helpers for Aave, @morpho-org/morpho-ts for Morpho, @pendle-finance/sdk for Pendle
+- Use @aave/contract-helpers for Aave, @morpho-org/morpho-ts for Morpho, and the Pendle Hosted SDK/API for Pendle
 
 For each issue found, state:
 1. SEVERITY: CRITICAL / HIGH / MEDIUM / LOW

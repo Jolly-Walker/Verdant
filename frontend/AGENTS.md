@@ -164,7 +164,8 @@ All figures must refresh when the user changes amount, route, or destination. St
 
 ### Pendle
 
-- Use Pendle SDK (@pendle-finance/sdk)
+- Use Pendle Hosted SDK (API: `https://api-v2.pendle.finance/core`)
+- Implement "Universal Convert API" (`/v3/sdk/{chainId}/convert`) for all swap/mint/redeem operations
 - Support PT (Principal Token) and YT (Yield Token) positions
 - Display fixed APY for PT, implied APY for YT, maturity date
 - Note maturity risk clearly in UI

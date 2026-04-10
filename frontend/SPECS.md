@@ -115,7 +115,7 @@ No other chains in Phase 1.
 |---|---|---|---|
 | Aave V3 | Ethereum, Arbitrum | USDC, USDT, ETH, WBTC, wstETH | @aave/contract-helpers, @aave/math-utils |
 | Morpho | Ethereum, Arbitrum | USDC, ETH, wstETH, WBTC | @morpho-org/morpho-ts, Morpho subgraph |
-| Pendle | Ethereum, Arbitrum | PT/YT for wstETH, USDC, eETH | @pendle-finance/sdk |
+| Pendle | Ethereum, Arbitrum | PT/YT for wstETH, USDC, eETH | Pendle Hosted SDK / API |
 | Euler | Ethereum, Arbitrum | USDC, ETH, WBTC, wstETH | Euler EVK SDK, official ABIs |
 
 ### Supported Assets (Phase 1)
@@ -552,6 +552,9 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 
 # NEAR Intents
 NEAR_INTENTS_API_KEY=
+
+# Pendle
+PENDLE_HOSTED_SDK_API_KEY=
 
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=
