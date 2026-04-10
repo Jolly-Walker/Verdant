@@ -8,6 +8,8 @@ export interface CostPreviewInput {
   sourceChain: Chain
   destProtocol: Protocol
   destChain: Chain
+  /** Unix ms timestamp of Pendle maturity, if source is a Pendle position */
+  pendleMaturityMs?: number
 }
 
 export interface Warning {
@@ -16,16 +18,18 @@ export interface Warning {
 }
 
 export interface CostPreviewResult {
-  bridgeFeeUsd: number        // from Across API quote
-  slippageUsd: number         // from NEAR Intents quote (amountIn - amountOut in USD)
-  gasStep1Usd: number         // eth_estimateGas × gasPrice × ETH price
-  gasStep2Usd: number         // eth_estimateGas on dest × dest gas price × ETH price
+  bridgeFeeUsd: number          // from Across API quote
+  slippageUsd: number           // from NEAR Intents quote (amountIn - amountOut in USD)
+  gasStep1Usd: number           // eth_estimateGas × gasPrice × ETH price
+  gasStep2Usd: number           // eth_estimateGas on dest × dest gas price × ETH price
   totalSwitchingCostUsd: number
-  currentApyDecimal: number   // from Defillama
-  targetApyDecimal: number    // from Defillama
+  currentApyDecimal: number     // from Defillama
+  targetApyDecimal: number      // from Defillama
   netUpliftDecimal: number
   dailyYieldGainUsd: number
   breakEvenDays: number
+  /** Target pool utilisation as decimal (e.g. 0.95 = 95%). Null if unavailable. */
+  targetUtilisationDecimal: number | null
   quoteFetchedAt: Date
   warnings: Warning[]
 }

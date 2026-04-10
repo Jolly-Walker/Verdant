@@ -5,9 +5,9 @@ import { RainbowKitProvider } from '@rainbow-me/rainbowkit'
 import { WagmiProvider } from 'wagmi'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { wagmiConfig } from '@/lib/wagmi'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
-export function WalletProvider({ children }: { children: React.ReactNode }) {
+function WalletProviderInner({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient())
 
   return (
@@ -19,4 +19,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       </QueryClientProvider>
     </WagmiProvider>
   )
+}
+
+/**
+ * Wraps children in wagmi + RainbowKit providers.
+ * Only mounts on the client to avoid localStorage SSR errors during Next.js build.
+ */
+export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return null
+  }
+
+  return <WalletProviderInner>{children}</WalletProviderInner>
 }
