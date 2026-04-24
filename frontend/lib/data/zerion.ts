@@ -1,10 +1,11 @@
+import 'server-only'
 import { Position } from '@/types/position'
 
 interface ZerionPosition {
   type: 'positions'
   id: string
   attributes: {
-    position_type: 'wallet' | 'deposit' | 'loan' | 'locked' | 'staked' | 'reward' | 'investment'
+    position_type: 'wallet' | 'deposited' | 'loan' | 'locked' | 'staked' | 'reward' | 'investment'
     value: number | null
     quantity: {
       decimals: number
@@ -38,6 +39,15 @@ interface ZerionFungible {
   }
 }
 
+interface ZerionResponse {
+  data: ZerionPosition[]
+  included?: Array<{
+    type: string
+    id: string
+    attributes?: unknown
+  }>
+}
+
 const ZERION_DAPP_TO_PROTOCOL: Record<string, Position['protocol']> = {
   'aave-v3': 'aave',
   'morpho': 'morpho',
@@ -53,6 +63,9 @@ const ZERION_CHAIN_TO_VERDANT: Record<string, Position['chain']> = {
 const ZERION_BASE = 'https://api.zerion.io/v1'
 
 function zerionAuthHeader(): string {
+  if (!process.env.ZERION_API_KEY) {
+    throw new Error('ZERION_API_KEY is missing from environment variables')
+  }
   const encoded = Buffer.from(`${process.env.ZERION_API_KEY}:`).toString('base64')
   return `Basic ${encoded}`
 }
@@ -62,7 +75,7 @@ const SUPPORTED_CHAIN_IDS = ['ethereum', 'arbitrum']
 
 export async function fetchZerionPositions(address: string): Promise<Position[]> {
   const params = new URLSearchParams({
-    'filter[position_types]': 'wallet,deposit',
+    'filter[position_types]': 'wallet,deposited',
     'filter[chain_ids]': SUPPORTED_CHAIN_IDS.join(','),
     'filter[dapp_ids]': SUPPORTED_DAPP_IDS.join(','),
     'currency': 'usd',
@@ -90,14 +103,14 @@ export async function fetchZerionPositions(address: string): Promise<Position[]>
       throw new Error(`Zerion API error: ${res.status} ${res.statusText}`)
     }
 
-    const json = await res.json()
+    const json = (await res.json()) as ZerionResponse
     
     // Map included fungibles
     const fungiblesMap: Record<string, ZerionFungible> = {}
     if (json.included) {
       for (const item of json.included) {
         if (item.type === 'fungibles') {
-          fungiblesMap[item.id] = item as ZerionFungible
+          fungiblesMap[item.id] = item as unknown as ZerionFungible
         }
       }
     }
@@ -125,7 +138,7 @@ function normaliseZerionPositions(raw: ZerionPosition[], fungiblesMap: Record<st
       const chainId = p.relationships.chain.data.id
       
       let symbol = 'UNKNOWN'
-      let address = fungibleId // fallback
+      let address = '' // fallback
 
       if (fungible) {
         symbol = fungible.attributes.symbol
@@ -145,7 +158,7 @@ function normaliseZerionPositions(raw: ZerionPosition[], fungiblesMap: Record<st
         amountUsd: p.attributes.value ?? 0,
         currentApy: p.attributes.apy ?? 0,
         claimableRewards: [], // populated by /api/rewards separately
-        positionType: p.attributes.position_type === 'deposit' ? 'supply' : 'lp',
+        positionType: p.attributes.position_type === 'deposited' ? 'supply' : 'lp',
         metadata: {},
       }
     })
