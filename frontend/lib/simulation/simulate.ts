@@ -49,7 +49,7 @@ export async function estimateBridgeGas(sourceChain: Chain, asset: string): Prom
     // Bridge usually involves an approve + an event emission on the SpokePool
     const totalGas = Number(approveGas) + 40_000
     return totalGas
-  } catch (error) {
+  } catch {
     console.warn(`Bridge gas simulation failed for ${sourceChain} ${asset}, using fallback`)
     return 65_000
   }
@@ -84,7 +84,7 @@ export async function estimateDepositGas(destChain: Chain, protocol: Protocol, a
     const standardDepositBuffer = 200_000 
     
     return Number(approveGas) + standardDepositBuffer
-  } catch (error) {
+  } catch {
     console.warn(`Deposit gas simulation failed for ${protocol} on ${destChain}, using fallback`)
     return 250_000
   }
