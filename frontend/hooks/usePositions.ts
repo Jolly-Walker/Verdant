@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useAccount } from 'wagmi'
+import { useWallet } from '@/hooks/useWallet'
 import { Position } from '@/types/position'
-import { fetchPositions } from '@/lib/data/debank'
+
 
 interface UsePositionsReturn {
   positions: Position[]
@@ -15,13 +15,13 @@ interface UsePositionsReturn {
 }
 
 export function usePositions(): UsePositionsReturn {
-  const { address, isConnected } = useAccount()
+  const { address, isConnected, isMounted } = useWallet()
   const [positions, setPositions] = useState<Position[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
-    if (!address || !isConnected) {
+    if (!isMounted || !address || !isConnected) {
       setPositions([])
       return
     }
@@ -30,8 +30,10 @@ export function usePositions(): UsePositionsReturn {
     setError(null)
 
     try {
-      const data = await fetchPositions(address)
-      setPositions(data)
+      const res = await fetch(`/api/positions?address=${encodeURIComponent(address)}`)
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
+      const data = await res.json()
+      setPositions(data.positions || [])
     } catch (err) {
       setError('Could not load positions. Using cached data.')
       console.error(err)
@@ -39,7 +41,7 @@ export function usePositions(): UsePositionsReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [address, isConnected])
+  }, [address, isConnected, isMounted])
 
   useEffect(() => {
     fetchData()

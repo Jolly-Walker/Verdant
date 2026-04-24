@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAccount } from 'wagmi'
+import { useWallet } from '@/hooks/useWallet'
 import { Position } from '@/types/position'
 import { Protocol } from '@/types/protocol'
 import { Chain } from '@/types/chain'
@@ -18,7 +18,7 @@ import { Spinner } from '@/components/ui/Spinner'
 type ExecuteStep = 'select_asset' | 'select_destination' | 'preview_cost' | 'proceeding'
 
 export default function ExecutePage() {
-  const { isConnected } = useAccount()
+  const { isConnected, isMounted } = useWallet()
   const router = useRouter()
   const { positions, isLoading: positionsLoading } = usePositions()
 
@@ -30,10 +30,10 @@ export default function ExecutePage() {
   const [destChain, setDestChain] = useState<Chain | null>(null)
 
   useEffect(() => {
-    if (!isConnected) {
+    if (isMounted && !isConnected) {
       router.push('/')
     }
-  }, [isConnected, router])
+  }, [isConnected, isMounted, router])
 
   // Build quote input when all selections are made
   const quoteInput = useMemo<CostPreviewInput | null>(() => {
@@ -107,7 +107,7 @@ export default function ExecutePage() {
     }
   }
 
-  if (!isConnected) return null
+  if (!isMounted || !isConnected) return null
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">

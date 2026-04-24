@@ -1,10 +1,16 @@
 import { getDefaultConfig } from '@rainbow-me/rainbowkit'
 import { mainnet, arbitrum } from 'wagmi/chains'
 
-export const wagmiConfig = getDefaultConfig({
+// Prevent multiple initialization in development (Fast Refresh)
+const projectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'ca7226feaf9c3e98f09d8aa052bd2b93'
+
+// @ts-expect-error - global property
+export const wagmiConfig = globalThis.wagmiConfig || getDefaultConfig({
   appName: 'Verdant',
-  // Non-null assertion strictly following the SPECS, but fallback added just in case it breaks locally without .env
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'ca7226feaf9c3e98f09d8aa052bd2b93',
+  projectId,
   chains: [mainnet, arbitrum],
   ssr: true,
 })
+
+// @ts-expect-error - global property
+if (process.env.NODE_ENV !== 'production') globalThis.wagmiConfig = wagmiConfig

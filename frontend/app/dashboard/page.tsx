@@ -2,25 +2,24 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAccount, useDisconnect } from 'wagmi'
+import { useWallet } from '@/hooks/useWallet'
 import { ConnectButton } from '@/components/wallet/ConnectButton'
 import { PositionList } from '@/components/positions/PositionList'
 import { usePositions } from '@/hooks/usePositions'
 import { formatUsd } from '@/lib/utils/formatting'
 
 export default function Dashboard() {
-  const { isConnected } = useAccount()
-  const { disconnect } = useDisconnect()
+  const { isConnected, disconnect, isMounted } = useWallet()
   const router = useRouter()
   const { positions, isLoading, error, refetch, totalValueUsd, totalRewardsUsd } = usePositions()
 
   useEffect(() => {
-    if (!isConnected) {
+    if (isMounted && !isConnected) {
       router.push('/')
     }
-  }, [isConnected, router])
+  }, [isConnected, isMounted, router])
 
-  if (!isConnected) {
+  if (!isMounted || !isConnected) {
     return null
   }
 

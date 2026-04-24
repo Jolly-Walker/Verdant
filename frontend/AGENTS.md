@@ -15,7 +15,7 @@ The core value proposition is:
 
 - On-chain power users managing $100K–$10M
 - Currently using Gnosis Safe, MetaMask, or Rabby with manual bridging
-- Tracking positions in spreadsheets or DeBank
+- Tracking positions in spreadsheets or Zerion
 - Want to deploy capital into yield protocols across Ethereum and Arbitrum
 - Do NOT want an autonomous vault — they want to remain in control
 
@@ -26,7 +26,7 @@ The core value proposition is:
 ### In Scope
 
 - Connect EVM wallet (MetaMask, Rabby, WalletConnect via RainbowKit)
-- Display current yield positions across Ethereum and Arbitrum using DeBank OpenAPI
+- Display current yield positions across Ethereum and Arbitrum using Zerion API
 - Cross-chain execution flow: select asset → select destination protocol → preview full cost → execute
 - Cost preview engine: bridge fee, swap slippage, gas on destination chain, net yield difference, break-even time
 - Two-step signing flow: Step 1 signs the bridge/transfer via NEAR Intents + Across Protocol. Step 2 signs the protocol deposit on the destination chain
@@ -66,7 +66,7 @@ This is a deliberate Phase 1 decision to avoid deploying a custom receiver contr
 
 ### Read-Only Position Data
 
-Position display uses DeBank OpenAPI and Defillama Yields API. Verdant does not maintain its own on-chain indexer in Phase 1.
+Position display uses Zerion API and Defillama Yields API. Verdant does not maintain its own on-chain indexer in Phase 1.
 
 ### User Retains Custody At All Times
 
@@ -83,7 +83,7 @@ Verdant never holds user funds. Every transaction is signed by the user's own wa
 | Wallet connection | RainbowKit + wagmi + viem |
 | Cross-chain routing | NEAR Intents SDK |
 | Bridge | Across Protocol SDK |
-| Position data | DeBank OpenAPI + Defillama Yields API |
+| Position data | Zerion API + Defillama Yields API |
 | Protocol ABIs | Aave V3, Morpho, Pendle, Euler official repos |
 | Database | Supabase (user preferences, saved positions, harvest history) |
 | Styling | Tailwind CSS |
@@ -97,7 +97,7 @@ Verdant never holds user funds. Every transaction is signed by the user's own wa
 ### Flow 1: Execute Cross-Chain Yield Deployment
 
 1. User connects EVM wallet
-2. User sees current positions pulled from DeBank API
+2. User sees current positions pulled from Zerion API
 3. User selects an asset and amount to move (e.g., 50,000 USDC on Ethereum)
 4. User selects destination: protocol + chain (e.g., Aave USDC on Arbitrum)
 5. Cost preview screen displays:
@@ -182,7 +182,7 @@ All figures must refresh when the user changes amount, route, or destination. St
 
 | Data | Source | Fallback |
 |---|---|---|
-| Portfolio positions | DeBank OpenAPI | Manual wallet read via viem |
+| Portfolio positions | Zerion API | Manual wallet read via viem |
 | Protocol APYs | Defillama Yields API | Protocol-native subgraphs |
 | Bridge quotes | Across Protocol API | — |
 | Swap routing | NEAR Intents quote API | — |
@@ -217,5 +217,5 @@ All figures must refresh when the user changes amount, route, or destination. St
 - Not a robo-advisor. Never make autonomous allocation decisions.
 - Not a bridge. You use Across. You do not build bridge infrastructure.
 - Not a DEX. You use NEAR Intents for routing. You do not build AMM logic.
-- Not a portfolio tracker. DeBank does that. You display positions as context for execution, not as the core product.
+- Not a portfolio tracker. Zerion does that. You display positions as context for execution, not as the core product.
 - Not a vault protocol. That is Phase 2. Do not build LP deposit, vault tokens, or NAV accounting in Phase 1.
