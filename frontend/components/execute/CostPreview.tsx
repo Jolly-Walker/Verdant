@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { WarningBanner } from '@/components/ui/WarningBanner'
 import { formatUsd, formatPercent } from '@/lib/utils/formatting'
 import { getChainDisplayName } from '@/lib/utils/chains'
-import { PROTOCOL_CONFIG } from '@/constants/protocols'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 
 interface CostPreviewProps {
   quote: CostPreviewResult | null
@@ -58,7 +58,7 @@ export function CostPreview({
     return null
   }
 
-  const protocolDisplay = PROTOCOL_CONFIG[destProtocol]?.displayName || destProtocol
+  const protocolDisplay = PROTOCOL_REGISTRY[destProtocol]?.displayName || destProtocol
 
   return (
     <Card className="flex flex-col gap-0 p-0 overflow-hidden">

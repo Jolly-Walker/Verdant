@@ -1,11 +1,11 @@
 import { Chain } from '@/types/chain'
-import { SUPPORTED_CHAINS } from '@/constants/chains'
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
 
 /**
  * Get a block explorer URL for a transaction hash.
  */
 export function getExplorerTxUrl(chain: Chain, txHash: string): string {
-  const config = SUPPORTED_CHAINS[chain]
+  const config = CHAIN_REGISTRY[chain]
   return `${config.explorerUrl}/tx/${txHash}`
 }
 
@@ -13,7 +13,7 @@ export function getExplorerTxUrl(chain: Chain, txHash: string): string {
  * Get a block explorer URL for an address.
  */
 export function getExplorerAddressUrl(chain: Chain, address: string): string {
-  const config = SUPPORTED_CHAINS[chain]
+  const config = CHAIN_REGISTRY[chain]
   return `${config.explorerUrl}/address/${address}`
 }
 
@@ -21,12 +21,12 @@ export function getExplorerAddressUrl(chain: Chain, address: string): string {
  * Get the human-readable display name for a chain.
  */
 export function getChainDisplayName(chain: Chain): string {
-  return SUPPORTED_CHAINS[chain].displayName
+  return CHAIN_REGISTRY[chain].displayName
 }
 
 /**
  * Get chain ID for a given chain.
  */
 export function getChainId(chain: Chain): number {
-  return SUPPORTED_CHAINS[chain].chainId
+  return CHAIN_REGISTRY[chain].chainIdOrNetwork as number
 }

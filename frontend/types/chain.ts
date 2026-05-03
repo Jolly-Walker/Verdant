@@ -1,1 +1,2 @@
-export type Chain = 'ethereum' | 'arbitrum'
+import { ChainId } from '@/lib/plugins/types/shared'
+export type Chain = ChainId

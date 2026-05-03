@@ -1,1 +1,2 @@
-export type Protocol = 'aave' | 'morpho' | 'pendle' | 'euler'
+import { ProtocolId } from '@/lib/plugins/types/shared'
+export type Protocol = ProtocolId

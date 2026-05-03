@@ -12,6 +12,8 @@ import { Chain } from '@/types/chain'
 const ALCHEMY_RPC_URLS: Record<Chain, string> = {
   ethereum: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ETHEREUM || ''}`,
   arbitrum: `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ARBITRUM || ''}`,
+  base: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_BASE || ''}`,
+  solana: `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_SOLANA || ''}`,
 }
 
 /**
@@ -30,6 +32,8 @@ export async function fetchGasPrice(chain: Chain): Promise<number> {
   const FALLBACK_GWEI: Record<Chain, number> = {
     ethereum: 25,
     arbitrum: 0.1,
+    base: 0.1,
+    solana: 0,
   }
 
   const rpcUrl = getRpcUrl(chain)

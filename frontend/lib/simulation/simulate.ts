@@ -4,7 +4,8 @@ import { mainnet, arbitrum } from 'viem/chains'
 import { Chain } from '@/types/chain'
 import { Protocol } from '@/types/protocol'
 import { getRpcUrl } from '@/lib/server/rpc'
-import { PROTOCOL_CONFIG, SUPPORTED_TOKENS } from '@/constants/protocols'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { SUPPORTED_TOKENS } from '@/lib/plugins/tokens'
 
 // Dummy address for gas estimation routines where the user is unconnected.
 const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
@@ -62,14 +63,14 @@ export async function estimateDepositGas(destChain: Chain, protocol: Protocol, a
   try {
     const client = getClient(destChain)
     const tokenConfig = SUPPORTED_TOKENS[asset]
-    const protocolConfig = PROTOCOL_CONFIG[protocol]
+    const protocolConfig = PROTOCOL_REGISTRY[protocol]
     
-    if (!tokenConfig || !tokenConfig.addresses[destChain] || !protocolConfig || !protocolConfig.poolAddresses[destChain]) {
+    if (!tokenConfig || !tokenConfig.addresses[destChain] || !protocolConfig || !protocolConfig.addresses[destChain]?.poolAddress) {
       return 250_000 // default fallback
     }
 
     const tokenAddress = tokenConfig.addresses[destChain]
-    const poolAddress = protocolConfig.poolAddresses[destChain]
+    const poolAddress = protocolConfig.addresses[destChain]?.poolAddress
 
     // Estimate an approve against the destination pool.
     // Further granular deposit estimation (e.g. `supply` in Aave V3) is deferred to Milestone 3 SDK integration.

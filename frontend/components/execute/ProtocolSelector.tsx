@@ -3,7 +3,7 @@
 import React from 'react'
 import { Protocol } from '@/types/protocol'
 import { Chain } from '@/types/chain'
-import { PROTOCOL_CONFIG, PROTOCOL_LIST } from '@/constants/protocols'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { useApys } from '@/hooks/useApys'
 import { formatPercent } from '@/lib/utils/formatting'
 import { getChainDisplayName } from '@/lib/utils/chains'
@@ -32,8 +32,9 @@ export function ProtocolSelector({
       </h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {PROTOCOL_LIST.map((protocol) =>
-          PROTOCOL_CONFIG[protocol].chains.map((chain) => {
+        {Object.keys(PROTOCOL_REGISTRY).map((protocolId) => {
+          const protocol = protocolId as Protocol
+          return PROTOCOL_REGISTRY[protocol].supportedChains.map((chain) => {
             const isSource =
               protocol === sourceProtocol && chain === sourceChain
             const isSelected =
@@ -51,7 +52,7 @@ export function ProtocolSelector({
               />
             )
           })
-        )}
+        })}
       </div>
     </div>
   )
@@ -73,7 +74,7 @@ function ProtocolOption({
   onSelect: (p: Protocol, c: Chain) => void
 }) {
   const { apy, isLoading } = useApys(protocol, chain, asset)
-  const config = PROTOCOL_CONFIG[protocol]
+  const config = PROTOCOL_REGISTRY[protocol]
 
   return (
     <button
@@ -116,3 +117,4 @@ function ProtocolOption({
     </button>
   )
 }
+
