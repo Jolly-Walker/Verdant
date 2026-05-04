@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSignTypedData } from 'wagmi';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
-import { createBridgeIntent } from '@/lib/routing/nearIntents';
-import { getAcrossBridgeStatus } from '@/lib/routing/across';
+import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
 import { Chain } from '@/types/chain';
 
 export interface StepOneBridgeProps {
@@ -62,19 +61,26 @@ export function StepOneBridge({
 
       setState('creating_intent');
 
-      // 2. Create intent via routing SDK
-      const intent = await createBridgeIntent({
-        tokenIn: asset,
-        tokenOut: asset,
-        amountIn: amount,
-        slippageTolerance: 0.005, // 0.5%
+      // 2. Use Near Intents plugin via registry
+      const nearPlugin = BRIDGE_REGISTRY.nearIntents;
+      const quote = await nearPlugin.getQuote({
+        fromChain: sourceChain as any,
+        toChain: destChain as any,
+        token: asset,
+        amount,
         recipientAddress
       });
 
-      setOriginTxHash(intent.intentId);
+      if (!quote) throw new Error('Could not get bridge quote');
+
+      // In a real flow, we'd build and send the tx here. 
+      // For StepOneBridge (MVP), we use the intent ID from rawQuote
+      const intentId = (quote.rawQuote as any).intentId;
+      setOriginTxHash(intentId);
       setState('bridging');
 
-      // 3. Poll for status every 15 seconds as per SPECS.md
+      // 3. Poll for status using the Across plugin (which handles both in this MVP)
+      const acrossPlugin = BRIDGE_REGISTRY.across;
       let attempts = 0;
       const pollInterval = setInterval(async () => {
         attempts++;
@@ -85,14 +91,14 @@ export function StepOneBridge({
           return;
         }
 
-        const status = await getAcrossBridgeStatus(intent.intentId);
-        if (status.status === 'filled') {
+        const status = await acrossPlugin.pollStatus(intentId, sourceChain as any);
+        if (status.status === 'complete') {
           clearInterval(pollInterval);
           setState('completed');
-          onComplete(status.fillTxHash);
+          onComplete(status.destinationTxHash);
         } else if (status.status === 'failed') {
           clearInterval(pollInterval);
-          setError('Bridge transaction failed at the protocol level.');
+          setError(status.errorMessage || 'Bridge transaction failed at the protocol level.');
           setState('error');
         }
       }, 15000);

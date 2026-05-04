@@ -8,6 +8,22 @@ export const arbitrumPlugin: ChainPlugin = {
   explorerUrl: 'https://arbiscan.io',
   nativeCurrency: { symbol: 'ETH', decimals: 18 },
   bridgeableTokens: ['ETH', 'USDC', 'USDT', 'WBTC', 'wstETH'],
-  getRpcClient: async () => { throw new Error('Not implemented') },
-  estimateGasCostUsd: async () => 0,
+
+  async getRpcClient() {
+    const { createPublicClient, http } = await import('viem')
+    const { arbitrum } = await import('viem/chains')
+    
+    const rpcUrl = `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ARBITRUM || ''}`
+    
+    return createPublicClient({
+      chain: arbitrum,
+      transport: http(rpcUrl)
+    })
+  },
+
+  async estimateGasCostUsd(tx: unknown): Promise<number> {
+    // Arbitrum is much cheaper than L1
+    // Return a mock value for now as requested in Milestone 2
+    return 0.50 // Mock $0.50 for Arbitrum
+  }
 }
