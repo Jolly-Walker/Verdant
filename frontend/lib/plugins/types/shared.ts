@@ -34,7 +34,8 @@ export interface RawPosition {
 }
 
 export interface UnsignedTx {
-  chainId: ChainId
+  /** Numeric ID for EVM; 'solana-mainnet' for Solana */
+  chainId: number | string
   to: string
   data: string
   value: bigint

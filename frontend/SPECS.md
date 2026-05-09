@@ -1226,15 +1226,18 @@ must only be accessed inside `app/api/` routes or `lib/server/` utilities.
 
 ## 20. Milestones & Build Order
 
-### ✅ Milestone 1 — Core Infrastructure (Complete per v2)
+### Milestone 1 — Core Infrastructure (Enhanced for Security)
 
 - [x] Next.js 14 + TypeScript + Tailwind setup
 - [x] RainbowKit + wagmi + viem — EVM wallet connection
 - [x] Alchemy RPC for Ethereum + Arbitrum
 - [x] Supabase project + schema migrations 001–004
 - [x] Zerion API proxy — `/api/positions`
+- [x] **Zod input validation** on all API routes (security hardening)
+- [x] **Server-side proxying** for all external protocol/bridge APIs
 - [x] Basic dashboard with position list (supply positions only)
 - [x] Environment variable configuration
+
 
 ---
 

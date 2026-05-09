@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useSignTypedData } from 'wagmi';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
-import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
+import { useBridges } from '@/hooks/useBridges';
 import { Chain } from '@/types/chain';
+import { ChainId } from '@/lib/plugins/types/shared';
 
 export interface StepOneBridgeProps {
   asset: string;
@@ -33,6 +34,7 @@ export function StepOneBridge({
   const [error, setError] = useState<string | null>(null);
   const [originTxHash, setOriginTxHash] = useState<string | null>(null);
   const { signTypedDataAsync } = useSignTypedData();
+  const { getQuote, pollStatus } = useBridges();
   
   // Prevent navigation during critical states
   useEffect(() => {
@@ -61,11 +63,10 @@ export function StepOneBridge({
 
       setState('creating_intent');
 
-      // 2. Use Near Intents plugin via registry
-      const nearPlugin = BRIDGE_REGISTRY.nearIntents;
-      const quote = await nearPlugin.getQuote({
-        fromChain: sourceChain as any,
-        toChain: destChain as any,
+      // 2. Use useBridges hook to get a quote
+      const quote = await getQuote({
+        fromChain: sourceChain as unknown as ChainId,
+        toChain: destChain as unknown as ChainId,
         token: asset,
         amount,
         recipientAddress
@@ -75,12 +76,11 @@ export function StepOneBridge({
 
       // In a real flow, we'd build and send the tx here. 
       // For StepOneBridge (MVP), we use the intent ID from rawQuote
-      const intentId = (quote.rawQuote as any).intentId;
+      const intentId = (quote.rawQuote as { intentId: string }).intentId;
       setOriginTxHash(intentId);
       setState('bridging');
 
-      // 3. Poll for status using the Across plugin (which handles both in this MVP)
-      const acrossPlugin = BRIDGE_REGISTRY.across;
+      // 3. Poll for status using the useBridges hook
       let attempts = 0;
       const pollInterval = setInterval(async () => {
         attempts++;
@@ -91,7 +91,12 @@ export function StepOneBridge({
           return;
         }
 
-        const status = await acrossPlugin.pollStatus(intentId, sourceChain as any);
+        const status = await pollStatus({
+          txHash: intentId,
+          fromChain: sourceChain as unknown as ChainId,
+          bridgeId: quote.bridgeId
+        });
+
         if (status.status === 'complete') {
           clearInterval(pollInterval);
           setState('completed');

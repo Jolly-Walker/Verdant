@@ -1,15 +1,27 @@
 import { fetchZerionPositions } from '@/lib/data/zerion'
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+
+const PositionsQuerySchema = z.object({
+  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address'),
+})
 
 export async function GET(req: NextRequest) {
-  const address = req.nextUrl.searchParams.get('address')
+  const { searchParams } = new URL(req.url)
+  const query = {
+    address: searchParams.get('address'),
+  }
 
-  if (!address || !/^0x[a-fA-F0-9]{40}$/.test(address)) {
+  const result = PositionsQuerySchema.safeParse(query)
+
+  if (!result.success) {
     return NextResponse.json(
-      { error: 'Invalid or missing wallet address' },
+      { error: result.error.errors[0].message },
       { status: 400 }
     )
   }
+
+  const { address } = result.data
 
   try {
     const positions = await fetchZerionPositions(address)
