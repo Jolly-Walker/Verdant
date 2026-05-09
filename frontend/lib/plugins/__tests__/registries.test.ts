@@ -7,8 +7,10 @@ describe('Plugin Registries', () => {
   it('should have a functional CHAIN_REGISTRY', () => {
     expect(CHAIN_REGISTRY.ethereum).toBeDefined()
     expect(CHAIN_REGISTRY.arbitrum).toBeDefined()
+    expect(CHAIN_REGISTRY.base).toBeDefined()
     expect(CHAIN_REGISTRY.ethereum.displayName).toBe('Ethereum')
     expect(CHAIN_REGISTRY.arbitrum.id).toBe('arbitrum')
+    expect(CHAIN_REGISTRY.base.chainIdOrNetwork).toBe(8453)
   })
 
   it('should have a functional PROTOCOL_REGISTRY', () => {
@@ -16,6 +18,8 @@ describe('Plugin Registries', () => {
     expect(PROTOCOL_REGISTRY.morpho).toBeDefined()
     expect(PROTOCOL_REGISTRY.aave.displayName).toBe('Aave V3')
     expect(PROTOCOL_REGISTRY.aave.supportedChains).toContain('ethereum')
+    expect(PROTOCOL_REGISTRY.aave.supportedChains).toContain('base')
+    expect(PROTOCOL_REGISTRY.morpho.supportedChains).toContain('base')
   })
 
   it('should have a functional BRIDGE_REGISTRY', () => {

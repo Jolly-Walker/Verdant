@@ -1243,16 +1243,16 @@ must only be accessed inside `app/api/` routes or `lib/server/` utilities.
 **Goal:** Establish the plugin registry pattern so all subsequent work lands in plugin files.
 
 **Tasks:**
-- [ ] Define `ChainPlugin`, `ProtocolPlugin`, `BridgePlugin` interfaces in `lib/plugins/types/`
-- [ ] Define shared types in `lib/plugins/types/shared.ts`
-- [ ] Migrate existing chain config (`constants/chains.ts`) to `lib/plugins/chains/ethereum.ts` and `arbitrum.ts`
-- [ ] Migrate existing protocol config (`constants/protocols.ts`) to `lib/plugins/protocols/aave.ts`, `morpho.ts`, `pendle.ts`, `euler.ts`
-- [ ] Create `lib/plugins/chains/index.ts` with `CHAIN_REGISTRY`
-- [ ] Create `lib/plugins/protocols/index.ts` with `PROTOCOL_REGISTRY`
-- [ ] Create `lib/plugins/bridges/index.ts` with `BRIDGE_REGISTRY`
-- [ ] Write `getBridgeQuotes()` utility in bridge registry
-- [ ] Update all existing imports to use registry lookups
-- [ ] Write plugin unit tests: each plugin implements interface, registry lookup works
+- [x] Define `ChainPlugin`, `ProtocolPlugin`, `BridgePlugin` interfaces in `lib/plugins/types/`
+- [x] Define shared types in `lib/plugins/types/shared.ts`
+- [x] Migrate existing chain config (`constants/chains.ts`) to `lib/plugins/chains/ethereum.ts` and `arbitrum.ts`
+- [x] Migrate existing protocol config (`constants/protocols.ts`) to `lib/plugins/protocols/aave.ts`, `morpho.ts`, `pendle.ts`, `euler.ts`
+- [x] Create `lib/plugins/chains/index.ts` with `CHAIN_REGISTRY`
+- [x] Create `lib/plugins/protocols/index.ts` with `PROTOCOL_REGISTRY`
+- [x] Create `lib/plugins/bridges/index.ts` with `BRIDGE_REGISTRY`
+- [x] Write `getBridgeQuotes()` utility in bridge registry
+- [x] Update all existing imports to use registry lookups
+- [x] Write plugin unit tests: each plugin implements interface, registry lookup works
 
 **Definition of done:** Adding a mock chain plugin to `CHAIN_REGISTRY` makes it appear in the
 dashboard chain selector without any other code changes.

@@ -9,7 +9,5 @@ export interface ChainPlugin {
   explorerUrl: string
   nativeCurrency: { symbol: string; decimals: number }
   bridgeableTokens: TokenSymbol[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  getRpcClient(): Promise<PublicClient | any>
   estimateGasCostUsd(tx: unknown): Promise<number>
 }

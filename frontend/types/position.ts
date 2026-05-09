@@ -1,26 +1,32 @@
-import { Protocol } from "./protocol"
-import { Chain } from "./chain"
+import { RawPosition, PositionType } from "@/lib/plugins/types/shared"
 
 export interface Reward {
   token: string
-  amount: number
+  amount: string
   amountUsd: number
 }
 
-export interface ProtocolMetadata {
-  [key: string]: string | number | boolean | null | undefined
+export interface Position extends RawPosition {
+  // Enriched fields added by aggregation pipeline
+  priceUsd: number           // current token price
+  percentChange24h?: number  // from Defillama
+  
+  // Borrow-specific
+  healthFactor?: number
+  liquidationPrice?: number
+  borrowApy?: number
+  
+  // Pendle-specific
+  maturityDate?: string      // string for serialisation (Date in spec, but typically string in API responses)
+  fixedApy?: number          // for PT
+  impliedApy?: number        // for YT
+  underlyingAsset?: string
+  
+  // LP-specific (future)
+  token0?: string
+  token1?: string
+  feeTier?: number
 }
 
-export interface Position {
-  id: string
-  protocol: Protocol
-  chain: Chain
-  asset: string              // token symbol
-  assetAddress: string
-  amount: number             // token amount
-  amountUsd: number          // USD value
-  currentApy: number         // as decimal e.g. 0.065 = 6.5%
-  claimableRewards: Reward[]
-  positionType: 'supply' | 'borrow' | 'lp'
-  metadata: ProtocolMetadata // protocol-specific data
-}
+// Re-export PositionType for convenience
+export type { PositionType }

@@ -1,5 +1,6 @@
 import 'server-only'
 import { Position } from '@/types/position'
+import { ChainId, ProtocolId } from '@/lib/plugins/types/shared'
 
 interface ZerionPosition {
   type: 'positions'
@@ -34,9 +35,10 @@ interface ZerionResponse {
   data: ZerionPosition[]
 }
 
-const ZERION_CHAIN_TO_VERDANT: Record<string, Position['chain']> = {
+const ZERION_CHAIN_TO_VERDANT: Record<string, ChainId> = {
   'ethereum': 'ethereum',
   'arbitrum': 'arbitrum',
+  'base': 'base',
 }
 
 const ZERION_BASE = 'https://api.zerion.io/v1'
@@ -49,7 +51,7 @@ function zerionAuthHeader(): string {
   return `Basic ${encoded}`
 }
 
-function getVerdantProtocol(protocol: string | null, symbol: string, name: string): Position['protocol'] | null {
+function getVerdantProtocol(protocol: string | null, symbol: string, name: string): ProtocolId | null {
   const p = (protocol || '').toLowerCase()
   const s = symbol.toLowerCase()
   const n = name.toLowerCase()
@@ -61,11 +63,12 @@ function getVerdantProtocol(protocol: string | null, symbol: string, name: strin
   return null
 }
 
-const SUPPORTED_CHAIN_IDS = ['ethereum', 'arbitrum']
+const SUPPORTED_CHAIN_IDS = ['ethereum', 'arbitrum', 'base']
 
 export async function fetchZerionPositions(address: string): Promise<Position[]> {
   const params = new URLSearchParams({
     'filter[chain_ids]': SUPPORTED_CHAIN_IDS.join(','),
+    'filter[position_types]': 'wallet,deposited,borrowed,staked',
     'currency': 'usd',
   })
 
@@ -122,30 +125,34 @@ function normaliseZerionPositions(raw: ZerionPosition[]): Position[] {
       const mappedProtocol = getVerdantProtocol(protocolName, symbol, name)
       const mappedChain = ZERION_CHAIN_TO_VERDANT[chainId || '']
 
-      if (!mappedProtocol || !mappedChain) return null
+      if (!mappedChain) return null
+      if (!mappedProtocol && p.attributes.position_type !== 'wallet') return null
 
       const posType = p.attributes.position_type
-      // Map Zerion position types to Verdant types ('supply', 'borrow', 'lp')
       let mappedPosType: Position['positionType'] = 'supply'
-      if (posType === 'loan') {
+      
+      if (posType === 'wallet') {
+        mappedPosType = 'wallet'
+      } else if (posType === 'loan') {
         mappedPosType = 'borrow'
-      } else if (posType === 'locked' || posType === 'reward') {
-        mappedPosType = 'lp' // Fallback for unsupported types if they sneak in
+      } else if (posType === 'staked' || posType === 'locked') {
+        mappedPosType = 'lp'
       }
 
       return {
         id: p.id,
-        protocol: mappedProtocol,
+        protocol: mappedProtocol || 'wallet', // Fallback for wallet tokens
         chain: mappedChain,
         asset: symbol,
         assetAddress: address,
         amount: p.attributes.quantity?.float ?? 0,
         amountUsd: p.attributes.value ?? 0,
         currentApy: p.attributes.apy ?? 0,
-        claimableRewards: [], // populated by /api/rewards separately
+        claimableRewards: [], 
         positionType: mappedPosType,
         metadata: {},
+        priceUsd: (p.attributes.value ?? 0) / (p.attributes.quantity?.float || 1),
       } as Position
     })
-    .filter((p): p is Position => p !== null)
+    .filter((p): p is Position => p !== null && (p.protocol !== 'wallet' || p.positionType === 'wallet'))
 }

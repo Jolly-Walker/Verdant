@@ -1,9 +1,10 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Position } from '@/types/position'
 import { PositionCard } from './PositionCard'
 import { PositionSkeleton } from './PositionSkeleton'
-import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
-import { ChainId } from '@/lib/plugins/types/shared'
+import { PositionTypeFilter } from './PositionTypeFilter'
+import { useChainMetadata } from '@/hooks/useChainMetadata'
+import { ChainId, PositionType } from '@/lib/plugins/types/shared'
 
 interface PositionListProps {
   positions: Position[]
@@ -11,6 +12,9 @@ interface PositionListProps {
 }
 
 export function PositionList({ positions, isLoading }: PositionListProps) {
+  const [filter, setFilter] = useState<PositionType | 'all'>('all')
+  const { chainIds, getChainMetadata } = useChainMetadata()
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -21,16 +25,30 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
     )
   }
 
-  const chainIds = Object.keys(CHAIN_REGISTRY) as ChainId[]
-  const positionsByChain = chainIds.map(chainId => ({
-    chainId,
-    displayName: CHAIN_REGISTRY[chainId].displayName,
-    positions: positions.filter(p => p.chain === chainId)
-  })).filter(group => group.positions.length > 0)
+  const filteredPositions = filter === 'all' 
+    ? positions 
+    : positions.filter(p => {
+        if (filter === 'pendle-pt') return p.positionType === 'pendle-pt' || p.positionType === 'pendle-yt'
+        return p.positionType === filter
+      })
 
-  if (!positions || positions.length === 0 || positionsByChain.length === 0) {
+  const positionsByChain = chainIds.map(chainId => {
+    const chainPositions = filteredPositions.filter(p => p.chain === chainId)
+    const assets = chainPositions.filter(p => p.positionType !== 'borrow')
+    const liabilities = chainPositions.filter(p => p.positionType === 'borrow')
+    
+    return {
+      chainId,
+      displayName: getChainMetadata(chainId).displayName,
+      assets,
+      liabilities,
+      hasPositions: chainPositions.length > 0
+    }
+  }).filter(group => group.hasPositions)
+
+  if (!positions || positions.length === 0) {
     const supportedChains = chainIds
-      .map(id => CHAIN_REGISTRY[id].displayName)
+      .map(id => getChainMetadata(id).displayName)
       .filter(Boolean)
       .join(', ')
 
@@ -48,20 +66,50 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
   }
 
   return (
-    <div className="space-y-10">
-      {positionsByChain.map((group) => (
-        <section key={group.chainId}>
-          <div className="flex items-center gap-3 mb-5">
-            <h2 className="text-xl font-bold text-zinc-100">{group.displayName}</h2>
-            <div className="h-px flex-1 bg-zinc-800"></div>
+    <div className="space-y-6">
+      <PositionTypeFilter selected={filter} onChange={setFilter} />
+      
+      <div className="space-y-12 pt-4">
+        {positionsByChain.map((group) => (
+          <section key={group.chainId}>
+            <div className="flex items-center gap-3 mb-6">
+              <h2 className="text-xl font-bold text-zinc-100">{group.displayName}</h2>
+              <div className="h-px flex-1 bg-zinc-800"></div>
+              <p className="text-xs text-zinc-500 font-mono uppercase">
+                {group.assets.length + group.liabilities.length} positions
+              </p>
+            </div>
+
+            {group.assets.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {group.assets.map((p) => (
+                  <PositionCard key={p.id} position={p} />
+                ))}
+              </div>
+            )}
+
+            {group.liabilities.length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                  <span className="h-1 w-1 rounded-full bg-red-500"></span>
+                  <h3 className="text-xs font-bold text-red-500/80 uppercase tracking-widest">Liabilities</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {group.liabilities.map((p) => (
+                    <PositionCard key={p.id} position={p} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        ))}
+
+        {positionsByChain.length === 0 && (
+          <div className="py-12 text-center border border-zinc-800 rounded-xl bg-zinc-900/50">
+            <p className="text-zinc-500">No positions match the selected filter.</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {group.positions.map((p) => (
-              <PositionCard key={p.id} position={p} />
-            ))}
-          </div>
-        </section>
-      ))}
+        )}
+      </div>
     </div>
   )
 }

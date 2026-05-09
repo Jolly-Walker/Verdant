@@ -9,26 +9,19 @@ export const ethereumPlugin: ChainPlugin = {
   nativeCurrency: { symbol: 'ETH', decimals: 18 },
   bridgeableTokens: ['ETH', 'USDC', 'USDT', 'WBTC', 'wstETH'],
   
-  async getRpcClient() {
-    const { createPublicClient, http } = await import('viem')
-    const { mainnet } = await import('viem/chains')
-    
-    const rpcUrl = `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ETHEREUM || ''}`
-    
-    return createPublicClient({
-      chain: mainnet,
-      transport: http(rpcUrl)
-    })
-  },
-
   async estimateGasCostUsd(tx: unknown): Promise<number> {
-    // Basic estimation: ~200k gas for complex tx, ~21k for simple
-    const gasLimit = 150000n 
-    const gasPriceGwei = 20n 
-    const ethPriceUsd = 3500
+    const { fetchGasPrice } = await import('@/lib/server/rpc')
+    const { getEthPrice } = await import('@/lib/data/prices')
+
+    const gasLimit = 200000n 
+    const [gasPriceGwei, ethPrice] = await Promise.all([
+      fetchGasPrice('ethereum'),
+      getEthPrice()
+    ])
     
-    // cost = gasLimit * gasPriceGwei * 1e9 / 1e18
-    const costEth = (gasLimit * gasPriceGwei) / 1000000000n 
-    return Number(costEth) * ethPriceUsd / 1e9 // Result in USD
+    const gasPriceWei = BigInt(Math.floor(gasPriceGwei * 1e9))
+    const costWei = gasLimit * gasPriceWei
+    const costEth = Number(costWei) / 1e18
+    return costEth * ethPrice
   }
 }

@@ -1,0 +1,51 @@
+import React from 'react'
+import { Position } from '@/types/position'
+import { HealthFactor } from '../ui/HealthFactor'
+
+export function BorrowCard({ position }: { position: Position }) {
+  const borrowApyPercent = (position.currentApy * 100).toFixed(2)
+  
+  return (
+    <div className="bg-zinc-900 border border-red-900/30 rounded-xl p-5 flex flex-col gap-5 hover:border-red-900/50 transition">
+      <div className="flex flex-col gap-1">
+        <div className="flex justify-between items-start">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-white">
+              {position.asset} Debt
+            </h3>
+            <span className="text-[10px] bg-red-950 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+              Borrow
+            </span>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-bold text-white">${position.amountUsd.toFixed(2)}</p>
+          </div>
+        </div>
+        <div className="flex justify-between items-start">
+          <p className="text-sm text-zinc-400 capitalize">
+            {position.protocol} • {position.chain}
+          </p>
+          <div className="text-right">
+            <p className="text-sm text-zinc-400">{position.amount.toFixed(4)} {position.asset}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 bg-zinc-950/50 rounded-lg p-3 border border-zinc-800/60">
+        <div>
+          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Borrow APY</p>
+          <p className="text-red-400 font-medium">{borrowApyPercent}%</p>
+        </div>
+        {position.healthFactor !== undefined && (
+          <HealthFactor value={position.healthFactor} />
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2 mt-auto pt-2">
+        <button className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
+          Repay
+        </button>
+      </div>
+    </div>
+  )
+}

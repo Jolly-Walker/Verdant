@@ -1,21 +1,22 @@
 import { ChainPlugin } from '../types/chain-plugin'
 
-export const arbitrumPlugin: ChainPlugin = {
-  id: 'arbitrum',
-  displayName: 'Arbitrum One',
-  chainIdOrNetwork: 42161,
+export const basePlugin: ChainPlugin = {
+  id: 'base',
+  displayName: 'Base',
+  chainIdOrNetwork: 8453,
   family: 'evm',
-  explorerUrl: 'https://arbiscan.io',
+  explorerUrl: 'https://basescan.org',
   nativeCurrency: { symbol: 'ETH', decimals: 18 },
-  bridgeableTokens: ['ETH', 'USDC', 'USDT', 'WBTC', 'wstETH'],
-
+  bridgeableTokens: ['ETH', 'USDC', 'USDT', 'cbETH'],
+  
   async estimateGasCostUsd(tx: unknown): Promise<number> {
     const { fetchGasPrice } = await import('@/lib/server/rpc')
     const { getEthPrice } = await import('@/lib/data/prices')
-
-    const gasLimit = 600000n // Arbitrum gas limits are higher but price is lower
+    
+    // Default to a reasonable limit for complex txs
+    const gasLimit = 200000n 
     const [gasPriceGwei, ethPrice] = await Promise.all([
-      fetchGasPrice('arbitrum'),
+      fetchGasPrice('base'),
       getEthPrice()
     ])
     

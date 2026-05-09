@@ -8,6 +8,8 @@
 
 import 'server-only'
 import { Chain } from '@/types/chain'
+import { createPublicClient, http, PublicClient } from 'viem'
+import { mainnet, arbitrum, base } from 'viem/chains'
 
 const ALCHEMY_RPC_URLS: Record<Chain, string> = {
   ethereum: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ETHEREUM || ''}`,
@@ -25,6 +27,29 @@ export function getRpcUrl(chain: Chain): string {
 }
 
 /**
+ * Get a viem PublicClient for a given EVM chain.
+ */
+export function getPublicClient(chain: Chain): PublicClient {
+  const rpcUrl = getRpcUrl(chain)
+  
+  const chainMap: Record<string, any> = {
+    ethereum: mainnet,
+    arbitrum: arbitrum,
+    base: base,
+  }
+
+  const viemChain = chainMap[chain]
+  if (!viemChain) {
+    throw new Error(`Unsupported EVM chain: ${chain}`)
+  }
+
+  return createPublicClient({
+    chain: viemChain,
+    transport: http(rpcUrl)
+  })
+}
+
+/**
  * Fetch the current gas price from Alchemy for a given chain.
  * Returns gas price in Gwei. Falls back to hardcoded estimates on failure.
  */
@@ -36,38 +61,14 @@ export async function fetchGasPrice(chain: Chain): Promise<number> {
     solana: 0,
   }
 
-  const rpcUrl = getRpcUrl(chain)
-  if (!rpcUrl || rpcUrl.endsWith('/')) {
-    return FALLBACK_GWEI[chain]
-  }
+  if (chain === 'solana') return 0
 
   try {
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 5000)
-
-    const res = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_gasPrice',
-        params: [],
-        id: 1,
-      }),
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    if (!res.ok) {
-      return FALLBACK_GWEI[chain]
-    }
-
-    const json = await res.json()
-    const gasPriceWei = parseInt(json.result, 16)
-    return gasPriceWei / 1e9 // Convert wei to gwei
-  } catch {
-    console.warn(`Gas price fetch failed for ${chain}, using fallback`)
+    const client = getPublicClient(chain)
+    const gasPrice = await client.getGasPrice()
+    return Number(gasPrice) / 1e9 // Convert wei to gwei
+  } catch (err) {
+    console.warn(`Gas price fetch failed for ${chain}, using fallback:`, err)
     return FALLBACK_GWEI[chain]
   }
 }
