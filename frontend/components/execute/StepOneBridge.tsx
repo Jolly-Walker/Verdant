@@ -93,7 +93,7 @@ export function StepOneBridge({
 
         const status = await pollStatus({
           txHash: intentId,
-          fromChain: sourceChain as unknown as ChainId,
+          fromChain: sourceChain,
           bridgeId: quote.bridgeId
         });
 

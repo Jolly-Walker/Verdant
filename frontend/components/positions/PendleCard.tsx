@@ -6,16 +6,14 @@ export function PendleCard({ position }: { position: Position }) {
   const apyPercent = (position.currentApy * 100).toFixed(2)
   const isPT = position.positionType === 'pendle-pt'
   
-  let showExpiryWarning = false
-  if (position.maturityDate) {
-    const expiryMs = Date.parse(position.maturityDate)
-    if (expiryMs && (expiryMs - Date.now()) < 30 * 24 * 60 * 60 * 1000) {
-      showExpiryWarning = true
-    }
-  }
+  const maturityDate = position.maturityDate ? new Date(position.maturityDate) : null
+  const isValidDate = maturityDate && !isNaN(maturityDate.getTime())
 
-  const formattedMaturity = position.maturityDate 
-    ? new Date(position.maturityDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  const showExpiryWarning = isValidDate &&
+    (maturityDate!.getTime() - Date.now()) < 30 * 24 * 60 * 60 * 1000
+
+  const formattedMaturity = isValidDate
+    ? maturityDate!.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : 'Unknown'
 
   return (

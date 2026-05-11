@@ -17,6 +17,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
     addresses: {
       ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
       arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+      base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     },
   },
   USDT: {
@@ -37,6 +38,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
     addresses: {
       ethereum: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
       arbitrum: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
+      base: '0x4200000000000000000000000000000000000006',
     },
   },
   WBTC: {
@@ -57,6 +59,17 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
     addresses: {
       ethereum: '0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0',
       arbitrum: '0x5979D7b546E38E414F7E9822514be443A4800529',
+      base: '0xc1CBa3fCea344f92D9239c08C0568f6F2F0ee452',
+    },
+  },
+  cbETH: {
+    symbol: 'cbETH',
+    name: 'Coinbase Staked ETH',
+    decimals: 18,
+    coingeckoId: 'coinbase-wrapped-staked-eth',
+    addresses: {
+      ethereum: '0xBe9895146f7AF43049ca1c1AE358B0541Ea49704',
+      base: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22',
     },
   },
 }

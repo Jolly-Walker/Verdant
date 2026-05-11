@@ -1,3 +1,4 @@
+import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '../types/shared'
 
@@ -39,10 +40,9 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
   },
 
   async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
-    // Mock success for now
+    // Default to pending for safety until implementation is complete (M7)
     return {
-      status: 'complete',
-      destinationTxHash: '0x' + '0'.repeat(64)
+      status: 'pending'
     }
   }
 }

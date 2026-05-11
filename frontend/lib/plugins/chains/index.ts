@@ -26,3 +26,20 @@ export const CHAIN_REGISTRY: Record<ChainId, ChainPlugin> = {
     }
   },
 }
+
+// Client-safe display metadata — derived from registry, no RPC methods or server-side imports
+export const CHAIN_DISPLAY_MAP: Record<ChainId, {
+  id: ChainId
+  displayName: string
+  explorerUrl: string
+  family: 'evm' | 'solana'
+  nativeCurrency: { symbol: string; decimals: number }
+}> = Object.fromEntries(
+  Object.entries(CHAIN_REGISTRY).map(([id, plugin]) => [id, {
+    id: plugin.id,
+    displayName: plugin.displayName,
+    explorerUrl: plugin.explorerUrl,
+    family: plugin.family,
+    nativeCurrency: plugin.nativeCurrency,
+  }])
+) as Record<ChainId, any>

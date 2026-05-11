@@ -12,7 +12,7 @@ interface PositionListProps {
 }
 
 export function PositionList({ positions, isLoading }: PositionListProps) {
-  const [filter, setFilter] = useState<PositionType | 'all'>('all')
+  const [filter, setFilter] = useState<PositionType | 'all' | 'pendle'>('all')
   const { chainIds, getChainMetadata } = useChainMetadata()
 
   if (isLoading) {

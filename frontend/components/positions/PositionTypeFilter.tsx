@@ -2,17 +2,17 @@ import React from 'react'
 import { PositionType } from '@/lib/plugins/types/shared'
 
 interface PositionTypeFilterProps {
-  selected: PositionType | 'all'
-  onChange: (type: PositionType | 'all') => void
+  selected: PositionType | 'all' | 'pendle'
+  onChange: (type: PositionType | 'all' | 'pendle') => void
 }
 
 export function PositionTypeFilter({ selected, onChange }: PositionTypeFilterProps) {
-  const types: { label: string, value: PositionType | 'all' }[] = [
+  const types: { label: string, value: PositionType | 'all' | 'pendle' }[] = [
     { label: 'All', value: 'all' },
     { label: 'Wallet', value: 'wallet' },
     { label: 'Supply', value: 'supply' },
     { label: 'Borrow', value: 'borrow' },
-    { label: 'Pendle', value: 'pendle-pt' }, // Simplification: PT/YT as Pendle
+    { label: 'Pendle', value: 'pendle' as any },
   ]
 
   return (

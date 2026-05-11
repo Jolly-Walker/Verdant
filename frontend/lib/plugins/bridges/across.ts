@@ -1,3 +1,4 @@
+import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '../types/shared'
 
