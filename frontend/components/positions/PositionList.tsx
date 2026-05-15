@@ -28,7 +28,7 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
   const filteredPositions = filter === 'all' 
     ? positions 
     : positions.filter(p => {
-        if (filter === 'pendle-pt') return p.positionType === 'pendle-pt' || p.positionType === 'pendle-yt'
+        if (filter === 'pendle') return p.positionType === 'pendle-pt' || p.positionType === 'pendle-yt'
         return p.positionType === filter
       })
 

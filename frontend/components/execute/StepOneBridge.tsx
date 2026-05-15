@@ -5,7 +5,7 @@ import { useSignTypedData } from 'wagmi';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
 import { useBridges } from '@/hooks/useBridges';
 import { Chain } from '@/types/chain';
-import { ChainId } from '@/lib/plugins/types/shared';
+import { BridgeQuote } from '@/lib/plugins/types/shared';
 
 export interface StepOneBridgeProps {
   asset: string;
@@ -18,12 +18,12 @@ export interface StepOneBridgeProps {
   onCancel: () => void;
 }
 
-type BridgeState = 'idle' | 'signing' | 'creating_intent' | 'bridging' | 'completed' | 'error';
+type BridgeState = 'idle' | 'fetching_quote' | 'reviewing_quote' | 'signing' | 'creating_intent' | 'bridging' | 'completed' | 'error';
 
 export function StepOneBridge({
   asset,
   amount,
-  // amountUsd,
+  amountUsd,
   sourceChain,
   destChain,
   recipientAddress,
@@ -33,6 +33,7 @@ export function StepOneBridge({
   const [state, setState] = useState<BridgeState>('idle');
   const [error, setError] = useState<string | null>(null);
   const [originTxHash, setOriginTxHash] = useState<string | null>(null);
+  const [quote, setQuote] = useState<BridgeQuote | null>(null);
   const { signTypedDataAsync } = useSignTypedData();
   const { getQuote, pollStatus } = useBridges();
   
@@ -48,7 +49,41 @@ export function StepOneBridge({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [state]);
 
+  const handleFetchQuote = async () => {
+    try {
+      setState('fetching_quote');
+      setError(null);
+
+      const q = await getQuote({
+        fromChain: sourceChain,
+        toChain: destChain,
+        token: asset,
+        amount,
+        recipientAddress
+      });
+
+      if (!q) throw new Error('Could not get bridge quote');
+      
+      setQuote(q);
+      setState('reviewing_quote');
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch quote');
+      setState('error');
+    }
+  };
+
   const handleStart = async () => {
+    if (!quote) return;
+
+    // Check quote freshness (must be < 90s old)
+    // Actually, let's just check if it's expired or close to it
+    if (new Date(quote.expiresAt).getTime() < Date.now() + 5000) {
+      setError('Quote expired. Please fetch a new one.');
+      setState('reviewing_quote');
+      return;
+    }
+
     try {
       setState('signing');
       setError(null);
@@ -63,30 +98,19 @@ export function StepOneBridge({
 
       setState('creating_intent');
 
-      // 2. Use useBridges hook to get a quote
-      const quote = await getQuote({
-        fromChain: sourceChain as unknown as ChainId,
-        toChain: destChain as unknown as ChainId,
-        token: asset,
-        amount,
-        recipientAddress
-      });
-
-      if (!quote) throw new Error('Could not get bridge quote');
-
       // In a real flow, we'd build and send the tx here. 
       // For StepOneBridge (MVP), we use the intent ID from rawQuote
       const intentId = (quote.rawQuote as { intentId: string }).intentId;
       setOriginTxHash(intentId);
       setState('bridging');
 
-      // 3. Poll for status using the useBridges hook
+      // 2. Poll for status using the useBridges hook
       let attempts = 0;
       const pollInterval = setInterval(async () => {
         attempts++;
         if (attempts > 40) { // 10 mins timeout
           clearInterval(pollInterval);
-          setError('Bridge is taking longer than expected. Please check Across Protocol status.');
+          setError('Bridge is taking longer than expected. Please check bridge status.');
           setState('error');
           return;
         }
@@ -120,6 +144,9 @@ export function StepOneBridge({
     }
   };
 
+  const highFee = quote && (quote.feeUsd / amountUsd) > 0.005;
+  const highSlippage = quote && quote.slippagePercent > 0.5;
+
   return (
     <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
       <h3 className="text-lg font-medium text-white mb-4">Step 1: Bridge Assets</h3>
@@ -133,10 +160,10 @@ export function StepOneBridge({
         {state === 'idle' && (
           <div className="flex gap-3 mt-4">
             <button 
-              onClick={handleStart}
+              onClick={handleFetchQuote}
               className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors"
             >
-              Sign & Bridge
+              Get Quote
             </button>
             <button 
               onClick={onCancel}
@@ -144,6 +171,57 @@ export function StepOneBridge({
             >
               Cancel
             </button>
+          </div>
+        )}
+
+        {state === 'fetching_quote' && (
+          <div className="py-3 text-center text-emerald-400 animate-pulse bg-emerald-900/10 rounded-lg">
+            Fetching best bridge quote...
+          </div>
+        )}
+
+        {state === 'reviewing_quote' && quote && (
+          <div className="space-y-4 mt-2">
+            <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Bridge Fee</span>
+                <span className={highFee ? 'text-amber-400' : 'text-white'}>
+                  ${quote.feeUsd.toFixed(2)} ({((quote.feeUsd / amountUsd) * 100).toFixed(2)}%)
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Est. Slippage</span>
+                <span className={highSlippage ? 'text-amber-400' : 'text-white'}>
+                  {quote.slippagePercent}%
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Est. Time</span>
+                <span className="text-white">{Math.round(quote.estimatedTimeSeconds / 60)} mins</span>
+              </div>
+            </div>
+
+            {(highFee || highSlippage) && (
+              <div className="p-3 bg-amber-900/20 border border-amber-800/50 rounded-lg text-amber-200 text-xs">
+                ⚠️ {highFee && 'High bridge fee detected (>0.5%). '}
+                {highSlippage && 'High slippage detected (>0.5%).'}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button 
+                onClick={handleStart}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-medium transition-colors"
+              >
+                Sign & Bridge
+              </button>
+              <button 
+                onClick={handleFetchQuote}
+                className="px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         )}
 
@@ -168,7 +246,7 @@ export function StepOneBridge({
               </span>
               Bridging {asset} to {getChainDisplayName(destChain)}...
             </div>
-            <p className="text-sm text-zinc-400 mb-3">Estimated time remaining: ~2-5 minutes</p>
+            <p className="text-sm text-zinc-400 mb-3">Estimated time remaining: ~{Math.round(quote?.estimatedTimeSeconds / 60) || '2-5'} minutes</p>
             {originTxHash && (
               <a 
                 href={getExplorerTxUrl(sourceChain, originTxHash)} 
@@ -196,7 +274,7 @@ export function StepOneBridge({
             <p className="text-red-400 text-sm mb-4">{error}</p>
             <div className="flex gap-3">
               <button 
-                onClick={handleStart}
+                onClick={quote ? handleStart : handleFetchQuote}
                 className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm transition-colors font-medium"
               >
                 Retry
