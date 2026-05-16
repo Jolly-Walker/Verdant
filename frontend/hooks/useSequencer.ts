@@ -80,64 +80,33 @@ export function useSequencer() {
     setIsSimulating(true)
     
     try {
-      // Transition step to 'simulating' in UI
+      // Transition step to 'simulating' in UI immediately
       setPlan(prev => prev ? { 
         ...prev, 
         steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'simulating' } : s) 
       } : null)
       
-      const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'simulating' })
-      })
-
-      if (!patchRes.ok) {
-        throw new Error('Failed to update step status in database')
-      }
-
-      if (!step.unsignedTx) throw new Error('No transaction to simulate')
-
-      const res = await fetchWithTimeout('/api/simulate', {
+      const res = await fetchWithTimeout('/api/sequencer/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chain: step.chain,
-          to: step.unsignedTx.to,
-          from: address,
-          data: step.unsignedTx.data,
-          value: step.unsignedTx.value.toString(),
+          planId: plan.id,
+          stepId: stepId,
         })
       })
 
-      if (!res.ok) throw new Error('Simulation failed')
-      
-      const rawResult = await res.json()
-      // result.gasEstimate is already a string from the API boundary
-      const result: SimulationResult = {
-        ...rawResult,
-        gasEstimate: rawResult.gasEstimate ? BigInt(rawResult.gasEstimate) : undefined,
-        simulatedAt: new Date(rawResult.simulatedAt)
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Simulation failed');
       }
       
-      const newStatus = result.success ? 'ready' : 'failed'
-
-      // Update Supabase
-      const updateRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          status: newStatus,
-          simulation: {
-            success: result.success,
-            revertReason: result.revertReason,
-            gasEstimate: rawResult.gasEstimate, // use raw string from API
-            gasCostUsd: result.gasCostUsd
-          }
-        })
-      })
-
-      if (!updateRes.ok) throw new Error('Failed to save simulation results to database')
+      const { simulation: rawSimulation, updatedStep } = await res.json()
+      
+      const simulation: SimulationResult = {
+        ...rawSimulation,
+        gasEstimate: rawSimulation.gasEstimate ? BigInt(rawSimulation.gasEstimate) : undefined,
+        simulatedAt: new Date(rawSimulation.simulatedAt)
+      }
 
       setPlan(prev => {
         if (!prev) return null
@@ -145,22 +114,16 @@ export function useSequencer() {
           ...prev,
           steps: prev.steps.map(s => 
             s.id === stepId 
-              ? { ...s, simulation: result, status: newStatus } 
+              ? { ...s, simulation, status: updatedStep.status } 
               : s
           )
         }
       })
       
-      return result
+      return simulation
     } catch (err) {
       console.error('Simulation error:', err)
       
-      await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'failed' })
-      }).catch(() => {}); // ignore error on error update
-
       setPlan(prev => {
         if (!prev) return null
         return {

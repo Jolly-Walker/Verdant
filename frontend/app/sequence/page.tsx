@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { TEMPLATE_REGISTRY, TemplateId } from '@/lib/sequencer/templates';
 import { TemplateParams } from '@/lib/plugins/types/sequencer';
 import { ChainId, ProtocolId } from '@/lib/plugins/types/shared';
+import { TemplateSelector } from '@/components/sequence/TemplateSelector';
 
 export default function SequenceTemplateSelector() {
   const router = useRouter();
@@ -67,6 +68,16 @@ export default function SequenceTemplateSelector() {
           protocol: 'aave',
           chain: fromChain
         };
+      } else if (selectedTemplate === 'exitPendle') {
+        params = {
+          ptAsset: asset === 'ETH' ? 'PT-eETH' : 'PT-USDC',
+          ptAddress: asset === 'ETH' ? '0x35D1A6fD38F0839e3F9329C356391d4e0258B0A8' : '0x', 
+          amount,
+          underlyingAsset: asset,
+          fromChain,
+          toChain,
+          toProtocol
+        };
       }
 
       const plan = await createPlan(selectedTemplate, params);
@@ -82,40 +93,32 @@ export default function SequenceTemplateSelector() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-12 px-4">
+    <div className="max-w-4xl mx-auto py-12 px-4 text-zinc-100">
       <h1 className="text-3xl font-bold mb-8">Choose a Sequence</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-        {Object.values(TEMPLATE_REGISTRY).map(template => (
-          <div 
-            key={template.id} 
-            className={`border rounded-xl p-6 cursor-pointer hover:border-blue-500 transition-colors ${selectedTemplate === template.id ? 'border-blue-600 bg-blue-50' : 'border-gray-200'}`}
-            onClick={() => setSelectedTemplate(template.id)}
-          >
-            <h3 className="font-semibold text-lg mb-2">{template.displayName}</h3>
-            <p className="text-gray-600 text-sm">{template.description}</p>
-          </div>
-        ))}
-      </div>
+      <TemplateSelector 
+        selectedTemplate={selectedTemplate} 
+        onSelect={setSelectedTemplate} 
+      />
 
       {selectedTemplate && (
-        <div className="bg-gray-50 rounded-xl p-8 max-w-xl mx-auto">
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 max-w-xl mx-auto">
           <h2 className="font-bold text-xl mb-6">Configure Parameters</h2>
           
           <div className="space-y-4">
             {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') ? (
               <>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Borrow Asset (to repay)</label>
-                  <select className="w-full border rounded p-2" value={borrowAsset} onChange={e => setBorrowAsset(e.target.value)}>
+                  <label className="block text-sm font-medium mb-1 text-zinc-400">Borrow Asset (to repay)</label>
+                  <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={borrowAsset} onChange={e => setBorrowAsset(e.target.value)}>
                     <option value="USDC">USDC</option>
                     <option value="USDT">USDT</option>
                     <option value="DAI">DAI</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Collateral Asset (to withdraw)</label>
-                  <select className="w-full border rounded p-2" value={collateralAsset} onChange={e => setCollateralAsset(e.target.value)}>
+                  <label className="block text-sm font-medium mb-1 text-zinc-400">Collateral Asset (to withdraw)</label>
+                  <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={collateralAsset} onChange={e => setCollateralAsset(e.target.value)}>
                     <option value="ETH">ETH</option>
                     <option value="wstETH">wstETH</option>
                     <option value="WBTC">WBTC</option>
@@ -124,38 +127,38 @@ export default function SequenceTemplateSelector() {
               </>
             ) : (
               <div>
-                <label className="block text-sm font-medium mb-1">Asset</label>
-                <select className="w-full border rounded p-2" value={asset} onChange={e => setAsset(e.target.value)}>
+                <label className="block text-sm font-medium mb-1 text-zinc-400">Asset</label>
+                <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={asset} onChange={e => setAsset(e.target.value)}>
                   <option value="USDC">USDC</option>
                   <option value="ETH">ETH</option>
                 </select>
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label className="block text-sm font-medium mb-1 text-zinc-400">
                 {selectedTemplate === 'deleverageAave' ? 'Total Debt Amount' : 'Amount'}
               </label>
-              <input type="number" className="w-full border rounded p-2" value={amount} onChange={e => setAmount(e.target.value)} />
+              <input type="number" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={amount} onChange={e => setAmount(e.target.value)} />
             </div>
             {selectedTemplate === 'deleverageAave' && (
               <div>
-                <label className="block text-sm font-medium mb-1">Unwind Cycles</label>
-                <input type="number" min="1" max="10" className="w-full border rounded p-2" value={cycles} onChange={e => setCycles(parseInt(e.target.value) || 1)} />
-                <p className="text-xs text-gray-500 mt-1">Higher cycles are safer but cost more gas.</p>
+                <label className="block text-sm font-medium mb-1 text-zinc-400">Unwind Cycles</label>
+                <input type="number" min="1" max="10" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={cycles} onChange={e => setCycles(parseInt(e.target.value) || 1)} />
+                <p className="text-xs text-zinc-500 mt-1">Higher cycles are safer but cost more gas.</p>
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium mb-1">From Chain</label>
-              <select className="w-full border rounded p-2" value={fromChain} onChange={e => setFromChain(e.target.value as ChainId)}>
+              <label className="block text-sm font-medium mb-1 text-zinc-400">From Chain</label>
+              <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={fromChain} onChange={e => setFromChain(e.target.value as ChainId)}>
                 <option value="ethereum">Ethereum</option>
                 <option value="arbitrum">Arbitrum</option>
                 <option value="base">Base</option>
               </select>
             </div>
-            {(selectedTemplate === 'bridgeAndDeposit' || selectedTemplate === 'crossChainRebalance') && (
+            {(selectedTemplate === 'bridgeAndDeposit' || selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'exitPendle') && (
               <div>
-                <label className="block text-sm font-medium mb-1">To Chain</label>
-                <select className="w-full border rounded p-2" value={toChain} onChange={e => setToChain(e.target.value as ChainId)}>
+                <label className="block text-sm font-medium mb-1 text-zinc-400">To Chain</label>
+                <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={toChain} onChange={e => setToChain(e.target.value as ChainId)}>
                   <option value="ethereum">Ethereum</option>
                   <option value="arbitrum">Arbitrum</option>
                   <option value="base">Base</option>
@@ -163,8 +166,8 @@ export default function SequenceTemplateSelector() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium mb-1">Destination Protocol</label>
-              <select className="w-full border rounded p-2" value={toProtocol} onChange={e => setToProtocol(e.target.value as ProtocolId)}>
+              <label className="block text-sm font-medium mb-1 text-zinc-400">Destination Protocol</label>
+              <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={toProtocol} onChange={e => setToProtocol(e.target.value as ProtocolId)}>
                 <option value="aave">Aave V3</option>
                 <option value="morpho">Morpho</option>
                 <option value="euler">Euler</option>
@@ -175,7 +178,7 @@ export default function SequenceTemplateSelector() {
           <button 
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="mt-8 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            className="mt-8 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {isSubmitting ? 'Creating Plan...' : 'Create Sequence Plan'}
           </button>

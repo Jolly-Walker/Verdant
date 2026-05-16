@@ -3,6 +3,7 @@ import { buildBridgeAndDepositPlan } from '../templates/bridgeAndDeposit';
 import { buildRepayAndWithdrawPlan } from '../templates/repayAndWithdraw';
 import { buildCrossChainRebalancePlan } from '../templates/crossChainRebalance';
 import { buildDeleverageAavePlan } from '../templates/deleverageAave';
+import { buildExitPendlePlan } from '../templates/exitPendle';
 
 describe('Sequencer Templates', () => {
   describe('bridgeAndDeposit', () => {
@@ -151,6 +152,51 @@ describe('Sequencer Templates', () => {
         chain: 'ethereum',
         walletAddress: '0x123'
       })).toThrow(/limit of 1.05/);
+    });
+  });
+
+  describe('exitPendle', () => {
+    it('creates a 3-step plan when chains are different', () => {
+      const plan = buildExitPendlePlan({
+        ptAsset: 'PT-eETH',
+        ptAddress: '0xabc',
+        amount: '100',
+        amountUsd: 100,
+        underlyingAsset: 'ETH',
+        fromChain: 'ethereum',
+        toChain: 'arbitrum',
+        toProtocol: 'aave',
+        walletAddress: '0x123'
+      });
+
+      expect(plan.steps.length).toBe(3);
+      expect(plan.steps[0].id).toBe('redeem');
+      expect(plan.steps[0].dependsOn).toEqual([]);
+      
+      expect(plan.steps[1].id).toBe('bridge');
+      expect(plan.steps[1].dependsOn).toEqual(['redeem']);
+      
+      expect(plan.steps[2].id).toBe('deposit');
+      expect(plan.steps[2].dependsOn).toEqual(['bridge']);
+    });
+
+    it('creates a 2-step plan when chains are the same', () => {
+      const plan = buildExitPendlePlan({
+        ptAsset: 'PT-eETH',
+        ptAddress: '0xabc',
+        amount: '100',
+        amountUsd: 100,
+        underlyingAsset: 'ETH',
+        fromChain: 'ethereum',
+        toChain: 'ethereum',
+        toProtocol: 'aave',
+        walletAddress: '0x123'
+      });
+
+      expect(plan.steps.length).toBe(2);
+      expect(plan.steps[0].id).toBe('redeem');
+      expect(plan.steps[1].id).toBe('deposit');
+      expect(plan.steps[1].dependsOn).toEqual(['redeem']);
     });
   });
 });

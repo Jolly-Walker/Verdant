@@ -1,4 +1,4 @@
-export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave';
+export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave' | 'exitPendle';
 
 export const TEMPLATE_REGISTRY: Record<TemplateId, {
   id: TemplateId;
@@ -29,5 +29,17 @@ export const TEMPLATE_REGISTRY: Record<TemplateId, {
     displayName: 'De-leverage Aave Loop',
     description: 'Compute optimal repay/withdraw cycles to unwind a leveraged position.',
     requiredParams: ['borrowAsset', 'collateralAsset', 'totalDebt', 'totalCollateral', 'cycles', 'protocol', 'chain', 'walletAddress']
+  },
+  exitPendle: {
+    id: 'exitPendle',
+    displayName: 'Exit Pendle',
+    description: 'Redeem PT/YT and move proceeds to another protocol or chain.',
+    requiredParams: ['ptAsset', 'amount', 'amountUsd', 'underlyingAsset', 'fromChain', 'toChain', 'toProtocol', 'walletAddress']
   }
 };
+
+export * from './bridgeAndDeposit';
+export * from './repayAndWithdraw';
+export * from './crossChainRebalance';
+export * from './deleverageAave';
+export * from './exitPendle';

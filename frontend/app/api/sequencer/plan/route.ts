@@ -4,6 +4,7 @@ import { buildBridgeAndDepositPlan } from '@/lib/sequencer/templates/bridgeAndDe
 import { buildRepayAndWithdrawPlan } from '@/lib/sequencer/templates/repayAndWithdraw'
 import { buildCrossChainRebalancePlan } from '@/lib/sequencer/templates/crossChainRebalance'
 import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAave'
+import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle'
 import { createSequencePlan } from '@/lib/data/sequencePlans'
 import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/lib/plugins/types/shared'
 import { SUPPORTED_TOKENS } from '@/lib/plugins/tokens'
@@ -51,8 +52,19 @@ const DeleverageAaveParamsSchema = z.object({
   chain: z.enum(ALL_CHAINS)
 });
 
+const ExitPendleParamsSchema = z.object({
+  ptAsset: z.string(),
+  ptAddress: z.string(),
+  amount: z.string(),
+  underlyingAsset: z.string(),
+  fromChain: z.enum(ALL_CHAINS),
+  toChain: z.enum(ALL_CHAINS),
+  toProtocol: z.enum([...ALL_PROTOCOLS]),
+  preferredBridgeId: z.enum(ALL_BRIDGES).optional()
+});
+
 const CreatePlanSchema = z.object({
-  templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave']),
+  templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave', 'exitPendle']),
   params: z.record(z.string(), z.unknown()),
   walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/)
 })
@@ -155,6 +167,11 @@ export async function POST(req: Request) {
         if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for crossChainRebalance' }, { status: 400 });
         assetToValidate = parsedParams.data.asset;
         amountToValidate = parsedParams.data.amount;
+      } else if (templateId === 'exitPendle') {
+        const parsedParams = ExitPendleParamsSchema.safeParse(params);
+        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for exitPendle' }, { status: 400 });
+        assetToValidate = parsedParams.data.underlyingAsset;
+        amountToValidate = parsedParams.data.amount;
       }
 
       // Minimum transaction size validation (Server-side)
@@ -173,6 +190,8 @@ export async function POST(req: Request) {
         plan = buildRepayAndWithdrawPlan({ ...RepayAndWithdrawParamsSchema.parse(params), walletAddress, amountUsd });
       } else if (templateId === 'crossChainRebalance') {
         plan = buildCrossChainRebalancePlan({ ...CrossChainRebalanceParamsSchema.parse(params), walletAddress, amountUsd });
+      } else if (templateId === 'exitPendle') {
+        plan = buildExitPendlePlan({ ...ExitPendleParamsSchema.parse(params), walletAddress, amountUsd });
       }
     }
 

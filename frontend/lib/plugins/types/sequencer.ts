@@ -79,9 +79,23 @@ export interface DeleverageAaveParams {
   walletAddress: string;
 }
 
+export interface ExitPendleParams {
+  ptAsset: string;         // e.g. 'PT-eETH'
+  ptAddress: string;
+  amount: string;          // in atomic units
+  amountUsd: number;
+  underlyingAsset: string; // e.g. 'ETH'
+  fromChain: ChainId;
+  toChain: ChainId;
+  toProtocol: ProtocolId;
+  walletAddress: string;
+  preferredBridgeId?: BridgeId;
+}
+
 export type TemplateParams = 
   | BridgeAndDepositParams 
   | RepayAndWithdrawParams 
   | CrossChainRebalanceParams 
   | DeleverageAaveParams 
+  | ExitPendleParams
   | Record<string, unknown>;
