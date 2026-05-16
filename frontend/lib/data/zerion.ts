@@ -51,7 +51,7 @@ function zerionAuthHeader(): string {
   return `Basic ${encoded}`
 }
 
-function getVerdantProtocol(protocol: string | null, symbol: string, name: string): ProtocolId | null {
+export function getVerdantProtocol(protocol: string | null, symbol: string, name: string): ProtocolId | null {
   const p = (protocol || '').toLowerCase()
   const s = symbol.toLowerCase()
   const n = name.toLowerCase()
@@ -101,7 +101,7 @@ export async function fetchZerionPositions(address: string): Promise<Position[]>
   }
 }
 
-function normaliseZerionPositions(raw: ZerionPosition[]): Position[] {
+export function normaliseZerionPositions(raw: ZerionPosition[]): Position[] {
   return raw
     .map(p => {
       let symbol = 'UNKNOWN'
