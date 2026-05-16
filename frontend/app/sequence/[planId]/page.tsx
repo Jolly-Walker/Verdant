@@ -1,0 +1,59 @@
+"use client";
+
+import { useEffect, useState } from 'react';
+import { useSequencer } from '@/hooks/useSequencer';
+import { SequencePlanView } from '@/components/sequence/SequencePlanView';
+import { SequenceComplete } from '@/components/sequence/SequenceComplete';
+import { useRouter } from 'next/navigation';
+import { useAccount } from 'wagmi';
+
+export default function SequenceExecutionPage({ params }: { params: { planId: string } }) {
+  const router = useRouter();
+  const { address } = useAccount();
+  const { plan, currentStep, simulateStep, executeStep, setPlan } = useSequencer();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!address) return;
+    
+    fetch(`/api/sequencer/plan/${params.planId}?wallet=${address}`)
+      .then(res => {
+        if (!res.ok) throw new Error('Plan not found or unauthorized');
+        return res.json();
+      })
+      .then(data => {
+        setPlan(data.plan);
+        setLoading(false);
+      })
+      .catch(err => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, [params.planId, address, setPlan]);
+
+  useEffect(() => {
+    if (plan && currentStep && currentStep.status === 'pending') {
+      simulateStep(currentStep.id).catch(console.error);
+    }
+  }, [plan, currentStep, simulateStep]);
+
+  if (!address) return <div className="p-8 text-center">Please connect your wallet.</div>;
+  if (loading) return <div className="p-8 text-center">Loading plan...</div>;
+  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (!plan) return <div className="p-8 text-center">Plan not found.</div>;
+
+  if (plan.status === 'complete') {
+    return <SequenceComplete plan={plan} />;
+  }
+
+  return (
+    <SequencePlanView
+      plan={plan}
+      currentStepId={currentStep?.id || null}
+      onSimulate={simulateStep}
+      onSign={executeStep}
+      onEdit={() => router.back()}
+    />
+  );
+}
