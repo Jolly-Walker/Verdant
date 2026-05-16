@@ -77,7 +77,6 @@ export function validatePlan(plan: SequencePlan): { valid: boolean; errors: stri
   // Circular dependency check using topological sort approach
   const visited = new Set<string>();
   const recStack = new Set<string>();
-  let hasCycle = false;
 
   function dfs(nodeId: string) {
     if (!visited.has(nodeId)) {
@@ -88,10 +87,8 @@ export function validatePlan(plan: SequencePlan): { valid: boolean; errors: stri
       if (step) {
         for (const depId of step.dependsOn) {
           if (!visited.has(depId) && dfs(depId)) {
-            hasCycle = true;
             return true;
           } else if (recStack.has(depId)) {
-            hasCycle = true;
             return true;
           }
         }

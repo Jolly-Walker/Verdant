@@ -62,7 +62,7 @@ export async function getSequencePlan(id: string): Promise<SequencePlan | null> 
 
 export async function updateSequencePlanStep(planId: string, stepId: string, steps: SequencePlan['steps'], newStatus: SequencePlan['status']): Promise<boolean> {
   try {
-    const updates: any = { steps, status: newStatus }
+    const updates: Record<string, unknown> = { steps, status: newStatus }
     if (newStatus === 'complete') {
       updates.completed_at = new Date().toISOString()
     }

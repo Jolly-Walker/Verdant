@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { SequencePlan, SequenceStep } from '../../plugins/types/sequencer';
+import { SequencePlan, SequenceStep, StepStatus } from '../../plugins/types/sequencer';
+import { ChainId } from '../../plugins/types/shared';
 import { getActiveStep, canSimulateStep, canExecuteStep, applyStepUpdate, computePlanStatus, validatePlan } from '../engine';
 
 const createBasePlan = (): SequencePlan => ({
@@ -12,7 +13,7 @@ const createBasePlan = (): SequencePlan => ({
   description: 'Test Plan'
 });
 
-const createStep = (id: string, status: any, dependsOn: string[] = []): SequenceStep => ({
+const createStep = (id: string, status: StepStatus, dependsOn: string[] = []): SequenceStep => ({
   id,
   label: `Step ${id}`,
   chain: 'ethereum',
@@ -153,7 +154,7 @@ describe('Sequencer Engine', () => {
     it('returns false if invalid chainId', () => {
       const plan = createBasePlan();
       const step = createStep('1', 'pending');
-      step.chain = 'invalid_chain' as any;
+      step.chain = 'invalid_chain' as ChainId;
       plan.steps = [step];
       const res = validatePlan(plan);
       expect(res.valid).toBe(false);

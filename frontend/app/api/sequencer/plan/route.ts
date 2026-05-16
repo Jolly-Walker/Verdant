@@ -20,6 +20,7 @@ const BridgeAndDepositParamsSchema = z.object({
 const RepayAndWithdrawParamsSchema = z.object({
   borrowAsset: z.string(),
   borrowAmount: z.string(),
+  amountUsd: z.number(),
   collateralAsset: z.string(),
   collateralAmount: z.string(),
   protocol: z.enum(['aave', 'euler']),
@@ -40,6 +41,7 @@ const CrossChainRebalanceParamsSchema = z.object({
 const DeleverageAaveParamsSchema = z.object({
   borrowAsset: z.string(),
   collateralAsset: z.string(),
+  amountUsd: z.number(),
   totalDebt: z.string(),
   totalCollateral: z.string(),
   cycles: z.number(),
@@ -59,30 +61,40 @@ export async function POST(req: Request) {
     const result = CreatePlanSchema.safeParse(body)
     
     if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid request body', details: result.error.format() }, { status: 400 })
     }
 
     const { templateId, params, walletAddress } = result.data
     let plan
+    let amountUsd = 0
 
     if (templateId === 'bridgeAndDeposit') {
       const parsedParams = BridgeAndDepositParamsSchema.safeParse(params);
       if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for bridgeAndDeposit' }, { status: 400 });
+      amountUsd = parsedParams.data.amountUsd;
       plan = buildBridgeAndDepositPlan({ ...parsedParams.data, walletAddress });
     } else if (templateId === 'repayAndWithdraw') {
       const parsedParams = RepayAndWithdrawParamsSchema.safeParse(params);
       if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for repayAndWithdraw' }, { status: 400 });
+      amountUsd = parsedParams.data.amountUsd;
       plan = buildRepayAndWithdrawPlan({ ...parsedParams.data, walletAddress });
     } else if (templateId === 'crossChainRebalance') {
       const parsedParams = CrossChainRebalanceParamsSchema.safeParse(params);
       if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for crossChainRebalance' }, { status: 400 });
+      amountUsd = parsedParams.data.amountUsd;
       plan = buildCrossChainRebalancePlan({ ...parsedParams.data, walletAddress });
     } else if (templateId === 'deleverageAave') {
       const parsedParams = DeleverageAaveParamsSchema.safeParse(params);
       if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for deleverageAave' }, { status: 400 });
+      amountUsd = parsedParams.data.amountUsd;
       plan = buildDeleverageAavePlan({ ...parsedParams.data, walletAddress });
     } else {
       return NextResponse.json({ error: 'Invalid templateId' }, { status: 400 });
+    }
+
+    // Minimum transaction size validation
+    if (amountUsd < 1000) {
+      return NextResponse.json({ error: 'Minimum transaction size of $1,000 USD required' }, { status: 400 });
     }
 
     const savedPlan = await createSequencePlan(plan, templateId)

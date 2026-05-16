@@ -126,13 +126,15 @@ export async function simulateTransaction(params: {
 
     return {
       success: true,
-      gasUsed: Number(gas),
+      gasEstimate: gas,
+      simulatedAt: new Date(),
     }
   } catch (err) {
     console.error('Simulation error details:', err)
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown simulation error',
+      simulatedAt: new Date(),
     }
   }
 }

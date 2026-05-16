@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useRouter } from 'next/navigation';
 import { TEMPLATE_REGISTRY, TemplateId } from '@/lib/sequencer/templates';
+import { TemplateParams } from '@/lib/plugins/types/sequencer';
+import { ChainId, ProtocolId } from '@/lib/plugins/types/shared';
 
 export default function SequenceTemplateSelector() {
   const router = useRouter();
@@ -12,9 +14,9 @@ export default function SequenceTemplateSelector() {
   
   const [asset, setAsset] = useState('USDC');
   const [amount, setAmount] = useState('100');
-  const [fromChain, setFromChain] = useState('ethereum');
-  const [toChain, setToChain] = useState('arbitrum');
-  const [toProtocol, setToProtocol] = useState('aave');
+  const [fromChain, setFromChain] = useState<ChainId>('ethereum');
+  const [toChain, setToChain] = useState<ChainId>('arbitrum');
+  const [toProtocol, setToProtocol] = useState<ProtocolId>('aave');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,7 +26,7 @@ export default function SequenceTemplateSelector() {
     setIsSubmitting(true);
     
     try {
-      let params: any = {};
+      let params: TemplateParams = {};
       if (selectedTemplate === 'bridgeAndDeposit') {
         params = {
           asset,
@@ -53,6 +55,16 @@ export default function SequenceTemplateSelector() {
           fromChain,
           toProtocol,
           toChain
+        };
+      } else if (selectedTemplate === 'deleverageAave') {
+        params = {
+          borrowAsset: 'USDC',
+          collateralAsset: 'ETH',
+          totalDebt: amount,
+          totalCollateral: '1',
+          cycles: 2,
+          protocol: 'aave',
+          chain: fromChain
         };
       }
 

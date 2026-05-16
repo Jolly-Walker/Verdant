@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
-import { SequencePlan, SequenceStep, SimulationResult } from '@/lib/plugins/types/sequencer'
+import { SequencePlan, SequenceStep, SimulationResult, TemplateParams } from '@/lib/plugins/types/sequencer'
 import { getActiveStep } from '@/lib/sequencer/engine'
 
 const CHAIN_ID_MAP: Record<string, number> = {
@@ -17,7 +17,7 @@ export function useSequencer() {
 
   const currentStep = useMemo(() => plan ? getActiveStep(plan) : null, [plan]);
 
-  const createPlan = async (templateId: string, params: any) => {
+  const createPlan = async (templateId: string, params: TemplateParams) => {
     if (!address) throw new Error('Wallet not connected')
 
     const res = await fetch('/api/sequencer/plan', {
@@ -37,31 +37,81 @@ export function useSequencer() {
   }
 
   const simulateStep = async (stepId: string): Promise<SimulationResult> => {
+    if (!plan) throw new Error('No active plan')
+    const step = plan.steps.find(s => s.id === stepId)
+    if (!step) throw new Error('Step not found')
+    
+    // Check dependencies
+    const unmetDeps = step.dependsOn.filter(depId => {
+      const depStep = plan.steps.find(s => s.id === depId)
+      return !depStep || depStep.status !== 'confirmed'
+    })
+    if (unmetDeps.length > 0) {
+      throw new Error(`Cannot simulate step ${stepId}: unmet dependencies ${unmetDeps.join(', ')}`)
+    }
+
     setIsSimulating(true)
+    
+    // Transition step to 'simulating' in UI and DB
+    setPlan(prev => prev ? { 
+      ...prev, 
+      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'simulating' } : s) 
+    } : null)
+    
+    await fetch(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'simulating' })
+    })
+
     try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30s timeout
+      if (!step.unsignedTx) throw new Error('No transaction to simulate')
 
       const res = await fetch('/api/simulate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stepId }),
-        signal: controller.signal
+        body: JSON.stringify({
+          chain: step.chain,
+          to: step.unsignedTx.to,
+          from: address,
+          data: step.unsignedTx.data,
+          value: step.unsignedTx.value.toString(),
+        })
       })
-      
-      clearTimeout(timeoutId)
 
       if (!res.ok) throw new Error('Simulation failed')
       
-      const result: SimulationResult = await res.json()
+      const rawResult = await res.json()
+      const result: SimulationResult = {
+        ...rawResult,
+        gasEstimate: rawResult.gasEstimate ? BigInt(rawResult.gasEstimate) : undefined,
+        simulatedAt: new Date(rawResult.simulatedAt)
+      }
       
+      const newStatus = result.success ? 'ready' : 'failed'
+
+      // Update Supabase
+      await fetch(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          status: newStatus,
+          simulation: {
+            success: result.success,
+            revertReason: result.revertReason,
+            gasEstimate: result.gasEstimate?.toString(),
+            gasCostUsd: result.gasCostUsd
+          }
+        })
+      })
+
       setPlan(prev => {
         if (!prev) return null
         return {
           ...prev,
           steps: prev.steps.map(s => 
             s.id === stepId 
-              ? { ...s, simulation: result, status: result.success ? 'ready' : 'failed' } 
+              ? { ...s, simulation: result, status: newStatus } 
               : s
           )
         }
@@ -69,6 +119,12 @@ export function useSequencer() {
       
       return result
     } catch (err) {
+      await fetch(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'failed' })
+      })
+
       setPlan(prev => {
         if (!prev) return null
         return {
@@ -88,6 +144,16 @@ export function useSequencer() {
     if (!plan) throw new Error('No active plan')
     const step = plan.steps.find(s => s.id === stepId)
     if (!step) throw new Error('Step not found')
+    
+    // Check dependencies
+    const unmetDeps = step.dependsOn.filter(depId => {
+      const depStep = plan.steps.find(s => s.id === depId)
+      return !depStep || depStep.status !== 'confirmed'
+    })
+    if (unmetDeps.length > 0) {
+      throw new Error(`Cannot execute step ${stepId}: unmet dependencies ${unmetDeps.join(', ')}`)
+    }
+
     if (step.status !== 'ready') throw new Error('Step is not ready to execute')
     if (!step.unsignedTx) throw new Error('No transaction to execute')
 
@@ -124,8 +190,11 @@ export function useSequencer() {
       } : null)
 
       return txHash
-    } catch (err: any) {
-      const isUserRejection = err?.message?.toLowerCase().includes('user rejected') || err?.code === 4001
+    } catch (err: unknown) {
+      const isUserRejection = 
+        (err instanceof Error && err.message.toLowerCase().includes('user rejected')) || 
+        (typeof err === 'object' && err !== null && 'code' in err && (err as { code: number }).code === 4001)
+      
       const errorMessage = isUserRejection ? 'Transaction cancelled by user' : 'Network error — please check your connection and retry'
       
       await fetch(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {

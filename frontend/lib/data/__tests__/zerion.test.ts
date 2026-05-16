@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 // Mock server-only before other imports
 vi.mock('server-only', () => ({}))
 
-import { getVerdantProtocol, normaliseZerionPositions } from '../zerion'
+import { getVerdantProtocol, normaliseZerionPositions, ZerionPosition } from '../zerion'
 
 describe('Zerion Data Normalization', () => {
   beforeEach(() => {
@@ -38,11 +38,18 @@ describe('Zerion Data Normalization', () => {
   })
 
   describe('normaliseZerionPositions', () => {
-    const createMockPosition = (overrides: any = {}): any => {
+    interface MockOverrides {
+      attributes?: Record<string, unknown>;
+      relationships?: Record<string, unknown>;
+      chain?: string;
+      id?: string;
+    }
+
+    const createMockPosition = (overrides: MockOverrides = {}): ZerionPosition => {
       const attributes = {
         name: 'USDC',
         protocol: 'Aave V3',
-        position_type: 'deposit',
+        position_type: 'deposit' as const,
         value: 1000,
         quantity: {
           decimals: 6,
@@ -57,12 +64,12 @@ describe('Zerion Data Normalization', () => {
             { chain_id: 'ethereum', address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48', decimals: 6 }
           ]
         },
-        ...overrides.attributes
+        ...(overrides.attributes || {})
       }
 
       const relationships = {
         chain: { data: { id: overrides.chain || 'ethereum' } },
-        ...overrides.relationships
+        ...(overrides.relationships || {})
       }
 
       return {
@@ -70,7 +77,7 @@ describe('Zerion Data Normalization', () => {
         id: overrides.id || 'test-id',
         attributes,
         relationships
-      }
+      } as ZerionPosition
     }
 
 

@@ -33,3 +33,49 @@ export interface SequencePlan {
   totalCostUsd: number
   description: string
 }
+
+export interface BridgeAndDepositParams {
+  asset: string;
+  amount: string;
+  amountUsd: number;
+  fromChain: ChainId;
+  toChain: ChainId;
+  fromProtocol: ProtocolId | 'wallet';
+  toProtocol: ProtocolId;
+}
+
+export interface RepayAndWithdrawParams {
+  borrowAsset: string;
+  borrowAmount: string;
+  collateralAsset: string;
+  collateralAmount: string;
+  protocol: ProtocolId;
+  chain: ChainId;
+}
+
+export interface CrossChainRebalanceParams {
+  asset: string;
+  amount: string;
+  amountUsd: number;
+  fromProtocol: ProtocolId;
+  fromChain: ChainId;
+  toProtocol: ProtocolId;
+  toChain: ChainId;
+}
+
+export interface DeleverageAaveParams {
+  borrowAsset: string;
+  collateralAsset: string;
+  totalDebt: string;
+  totalCollateral: string;
+  cycles: number;
+  protocol: ProtocolId;
+  chain: ChainId;
+}
+
+export type TemplateParams = 
+  | BridgeAndDepositParams 
+  | RepayAndWithdrawParams 
+  | CrossChainRebalanceParams 
+  | DeleverageAaveParams 
+  | Record<string, unknown>;

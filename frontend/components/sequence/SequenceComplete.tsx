@@ -1,45 +1,58 @@
 import React from 'react';
 import { SequencePlan } from '@/lib/plugins/types/sequencer';
 import { getExplorerTxUrl } from '@/lib/utils/chains';
-import Link from 'next/link';
+import { Card } from '@/components/ui/Card';
+import { formatUsd } from '@/lib/utils/formatting';
+import { useRouter } from 'next/navigation';
 
 export function SequenceComplete({ plan }: { plan: SequencePlan }) {
-  const totalCost = plan.steps.reduce((acc, step) => acc + (step.simulation?.gasCostUsd || 0), 0);
+  const router = useRouter();
+  const totalGasCost = plan.steps.reduce((acc, step) => acc + (step.simulation?.gasCostUsd || 0), 0);
 
   return (
-    <div className="max-w-2xl mx-auto py-12 text-center">
-      <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6 text-3xl">✓</div>
-      <h1 className="text-3xl font-bold mb-4">Sequence Complete</h1>
-      <p className="text-gray-600 mb-8">All steps have been successfully executed.</p>
-
-      <div className="bg-gray-50 rounded-lg p-6 mb-8 text-left">
-        <h2 className="font-semibold mb-4 text-lg">Transaction Summary</h2>
-        <ul className="space-y-4">
-          {plan.steps.map(step => (
-            <li key={step.id} className="flex justify-between items-center border-b pb-2">
-              <span>{step.label}</span>
-              {step.txHash && (
-                <a 
-                  href={getExplorerTxUrl(step.chain, step.txHash)} 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  View Tx ↗
-                </a>
-              )}
-            </li>
-          ))}
-        </ul>
-        <div className="mt-6 pt-4 border-t font-semibold flex justify-between">
-          <span>Total Gas Paid</span>
-          <span>${totalCost.toFixed(2)}</span>
+    <div className="max-w-2xl mx-auto py-20 px-6 text-center">
+      <div className="mb-8 flex justify-center">
+        <div className="w-20 h-20 bg-emerald-500/20 border-2 border-emerald-500 rounded-full flex items-center justify-center text-emerald-500 animate-in zoom-in duration-500">
+          <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
         </div>
       </div>
 
-      <Link href="/dashboard" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+      <h2 className="text-3xl font-bold text-zinc-100 mb-4">Sequence Complete</h2>
+      <p className="text-zinc-400 mb-10 max-w-md mx-auto">
+        Your transactions have been successfully executed and confirmed on-chain.
+      </p>
+
+      <Card className="mb-10 divide-y divide-zinc-800 bg-zinc-900/50">
+        <div className="px-6 py-4 flex justify-between items-center text-sm">
+          <span className="text-zinc-500">Total switching cost</span>
+          <span className="text-zinc-100 font-semibold">{formatUsd(totalGasCost)}</span>
+        </div>
+        
+        {plan.steps.map((step) => (
+          <div key={step.id} className="px-6 py-4 flex justify-between items-center text-sm">
+            <span className="text-zinc-400">{step.label}</span>
+            {step.txHash && (
+              <a 
+                href={getExplorerTxUrl(step.chain, step.txHash)} 
+                target="_blank" 
+                rel="noreferrer" 
+                className="text-emerald-400 hover:text-emerald-300 font-medium"
+              >
+                View Tx
+              </a>
+            )}
+          </div>
+        ))}
+      </Card>
+
+      <button 
+        onClick={() => router.push('/dashboard')}
+        className="bg-zinc-100 hover:bg-white text-zinc-950 font-bold px-8 py-3 rounded-xl transition-all shadow-lg"
+      >
         Back to Dashboard
-      </Link>
+      </button>
     </div>
   );
 }
