@@ -50,8 +50,6 @@ const DeleverageAaveParamsSchema = z.object({
   protocol: z.enum([...ALL_PROTOCOLS]),
   chain: z.enum(ALL_CHAINS)
 });
-  chain: z.enum(ALL_CHAINS)
-});
 
 const CreatePlanSchema = z.object({
   templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave']),
@@ -73,7 +71,10 @@ async function validateMinimumSize(asset: string, amount: string): Promise<{ ok:
   // amount is expected to be in base atomic units (Wei).
   const normalizedAmount = Number(amount) / Math.pow(10, tokenConfig.decimals);
   const amountUsd = normalizedAmount * price;
-  return { ok: amountUsd >= 1000, amountUsd };
+  
+  // Handle NaN and minimum size check
+  const ok = !isNaN(amountUsd) && amountUsd >= 1000;
+  return { ok, amountUsd: isNaN(amountUsd) ? 0 : amountUsd };
 }
 
 export async function POST(req: Request) {
@@ -87,49 +88,92 @@ export async function POST(req: Request) {
 
     const { templateId, params, walletAddress } = result.data
     let plan
-    let assetToValidate = ''
-    let amountToValidate = ''
+    let amountUsd = 0
 
-    if (templateId === 'bridgeAndDeposit') {
-      const parsedParams = BridgeAndDepositParamsSchema.safeParse(params);
-      if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for bridgeAndDeposit' }, { status: 400 });
-      assetToValidate = parsedParams.data.asset;
-      amountToValidate = parsedParams.data.amount;
-    } else if (templateId === 'repayAndWithdraw') {
-      const parsedParams = RepayAndWithdrawParamsSchema.safeParse(params);
-      if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for repayAndWithdraw' }, { status: 400 });
-      assetToValidate = parsedParams.data.borrowAsset;
-      amountToValidate = parsedParams.data.borrowAmount;
-    } else if (templateId === 'crossChainRebalance') {
-      const parsedParams = CrossChainRebalanceParamsSchema.safeParse(params);
-      if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for crossChainRebalance' }, { status: 400 });
-      assetToValidate = parsedParams.data.asset;
-      amountToValidate = parsedParams.data.amount;
-    } else if (templateId === 'deleverageAave') {
-      const parsedParams = DeleverageAaveParamsSchema.safeParse(params);
-      if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for deleverageAave' }, { status: 400 });
-      assetToValidate = parsedParams.data.borrowAsset;
-      amountToValidate = parsedParams.data.totalDebt;
-    }
+    if (templateId === 'deleverageAave') {
+      const result = DeleverageAaveParamsSchema.safeParse(params);
+      if (!result.success) {
+        return NextResponse.json({ 
+          error: 'Invalid parameters for deleverageAave', 
+          details: result.error.format() 
+        }, { status: 400 });
+      }
+      const parsedParams = result.data;
+      
+      const borrowToken = SUPPORTED_TOKENS[parsedParams.borrowAsset];
+      const collateralToken = SUPPORTED_TOKENS[parsedParams.collateralAsset];
+      
+      if (!borrowToken || !collateralToken) {
+        return NextResponse.json({ error: 'Unsupported asset' }, { status: 400 });
+      }
 
-    // Minimum transaction size validation (Server-side)
-    const validation = await validateMinimumSize(assetToValidate, amountToValidate);
-    if (!validation.ok) {
-      return NextResponse.json({ 
-        error: `Minimum transaction size of $1,000 USD required. Current: $${validation.amountUsd.toFixed(2)}` 
-      }, { status: 400 });
-    }
+      const prices = await fetchTokenPrices([
+        `coingecko:${borrowToken.coingeckoId}`,
+        `coingecko:${collateralToken.coingeckoId}`
+      ]);
+      
+      const borrowPrice = prices[`coingecko:${borrowToken.coingeckoId}`];
+      const collateralPrice = prices[`coingecko:${collateralToken.coingeckoId}`];
 
-    const { amountUsd } = validation;
+      if (!borrowPrice || !collateralPrice) {
+        return NextResponse.json({ error: 'Could not fetch asset prices' }, { status: 500 });
+      }
 
-    if (templateId === 'bridgeAndDeposit') {
-      plan = buildBridgeAndDepositPlan({ ...BridgeAndDepositParamsSchema.parse(params), walletAddress, amountUsd });
-    } else if (templateId === 'repayAndWithdraw') {
-      plan = buildRepayAndWithdrawPlan({ ...RepayAndWithdrawParamsSchema.parse(params), walletAddress, amountUsd });
-    } else if (templateId === 'crossChainRebalance') {
-      plan = buildCrossChainRebalancePlan({ ...CrossChainRebalanceParamsSchema.parse(params), walletAddress, amountUsd });
-    } else if (templateId === 'deleverageAave') {
-      plan = buildDeleverageAavePlan({ ...DeleverageAaveParamsSchema.parse(params), walletAddress, amountUsd });
+      const totalDebtUsd = (Number(parsedParams.totalDebt) / Math.pow(10, borrowToken.decimals)) * borrowPrice;
+      const totalCollateralUsd = (Number(parsedParams.totalCollateral) / Math.pow(10, collateralToken.decimals)) * collateralPrice;
+      amountUsd = totalDebtUsd; // for minimum size check
+
+      if (isNaN(amountUsd) || amountUsd < 1000) {
+        return NextResponse.json({ 
+          error: `Minimum transaction size of $1,000 USD required. Current: $${(isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}` 
+        }, { status: 400 });
+      }
+
+      plan = buildDeleverageAavePlan({
+        ...parsedParams,
+        totalDebtUsd,
+        totalCollateralUsd,
+        amountUsd,
+        walletAddress
+      });
+    } else {
+      let assetToValidate = ''
+      let amountToValidate = ''
+
+      if (templateId === 'bridgeAndDeposit') {
+        const parsedParams = BridgeAndDepositParamsSchema.safeParse(params);
+        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for bridgeAndDeposit' }, { status: 400 });
+        assetToValidate = parsedParams.data.asset;
+        amountToValidate = parsedParams.data.amount;
+      } else if (templateId === 'repayAndWithdraw') {
+        const parsedParams = RepayAndWithdrawParamsSchema.safeParse(params);
+        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for repayAndWithdraw' }, { status: 400 });
+        assetToValidate = parsedParams.data.borrowAsset;
+        amountToValidate = parsedParams.data.borrowAmount;
+      } else if (templateId === 'crossChainRebalance') {
+        const parsedParams = CrossChainRebalanceParamsSchema.safeParse(params);
+        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for crossChainRebalance' }, { status: 400 });
+        assetToValidate = parsedParams.data.asset;
+        amountToValidate = parsedParams.data.amount;
+      }
+
+      // Minimum transaction size validation (Server-side)
+      const validation = await validateMinimumSize(assetToValidate, amountToValidate);
+      if (!validation.ok) {
+        return NextResponse.json({ 
+          error: `Minimum transaction size of $1,000 USD required. Current: $${validation.amountUsd.toFixed(2)}` 
+        }, { status: 400 });
+      }
+
+      amountUsd = validation.amountUsd;
+
+      if (templateId === 'bridgeAndDeposit') {
+        plan = buildBridgeAndDepositPlan({ ...BridgeAndDepositParamsSchema.parse(params), walletAddress, amountUsd });
+      } else if (templateId === 'repayAndWithdraw') {
+        plan = buildRepayAndWithdrawPlan({ ...RepayAndWithdrawParamsSchema.parse(params), walletAddress, amountUsd });
+      } else if (templateId === 'crossChainRebalance') {
+        plan = buildCrossChainRebalancePlan({ ...CrossChainRebalanceParamsSchema.parse(params), walletAddress, amountUsd });
+      }
     }
 
     if (!plan) {

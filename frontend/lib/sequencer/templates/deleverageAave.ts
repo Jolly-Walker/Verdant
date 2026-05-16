@@ -38,8 +38,6 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
 
   const lt = (params.initialHealthFactor * totalDebtUsd) / totalCollateralUsd;
 
-  let currentDebt = Number(params.totalDebt);
-  let currentCollateral = Number(params.totalCollateral);
   let currentDebtUsd = totalDebtUsd;
   let currentCollateralUsd = totalCollateralUsd;
   let previousStepId: string | null = null;

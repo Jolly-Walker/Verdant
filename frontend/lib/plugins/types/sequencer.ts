@@ -72,9 +72,11 @@ export interface DeleverageAaveParams {
   totalDebtUsd: number;
   totalCollateralUsd: number;
   initialHealthFactor: number;
+  amountUsd: number;
   cycles: number;
   protocol: ProtocolId;
   chain: ChainId;
+  walletAddress: string;
 }
 
 export type TemplateParams = 
