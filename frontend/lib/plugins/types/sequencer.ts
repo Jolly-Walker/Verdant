@@ -69,6 +69,8 @@ export interface DeleverageAaveParams {
   collateralAsset: string;
   totalDebt: string;
   totalCollateral: string;
+  totalDebtUsd: number;
+  totalCollateralUsd: number;
   initialHealthFactor: number;
   cycles: number;
   protocol: ProtocolId;

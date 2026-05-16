@@ -121,6 +121,11 @@ export function SequenceStepCard({
               <p className="font-semibold mb-1">Execution failed</p>
               <p className="opacity-80">The transaction was rejected or failed on-chain.</p>
             </div>
+            {/* 
+              TODO: Distinguish between simulation failure vs execution failure.
+              Retrying simulation is safe here as it will re-validate and potentially 
+              refresh any stale transaction data before allowing another sign attempt.
+            */}
             <button onClick={onSimulate} className="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 rounded-lg transition-colors">
               Retry Step
             </button>

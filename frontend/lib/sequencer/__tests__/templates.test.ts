@@ -104,6 +104,8 @@ describe('Sequencer Templates', () => {
         collateralAsset: 'ETH',
         totalDebt: '3000',
         totalCollateral: '2.5',
+        totalDebtUsd: 3000,
+        totalCollateralUsd: 7500, // 2.5 ETH @ $3,000
         initialHealthFactor: 2.0,
         amountUsd: 3000,
         cycles: 3,
@@ -140,6 +142,8 @@ describe('Sequencer Templates', () => {
         collateralAsset: 'ETH',
         totalDebt: '3000',
         totalCollateral: '2.5',
+        totalDebtUsd: 3000,
+        totalCollateralUsd: 3100, // Very thin collateral margin
         initialHealthFactor: 1.04, // Low initial HF
         amountUsd: 3000,
         cycles: 2,

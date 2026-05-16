@@ -2,13 +2,18 @@ import 'server-only'
 import { createClient } from '@supabase/supabase-js'
 import { SequencePlan } from '../plugins/types/sequencer'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-const supabase = createClient(supabaseUrl, supabaseServiceKey)
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Supabase environment variables not configured')
+  }
+  return createClient(url, key)
+}
 
 export async function createSequencePlan(plan: SequencePlan, templateId: string): Promise<SequencePlan | null> {
   try {
+    const supabase = getSupabase()
     const { data, error } = await supabase
       .from('sequence_plans')
       .insert({
@@ -37,6 +42,7 @@ export async function createSequencePlan(plan: SequencePlan, templateId: string)
 
 export async function getSequencePlan(id: string): Promise<SequencePlan | null> {
   try {
+    const supabase = getSupabase()
     const { data, error } = await supabase
       .from('sequence_plans')
       .select('*')
@@ -62,6 +68,7 @@ export async function getSequencePlan(id: string): Promise<SequencePlan | null> 
 
 export async function updateSequencePlanStep(planId: string, stepId: string, steps: SequencePlan['steps'], newStatus: SequencePlan['status']): Promise<boolean> {
   try {
+    const supabase = getSupabase()
     const updates: Record<string, unknown> = { steps, status: newStatus }
     if (newStatus === 'complete') {
       updates.completed_at = new Date().toISOString()
@@ -82,6 +89,7 @@ export async function updateSequencePlanStep(planId: string, stepId: string, ste
 
 export async function markPlanComplete(id: string): Promise<boolean> {
   try {
+    const supabase = getSupabase()
     const { error } = await supabase
       .from('sequence_plans')
       .update({
@@ -100,6 +108,7 @@ export async function markPlanComplete(id: string): Promise<boolean> {
 
 export async function markPlanFailed(id: string): Promise<boolean> {
   try {
+    const supabase = getSupabase()
     const { error } = await supabase
       .from('sequence_plans')
       .update({

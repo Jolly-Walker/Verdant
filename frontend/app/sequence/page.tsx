@@ -13,15 +13,17 @@ export default function SequenceTemplateSelector() {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null);
   
   const [asset, setAsset] = useState('USDC');
+  const [borrowAsset, setBorrowAsset] = useState('USDC');
+  const [collateralAsset, setCollateralAsset] = useState('ETH');
   const [amount, setAmount] = useState('100');
+  const [cycles, setCycles] = useState(2);
   const [fromChain, setFromChain] = useState<ChainId>('ethereum');
   const [toChain, setToChain] = useState<ChainId>('arbitrum');
   const [toProtocol, setToProtocol] = useState<ProtocolId>('aave');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async () => {
     if (!selectedTemplate) return;
     setIsSubmitting(true);
     
@@ -31,7 +33,6 @@ export default function SequenceTemplateSelector() {
         params = {
           asset,
           amount,
-          amountUsd: Number(amount),
           fromChain,
           toChain,
           fromProtocol: 'wallet',
@@ -39,10 +40,9 @@ export default function SequenceTemplateSelector() {
         };
       } else if (selectedTemplate === 'repayAndWithdraw') {
         params = {
-          borrowAsset: 'USDT',
+          borrowAsset,
           borrowAmount: amount,
-          amountUsd: Number(amount),
-          collateralAsset: 'ETH',
+          collateralAsset,
           collateralAmount: '1',
           protocol: toProtocol,
           chain: fromChain
@@ -51,7 +51,6 @@ export default function SequenceTemplateSelector() {
         params = {
           asset,
           amount,
-          amountUsd: Number(amount),
           fromProtocol: 'aave',
           fromChain,
           toProtocol,
@@ -59,13 +58,12 @@ export default function SequenceTemplateSelector() {
         };
       } else if (selectedTemplate === 'deleverageAave') {
         params = {
-          borrowAsset: 'USDC',
-          collateralAsset: 'ETH',
+          borrowAsset,
+          collateralAsset,
           totalDebt: amount,
           totalCollateral: '1',
-          initialHealthFactor: 2.0,
-          amountUsd: Number(amount),
-          cycles: 2,
+          initialHealthFactor: 2.5,
+          cycles,
           protocol: 'aave',
           chain: fromChain
         };
@@ -101,21 +99,51 @@ export default function SequenceTemplateSelector() {
       </div>
 
       {selectedTemplate && (
-        <form onSubmit={handleSubmit} className="bg-gray-50 rounded-xl p-8 max-w-xl mx-auto">
+        <div className="bg-gray-50 rounded-xl p-8 max-w-xl mx-auto">
           <h2 className="font-bold text-xl mb-6">Configure Parameters</h2>
           
           <div className="space-y-4">
+            {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') ? (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Borrow Asset (to repay)</label>
+                  <select className="w-full border rounded p-2" value={borrowAsset} onChange={e => setBorrowAsset(e.target.value)}>
+                    <option value="USDC">USDC</option>
+                    <option value="USDT">USDT</option>
+                    <option value="DAI">DAI</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Collateral Asset (to withdraw)</label>
+                  <select className="w-full border rounded p-2" value={collateralAsset} onChange={e => setCollateralAsset(e.target.value)}>
+                    <option value="ETH">ETH</option>
+                    <option value="wstETH">wstETH</option>
+                    <option value="WBTC">WBTC</option>
+                  </select>
+                </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium mb-1">Asset</label>
+                <select className="w-full border rounded p-2" value={asset} onChange={e => setAsset(e.target.value)}>
+                  <option value="USDC">USDC</option>
+                  <option value="ETH">ETH</option>
+                </select>
+              </div>
+            )}
             <div>
-              <label className="block text-sm font-medium mb-1">Asset</label>
-              <select className="w-full border rounded p-2" value={asset} onChange={e => setAsset(e.target.value)}>
-                <option value="USDC">USDC</option>
-                <option value="ETH">ETH</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Amount</label>
+              <label className="block text-sm font-medium mb-1">
+                {selectedTemplate === 'deleverageAave' ? 'Total Debt Amount' : 'Amount'}
+              </label>
               <input type="number" className="w-full border rounded p-2" value={amount} onChange={e => setAmount(e.target.value)} />
             </div>
+            {selectedTemplate === 'deleverageAave' && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Unwind Cycles</label>
+                <input type="number" min="1" max="10" className="w-full border rounded p-2" value={cycles} onChange={e => setCycles(parseInt(e.target.value) || 1)} />
+                <p className="text-xs text-gray-500 mt-1">Higher cycles are safer but cost more gas.</p>
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium mb-1">From Chain</label>
               <select className="w-full border rounded p-2" value={fromChain} onChange={e => setFromChain(e.target.value as ChainId)}>
@@ -145,13 +173,13 @@ export default function SequenceTemplateSelector() {
           </div>
           
           <button 
-            type="submit" 
+            onClick={handleSubmit}
             disabled={isSubmitting}
             className="mt-8 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50"
           >
             {isSubmitting ? 'Creating Plan...' : 'Create Sequence Plan'}
           </button>
-        </form>
+        </div>
       )}
     </div>
   );

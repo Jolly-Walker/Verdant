@@ -24,7 +24,7 @@ const RepayAndWithdrawParamsSchema = z.object({
   borrowAmount: z.string(),
   collateralAsset: z.string(),
   collateralAmount: z.string(),
-  protocol: z.enum(ALL_PROTOCOLS as unknown as [string, ...string[]]),
+  protocol: z.enum([...ALL_PROTOCOLS]),
   chain: z.enum(ALL_CHAINS)
 });
 
@@ -43,9 +43,13 @@ const DeleverageAaveParamsSchema = z.object({
   collateralAsset: z.string(),
   totalDebt: z.string(),
   totalCollateral: z.string(),
+  totalDebtUsd: z.number().optional(),
+  totalCollateralUsd: z.number().optional(),
   initialHealthFactor: z.number(),
   cycles: z.number(),
-  protocol: z.enum(ALL_PROTOCOLS as unknown as [string, ...string[]]),
+  protocol: z.enum([...ALL_PROTOCOLS]),
+  chain: z.enum(ALL_CHAINS)
+});
   chain: z.enum(ALL_CHAINS)
 });
 
@@ -65,7 +69,10 @@ async function validateMinimumSize(asset: string, amount: string): Promise<{ ok:
   
   if (!price) return { ok: false, amountUsd: 0 };
 
-  const amountUsd = Number(amount) * price;
+  // Properly normalize the amount using token decimals before multiplying by price.
+  // amount is expected to be in base atomic units (Wei).
+  const normalizedAmount = Number(amount) / Math.pow(10, tokenConfig.decimals);
+  const amountUsd = normalizedAmount * price;
   return { ok: amountUsd >= 1000, amountUsd };
 }
 

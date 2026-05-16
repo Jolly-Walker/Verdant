@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
 import { SequencePlan, SequenceStep, SimulationResult, TemplateParams } from '@/lib/plugins/types/sequencer'
 import { getActiveStep } from '@/lib/sequencer/engine'
@@ -33,26 +33,34 @@ export function useSequencer() {
   const { sendTransactionAsync } = useSendTransaction()
   const [plan, setPlan] = useState<SequencePlan | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
+  
+  // Synchronous lock to prevent double execution race conditions
+  const executingSteps = useRef<Set<string>>(new Set())
 
   const currentStep = useMemo(() => plan ? getActiveStep(plan) : null, [plan]);
 
   const createPlan = async (templateId: string, params: TemplateParams) => {
     if (!address) throw new Error('Wallet not connected')
 
-    const res = await fetchWithTimeout('/api/sequencer/plan', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ templateId, params, walletAddress: address })
-    });
-    
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to create plan');
-    }
+    try {
+      const res = await fetchWithTimeout('/api/sequencer/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId, params, walletAddress: address })
+      });
+      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create plan');
+      }
 
-    const { plan: newPlan } = await res.json();
-    setPlan(newPlan)
-    return newPlan
+      const { plan: newPlan } = await res.json();
+      setPlan(newPlan)
+      return newPlan
+    } catch (err) {
+      console.error('Plan creation error:', err)
+      throw err instanceof Error ? err : new Error('Network error — please check your connection and retry')
+    }
   }
 
   const simulateStep = async (stepId: string): Promise<SimulationResult> => {
@@ -71,29 +79,23 @@ export function useSequencer() {
 
     setIsSimulating(true)
     
-    // Transition step to 'simulating' in UI
-    setPlan(prev => prev ? { 
-      ...prev, 
-      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'simulating' } : s) 
-    } : null)
-    
-    const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'simulating' })
-    })
-
-    if (!patchRes.ok) {
-      // Revert UI state on failure
+    try {
+      // Transition step to 'simulating' in UI
       setPlan(prev => prev ? { 
         ...prev, 
-        steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'pending' } : s) 
+        steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'simulating' } : s) 
       } : null)
-      setIsSimulating(false)
-      throw new Error('Failed to update step status in database')
-    }
+      
+      const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'simulating' })
+      })
 
-    try {
+      if (!patchRes.ok) {
+        throw new Error('Failed to update step status in database')
+      }
+
       if (!step.unsignedTx) throw new Error('No transaction to simulate')
 
       const res = await fetchWithTimeout('/api/simulate', {
@@ -151,6 +153,8 @@ export function useSequencer() {
       
       return result
     } catch (err) {
+      console.error('Simulation error:', err)
+      
       await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -176,6 +180,12 @@ export function useSequencer() {
     if (!plan) throw new Error('No active plan')
     const step = plan.steps.find(s => s.id === stepId)
     if (!step) throw new Error('Step not found')
+
+    // 1. Synchronous check to prevent double execution from rapid clicks
+    if (executingSteps.current.has(stepId)) {
+      console.warn(`Step ${stepId} is already executing, ignoring second call.`)
+      return ''
+    }
     
     // Check dependencies
     const unmetDeps = step.dependsOn.filter(depId => {
@@ -189,29 +199,32 @@ export function useSequencer() {
     if (step.status !== 'ready') throw new Error('Step is not ready to execute')
     if (!step.unsignedTx) throw new Error('No transaction to execute')
 
-    // 1. Move local state to 'signing' SYNCHRONOUSLY to prevent double execution
-    setPlan(prev => prev ? { 
-      ...prev, 
-      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'signing' } : s) 
-    } : null)
-
-    // 2. Update DB before prompting wallet
-    const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'signing' })
-    })
-
-    if (!patchRes.ok) {
-      // Revert UI state on failure
-      setPlan(prev => prev ? { 
-        ...prev, 
-        steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'ready' } : s) 
-      } : null)
-      throw new Error('State desynchronization: Failed to update status in database. Aborting to prevent tracking loss.')
-    }
+    // Set lock
+    executingSteps.current.add(stepId)
 
     try {
+      // 2. Move local state to 'signing'
+      setPlan(prev => prev ? { 
+        ...prev, 
+        steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'signing' } : s) 
+      } : null)
+
+      // 3. Update DB before prompting wallet
+      const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'signing' })
+      })
+
+      if (!patchRes.ok) {
+        // Revert UI state on failure
+        setPlan(prev => prev ? { 
+          ...prev, 
+          steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'ready' } : s) 
+        } : null)
+        throw new Error('State desynchronization: Failed to update status in database. Aborting to prevent tracking loss.')
+      }
+
       const numericChainId = CHAIN_ID_MAP[step.unsignedTx.chainId]
       
       const txHash = await sendTransactionAsync({
@@ -229,7 +242,6 @@ export function useSequencer() {
 
       if (!confirmRes.ok) {
         // This is a dangerous state: tx is on-chain but DB is not updated.
-        // We update local state to at least let the user know, but they might need to refresh.
         console.error('CRITICAL: Transaction broadcast but database update failed')
         setPlan(prev => prev ? { 
           ...prev, 
@@ -245,6 +257,7 @@ export function useSequencer() {
 
       return txHash
     } catch (err: unknown) {
+      console.error('Execution error:', err)
       const isUserRejection = 
         (err instanceof Error && err.message.toLowerCase().includes('user rejected')) || 
         (typeof err === 'object' && err !== null && 'code' in err && (err as { code: number }).code === 4001)
@@ -265,6 +278,9 @@ export function useSequencer() {
       } : null)
 
       throw new Error(errorMessage)
+    } finally {
+      // Always release lock
+      executingSteps.current.delete(stepId)
     }
   }
 

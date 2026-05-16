@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
       success: simResult.success,
       revertReason: simResult.error,
       gasEstimate: simResult.gasEstimate?.toString(),
-      simulatedAt: simResult.simulatedAt.toISOString(),
+      simulatedAt: (simResult.simulatedAt || new Date()).toISOString(),
     })
   } catch (error) {
     console.error('Simulation error:', error)

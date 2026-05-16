@@ -6,13 +6,17 @@ export async function GET(req: Request, { params }: { params: { planId: string }
     const url = new URL(req.url)
     const walletAddress = url.searchParams.get('wallet')
 
+    if (!walletAddress) {
+      return NextResponse.json({ error: 'wallet query parameter required' }, { status: 400 })
+    }
+
     const plan = await getSequencePlan(params.planId)
     
     if (!plan) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
-    if (walletAddress && plan.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+    if (plan.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
