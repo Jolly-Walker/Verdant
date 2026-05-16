@@ -156,3 +156,36 @@ All integrations must follow the **Plugin Registry Pattern** defined in SPECS.md
 - Not a single-click batched executor. You use the Sequencer.
 - Not a bridge or DEX infrastructure. You use established bridge plugins.
 - Not a vault protocol. Do not build LP deposit, vault tokens, or NAV accounting.
+
+
+## Known Agent Pitfalls — Read Before Coding
+
+These patterns have caused real bugs in this codebase. Avoid them.
+
+**1. Never stub a route and mark it done.**
+If a spec task is "implement simulation," the API route must call the real implementation.
+A route that sleeps and returns `{ success: true }` is not done — it is a silent safety failure.
+Every route must have an integration test or a manual smoke test in the PR description.
+
+**2. Never define a plugin inline in a registry.**
+All plugins live in their own file and are imported into the registry.
+`CHAIN_REGISTRY`, `PROTOCOL_REGISTRY`, and `BRIDGE_REGISTRY` must only contain named imports.
+Inline object literals in the registry are forbidden — they create orphaned plugin files and drift.
+
+**3. Before deleting any file, grep for all its importers.**
+Run: `grep -r "the-file-name" --include="*.ts" --include="*.tsx"`
+Fix every importer before the deletion commit. A broken import is a broken build.
+
+**4. Never use `as any` or `as unknown as X` to silence a type error.**
+These hide real type mismatches. If the type system is complaining, fix the type.
+The only acceptable cast is a named intermediate type with a comment explaining why.
+`as any` in a PR diff is an automatic review failure.
+
+**5. When adding a new chain to the registry, update ALL of these:**
+- `lib/plugins/chains/{chain}.ts` — plugin file
+- `lib/plugins/chains/index.ts` — CHAIN_REGISTRY import
+- `lib/server/rpc.ts` — ALCHEMY_RPC_URLS and chainMap
+- `lib/simulation/simulate.ts` — getClient() viemChain map
+- `lib/wagmi.ts` — wagmi chains array (EVM only)
+- `lib/plugins/tokens.ts` — token addresses for that chain
+Missing any one of these breaks a different part of the stack silently.
