@@ -1,3 +1,4 @@
+import 'server-only'
 import { BridgeId, BridgeQuote, BridgeQuoteParams } from '../types/shared'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { acrossBridgePlugin } from './across'

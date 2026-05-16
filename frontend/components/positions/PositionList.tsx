@@ -4,7 +4,7 @@ import { PositionCard } from './PositionCard'
 import { PositionSkeleton } from './PositionSkeleton'
 import { PositionTypeFilter } from './PositionTypeFilter'
 import { useChainMetadata } from '@/hooks/useChainMetadata'
-import { ChainId, PositionType } from '@/lib/plugins/types/shared'
+import { PositionType } from '@/lib/plugins/types/shared'
 
 interface PositionListProps {
   positions: Position[]
@@ -12,7 +12,7 @@ interface PositionListProps {
 }
 
 export function PositionList({ positions, isLoading }: PositionListProps) {
-  const [filter, setFilter] = useState<PositionType | 'all'>('all')
+  const [filter, setFilter] = useState<PositionType | 'all' | 'pendle'>('all')
   const { chainIds, getChainMetadata } = useChainMetadata()
 
   if (isLoading) {
@@ -28,7 +28,7 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
   const filteredPositions = filter === 'all' 
     ? positions 
     : positions.filter(p => {
-        if (filter === 'pendle-pt') return p.positionType === 'pendle-pt' || p.positionType === 'pendle-yt'
+        if (filter === 'pendle') return p.positionType === 'pendle-pt' || p.positionType === 'pendle-yt'
         return p.positionType === filter
       })
 

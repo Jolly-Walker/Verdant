@@ -3,12 +3,12 @@ import { ProtocolPlugin } from '../types/protocol-plugin'
 export const eulerPlugin: ProtocolPlugin = {
   id: 'euler',
   displayName: 'Euler',
-  supportedChains: ['ethereum', 'arbitrum'],
+  supportedChains: ['ethereum'], // Arbitrum support pending correct EVK vault addresses
   supportedPositionTypes: ['supply', 'borrow'],
-  defillamaSlug: 'euler',
+  defillamaSlug: 'euler-v2',
   addresses: {
-    ethereum: { poolAddress: '0x27182842E098f60e3D576794A5bFFb0777E025d3' },
-    arbitrum: { poolAddress: '0x27182842E098f60e3D576794A5bFFb0777E025d3' },
+    // Euler EVK EVC (Ethereum Vault Connector) — individual vaults sourced per-market
+    ethereum: { poolAddress: '0x0C9a3dd6b8F28529d72d7f9cE918D493519EE383' },
   },
   fetcher: {
     fetchPositions: async () => [],

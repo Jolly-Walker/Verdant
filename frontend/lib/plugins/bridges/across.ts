@@ -1,3 +1,4 @@
+import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '../types/shared'
 
@@ -31,9 +32,9 @@ export const acrossBridgePlugin: BridgePlugin = {
     }
   },
 
-  async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
+  async buildBridgeTx(_quote: BridgeQuote): Promise<UnsignedTx> {
     return {
-      chainId: 'ethereum', // This should really be from the quote's source chain
+      chainId: 1, // Ethereum Mainnet numeric ID
       to: '0x59728544B08AB483533076417FbBB2fD0B17CE3a', // Across SpokePool
       data: '0x', // Mock data
       value: BigInt(0),
@@ -41,7 +42,7 @@ export const acrossBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(txHash: string, fromChain: ChainId): Promise<BridgeStatus> {
+  async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     try {
       const response = await fetch(`https://across.to/api/deposit/status?originTransactionHash=${txHash}`, {
         cache: 'no-store'

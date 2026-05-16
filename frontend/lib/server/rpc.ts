@@ -8,7 +8,7 @@
 
 import 'server-only'
 import { Chain } from '@/types/chain'
-import { createPublicClient, http, PublicClient } from 'viem'
+import { createPublicClient, http, PublicClient, Chain as ViemChain } from 'viem'
 import { mainnet, arbitrum, base } from 'viem/chains'
 
 const ALCHEMY_RPC_URLS: Record<Chain, string> = {
@@ -32,7 +32,7 @@ export function getRpcUrl(chain: Chain): string {
 export function getPublicClient(chain: Chain): PublicClient {
   const rpcUrl = getRpcUrl(chain)
   
-  const chainMap: Record<string, any> = {
+  const chainMap: Record<string, ViemChain> = {
     ethereum: mainnet,
     arbitrum: arbitrum,
     base: base,

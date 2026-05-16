@@ -1,3 +1,4 @@
+import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '../types/shared'
 
@@ -28,9 +29,9 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     }
   },
 
-  async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
+  async buildBridgeTx(_quote: BridgeQuote): Promise<UnsignedTx> {
     return {
-      chainId: 'ethereum', // Mock
+      chainId: 1, // Mock numeric ID
       to: '0x0000000000000000000000000000000000000000', // Mock solver address
       data: '0x',
       value: BigInt(0),
@@ -38,11 +39,10 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(txHash: string, fromChain: ChainId): Promise<BridgeStatus> {
-    // Mock success for now
+  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+    // Default to pending for safety until implementation is complete (M7)
     return {
-      status: 'complete',
-      destinationTxHash: '0x' + '0'.repeat(64)
+      status: 'pending'
     }
   }
 }

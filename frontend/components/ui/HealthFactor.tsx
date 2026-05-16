@@ -6,14 +6,11 @@ interface HealthFactorProps {
 
 export function HealthFactor({ value }: HealthFactorProps) {
   let colorClass = 'text-red-400'
-  let label = 'Critical'
 
   if (value >= 2.0) {
     colorClass = 'text-emerald-400'
-    label = 'Safe'
   } else if (value >= 1.2) {
     colorClass = 'text-amber-400'
-    label = 'Warning'
   }
 
   return (

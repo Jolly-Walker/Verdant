@@ -1,14 +1,18 @@
 import { useState } from 'react'
+import { useAccount } from 'wagmi'
 import { SequencePlan, SequenceStep, SimulationResult } from '@/lib/plugins/types/sequencer'
 
 export function useSequencer() {
+  const { address } = useAccount()
   const [plan, setPlan] = useState<SequencePlan | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
 
   const createPlan = async (description: string, steps: SequenceStep[]) => {
+    if (!address) throw new Error('Wallet not connected')
+
     const newPlan: SequencePlan = {
-      id: Math.random().toString(36).substring(7),
-      walletAddress: '', // To be filled by wallet
+      id: crypto.randomUUID(),
+      walletAddress: address,
       createdAt: new Date(),
       steps,
       status: 'draft',
@@ -27,6 +31,7 @@ export function useSequencer() {
 
       const res = await fetch('/api/simulate', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stepId }),
         signal: controller.signal
       })
@@ -42,12 +47,25 @@ export function useSequencer() {
         return {
           ...prev,
           steps: prev.steps.map(s => 
-            s.id === stepId ? { ...s, simulation: result, status: result.success ? 'ready' : 'failed' } : s
+            s.id === stepId 
+              ? { ...s, simulation: result, status: result.success ? 'ready' : 'failed' } 
+              : s
           )
         }
       })
       
       return result
+    } catch (err) {
+      setPlan(prev => {
+        if (!prev) return null
+        return {
+          ...prev,
+          steps: prev.steps.map(s => 
+            s.id === stepId ? { ...s, status: 'failed' } : s
+          )
+        }
+      })
+      throw err
     } finally {
       setIsSimulating(false)
     }

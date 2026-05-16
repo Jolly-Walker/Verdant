@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// Mock server-only before other imports
+vi.mock('server-only', () => ({}))
+
 import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { BRIDGE_REGISTRY, getBridgeQuotes } from '@/lib/plugins/bridges'
