@@ -1262,26 +1262,26 @@ dashboard chain selector without any other code changes.
 
 ---
 
-### 📋 Milestone 3 — Base Chain + Full Position Type Display
+### Milestone 3 — Base Chain + Full Position Type Display
 
 **Goal:** Add Base, show all position types (supply, borrow, Pendle PT/YT) in dashboard.
 
 **Tasks:**
-- [ ] `lib/plugins/chains/base.ts` — Base chain plugin with Alchemy RPC
-- [ ] Update `wagmiConfig` to include Base
-- [ ] Update Zerion filter to include `base` chain
-- [ ] Extend `PROTOCOL_REGISTRY`: add Base to Aave + Morpho `supportedChains`
-- [ ] Add Aave V3 pool address for Base to `aavePlugin`
-- [ ] Add Morpho address for Base
-- [ ] `types/position.ts` — extend `Position` with borrow + Pendle fields
-- [ ] Update `PositionCard.tsx` to be type-aware (render different UI per `positionType`)
-- [ ] `components/positions/BorrowCard.tsx` — health factor display with colour coding
-- [ ] `components/ui/HealthFactor.tsx` — reusable health factor badge
-- [ ] `components/positions/PendleCard.tsx` — maturity date + APY type display
-- [ ] `components/positions/PositionTypeFilter.tsx` — filter bar
-- [ ] Update dashboard `page.tsx` — group by chain, then by type; separate liabilities section
-- [ ] Update `/api/positions` — include borrow positions in Zerion filter
-- [ ] Write position aggregation tests
+- [x] `lib/plugins/chains/base.ts` — Base chain plugin with Alchemy RPC
+- [x] Update `wagmiConfig` to include Base
+- [x] Update Zerion filter to include `base` chain
+- [x] Extend `PROTOCOL_REGISTRY`: add Base to Aave + Morpho `supportedChains`
+- [x] Add Aave V3 pool address for Base to `aavePlugin`
+- [x] Add Morpho address for Base
+- [x] `types/position.ts` — extend `Position` with borrow + Pendle fields
+- [x] Update `PositionCard.tsx` to be type-aware (render different UI per `positionType`)
+- [x] `components/positions/BorrowCard.tsx` — health factor display with colour coding
+- [x] `components/ui/HealthFactor.tsx` — reusable health factor badge
+- [x] `components/positions/PendleCard.tsx` — maturity date + APY type display
+- [x] `components/positions/PositionTypeFilter.tsx` — filter bar
+- [x] Update dashboard `page.tsx` — group by chain, then by type; separate liabilities section
+- [x] Update `/api/positions` — include borrow positions in Zerion filter
+- [x] Write position aggregation tests
 
 ---
 
