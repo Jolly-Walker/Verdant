@@ -38,7 +38,7 @@ describe('Zerion Data Normalization', () => {
   })
 
   describe('normaliseZerionPositions', () => {
-    const createMockPosition = (overrides: any = {}): any => {
+    const createMockPosition = (overrides: Record<string, unknown> = {}): Record<string, unknown> => {
       const attributes = {
         name: 'USDC',
         protocol: 'Aave V3',

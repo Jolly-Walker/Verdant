@@ -49,6 +49,7 @@ export function StepTwoDeposit({
           from: recipientAddress,
           value: '0',
           chainId: getChainId(destChain),
+          chain: destChain,
           protocol: destProtocol,
           asset,
           amount

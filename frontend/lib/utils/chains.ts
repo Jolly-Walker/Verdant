@@ -1,11 +1,11 @@
 import { Chain } from '@/types/chain'
-import { CHAIN_METADATA } from '@/lib/plugins/types/chain-metadata'
+import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata'
 
 /**
  * Get a block explorer URL for a transaction hash.
  */
 export function getExplorerTxUrl(chain: Chain, txHash: string): string {
-  const config = CHAIN_METADATA[chain]
+  const config = CHAIN_DISPLAY_MAP[chain]
   return `${config.explorerUrl}/tx/${txHash}`
 }
 
@@ -13,7 +13,7 @@ export function getExplorerTxUrl(chain: Chain, txHash: string): string {
  * Get a block explorer URL for an address.
  */
 export function getExplorerAddressUrl(chain: Chain, address: string): string {
-  const config = CHAIN_METADATA[chain]
+  const config = CHAIN_DISPLAY_MAP[chain]
   return `${config.explorerUrl}/address/${address}`
 }
 
@@ -21,12 +21,12 @@ export function getExplorerAddressUrl(chain: Chain, address: string): string {
  * Get the human-readable display name for a chain.
  */
 export function getChainDisplayName(chain: Chain): string {
-  return CHAIN_METADATA[chain].displayName
+  return CHAIN_DISPLAY_MAP[chain].displayName
 }
 
 /**
  * Get chain ID for a given chain.
  */
-export function getChainId(chain: Chain): number {
-  return CHAIN_METADATA[chain].chainIdOrNetwork as number
+export function getChainId(chain: Chain): number | string {
+  return CHAIN_DISPLAY_MAP[chain].chainIdOrNetwork
 }

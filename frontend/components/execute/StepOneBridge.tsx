@@ -246,7 +246,7 @@ export function StepOneBridge({
               </span>
               Bridging {asset} to {getChainDisplayName(destChain)}...
             </div>
-            <p className="text-sm text-zinc-400 mb-3">Estimated time remaining: ~{Math.round(quote?.estimatedTimeSeconds / 60) || '2-5'} minutes</p>
+            <p className="text-sm text-zinc-400 mb-3">Estimated time remaining: ~{quote?.estimatedTimeSeconds ? Math.round(quote.estimatedTimeSeconds / 60) : '2-5'} minutes</p>
             {originTxHash && (
               <a 
                 href={getExplorerTxUrl(sourceChain, originTxHash)} 

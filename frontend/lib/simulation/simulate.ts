@@ -1,6 +1,6 @@
 import 'server-only'
 import { createPublicClient, http, parseAbi, parseUnits } from 'viem'
-import { mainnet, arbitrum } from 'viem/chains'
+import { mainnet, arbitrum, base } from 'viem/chains'
 import { Chain } from '@/types/chain'
 import { Protocol } from '@/types/protocol'
 import { getRpcUrl } from '@/lib/server/rpc'
@@ -12,7 +12,20 @@ const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
 
 const getClient = (chain: Chain) => {
   const rpcUrl = getRpcUrl(chain)
-  const viemChain = chain === 'ethereum' ? mainnet : arbitrum
+  let viemChain
+  switch (chain) {
+    case 'ethereum':
+      viemChain = mainnet
+      break
+    case 'arbitrum':
+      viemChain = arbitrum
+      break
+    case 'base':
+      viemChain = base
+      break
+    default:
+      viemChain = mainnet
+  }
   return createPublicClient({
     chain: viemChain,
     transport: http(rpcUrl),
@@ -88,5 +101,38 @@ export async function estimateDepositGas(destChain: Chain, protocol: Protocol, a
   } catch {
     console.warn(`Deposit gas simulation failed for ${protocol} on ${destChain}, using fallback`)
     return 250_000
+  }
+}
+
+/**
+ * Performs a full simulation of a transaction.
+ */
+export async function simulateTransaction(params: {
+  chain: Chain
+  to: string
+  from: string
+  data: string
+  value: string
+}) {
+  const client = getClient(params.chain)
+  
+  try {
+    const gas = await client.estimateGas({
+      account: params.from as `0x${string}`,
+      to: params.to as `0x${string}`,
+      data: params.data as `0x${string}`,
+      value: BigInt(params.value),
+    })
+
+    return {
+      success: true,
+      gasUsed: Number(gas),
+    }
+  } catch (err) {
+    console.error('Simulation error details:', err)
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'Unknown simulation error',
+    }
   }
 }

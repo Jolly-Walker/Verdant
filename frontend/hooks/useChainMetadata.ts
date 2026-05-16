@@ -1,4 +1,4 @@
-import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains'
+import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata'
 import { ChainId } from '@/lib/plugins/types/shared'
 
 export function useChainMetadata() {
