@@ -30,7 +30,7 @@ export function SequenceStepCard({
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/50">
         <div className="flex items-center gap-3">
           <h3 className="font-semibold text-zinc-100">{step.label}</h3>
-          <Badge variant="secondary" className="bg-zinc-800 text-zinc-400">
+          <Badge variant="default" className="bg-zinc-800 text-zinc-400">
             {getChainDisplayName(step.chain)}
           </Badge>
         </div>

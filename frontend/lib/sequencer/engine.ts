@@ -1,3 +1,4 @@
+import { ALL_CHAINS } from '../plugins/types/shared';
 import { SequencePlan, SequenceStep } from '../plugins/types/sequencer';
 
 export function getActiveStep(plan: SequencePlan): SequenceStep | null {
@@ -60,7 +61,7 @@ export function validatePlan(plan: SequencePlan): { valid: boolean; errors: stri
     return { valid: false, errors };
   }
 
-  const validChains = ['ethereum', 'arbitrum', 'base', 'solana'];
+  const validChains: readonly string[] = ALL_CHAINS;
   const stepIds = new Set(plan.steps.map(s => s.id));
 
   for (const step of plan.steps) {

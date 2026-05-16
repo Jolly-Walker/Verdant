@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { ALL_CHAINS } from '@/lib/plugins/types/shared'
 import { simulateTransaction } from '@/lib/simulation/simulate'
 
 const SimulateSchema = z.object({
-  chain: z.enum(['ethereum', 'arbitrum', 'base', 'solana']),
+  chain: z.enum(ALL_CHAINS),
   to: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   from: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
   data: z.string().optional(),

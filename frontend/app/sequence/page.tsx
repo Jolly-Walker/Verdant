@@ -41,6 +41,7 @@ export default function SequenceTemplateSelector() {
         params = {
           borrowAsset: 'USDT',
           borrowAmount: amount,
+          amountUsd: Number(amount),
           collateralAsset: 'ETH',
           collateralAmount: '1',
           protocol: toProtocol,
@@ -62,6 +63,8 @@ export default function SequenceTemplateSelector() {
           collateralAsset: 'ETH',
           totalDebt: amount,
           totalCollateral: '1',
+          initialHealthFactor: 2.0,
+          amountUsd: Number(amount),
           cycles: 2,
           protocol: 'aave',
           chain: fromChain
@@ -115,7 +118,7 @@ export default function SequenceTemplateSelector() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">From Chain</label>
-              <select className="w-full border rounded p-2" value={fromChain} onChange={e => setFromChain(e.target.value)}>
+              <select className="w-full border rounded p-2" value={fromChain} onChange={e => setFromChain(e.target.value as ChainId)}>
                 <option value="ethereum">Ethereum</option>
                 <option value="arbitrum">Arbitrum</option>
                 <option value="base">Base</option>
@@ -124,7 +127,7 @@ export default function SequenceTemplateSelector() {
             {(selectedTemplate === 'bridgeAndDeposit' || selectedTemplate === 'crossChainRebalance') && (
               <div>
                 <label className="block text-sm font-medium mb-1">To Chain</label>
-                <select className="w-full border rounded p-2" value={toChain} onChange={e => setToChain(e.target.value)}>
+                <select className="w-full border rounded p-2" value={toChain} onChange={e => setToChain(e.target.value as ChainId)}>
                   <option value="ethereum">Ethereum</option>
                   <option value="arbitrum">Arbitrum</option>
                   <option value="base">Base</option>
@@ -133,7 +136,7 @@ export default function SequenceTemplateSelector() {
             )}
             <div>
               <label className="block text-sm font-medium mb-1">Destination Protocol</label>
-              <select className="w-full border rounded p-2" value={toProtocol} onChange={e => setToProtocol(e.target.value)}>
+              <select className="w-full border rounded p-2" value={toProtocol} onChange={e => setToProtocol(e.target.value as ProtocolId)}>
                 <option value="aave">Aave V3</option>
                 <option value="morpho">Morpho</option>
                 <option value="euler">Euler</option>

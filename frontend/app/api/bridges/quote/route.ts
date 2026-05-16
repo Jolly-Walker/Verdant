@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { BridgeQuote } from '@/lib/plugins/types/shared'
+import { ALL_CHAINS, BridgeQuote } from '@/lib/plugins/types/shared'
 
 const BridgeQuoteQuerySchema = z.object({
-  fromChain: z.enum(['ethereum', 'arbitrum', 'base', 'solana']),
-  toChain: z.enum(['ethereum', 'arbitrum', 'base', 'solana']),
+  fromChain: z.enum(ALL_CHAINS),
+  toChain: z.enum(ALL_CHAINS),
   token: z.string(),
   amount: z.string(),
   recipientAddress: z.string(),

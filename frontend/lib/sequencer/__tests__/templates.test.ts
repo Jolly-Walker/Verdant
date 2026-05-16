@@ -53,6 +53,7 @@ describe('Sequencer Templates', () => {
       const plan = buildRepayAndWithdrawPlan({
         borrowAsset: 'USDT',
         borrowAmount: '500',
+        amountUsd: 500,
         collateralAsset: 'ETH',
         collateralAmount: '1.5',
         protocol: 'aave',
@@ -103,6 +104,8 @@ describe('Sequencer Templates', () => {
         collateralAsset: 'ETH',
         totalDebt: '3000',
         totalCollateral: '2.5',
+        initialHealthFactor: 2.0,
+        amountUsd: 3000,
         cycles: 3,
         protocol: 'aave',
         chain: 'ethereum',
@@ -129,6 +132,21 @@ describe('Sequencer Templates', () => {
       expect(plan.steps[4].dependsOn).toEqual(['withdraw-1']);
       expect(plan.steps[5].id).toBe('withdraw-2');
       expect(plan.steps[5].dependsOn).toEqual(['repay-2']);
+    });
+
+    it('throws error if health factor falls below 1.05', () => {
+      expect(() => buildDeleverageAavePlan({
+        borrowAsset: 'USDC',
+        collateralAsset: 'ETH',
+        totalDebt: '3000',
+        totalCollateral: '2.5',
+        initialHealthFactor: 1.04, // Low initial HF
+        amountUsd: 3000,
+        cycles: 2,
+        protocol: 'aave',
+        chain: 'ethereum',
+        walletAddress: '0x123'
+      })).toThrow(/limit of 1.05/);
     });
   });
 });

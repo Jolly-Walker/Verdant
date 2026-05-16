@@ -4,6 +4,7 @@ import { ChainId, ProtocolId } from '../../plugins/types/shared';
 export interface RepayAndWithdrawParams {
   borrowAsset: string;    // asset to repay
   borrowAmount: string;   // amount of debt to repay
+  amountUsd: number;
   collateralAsset: string;
   collateralAmount: string;
   protocol: ProtocolId;   // must be 'aave' or 'euler'

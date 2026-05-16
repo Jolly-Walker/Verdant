@@ -47,6 +47,7 @@ export interface BridgeAndDepositParams {
 export interface RepayAndWithdrawParams {
   borrowAsset: string;
   borrowAmount: string;
+  amountUsd: number;
   collateralAsset: string;
   collateralAmount: string;
   protocol: ProtocolId;
@@ -68,6 +69,7 @@ export interface DeleverageAaveParams {
   collateralAsset: string;
   totalDebt: string;
   totalCollateral: string;
+  initialHealthFactor: number;
   cycles: number;
   protocol: ProtocolId;
   chain: ChainId;

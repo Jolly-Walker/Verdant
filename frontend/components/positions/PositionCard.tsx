@@ -8,7 +8,7 @@ import { Tooltip } from "../ui/Tooltip"
 
 export function PositionCard({ position }: { position: Position }) {
   const [isHarvesting, setIsHarvesting] = useState(false)
-  const { createPlan, simulateStep, plan, isSimulating } = useSequencer()
+  const { plan, isSimulating } = useSequencer()
   const { harvest } = useHarvest()
 
   if (position.positionType === 'borrow') {
@@ -29,34 +29,7 @@ export function PositionCard({ position }: { position: Position }) {
     
     setIsHarvesting(true)
     try {
-      const newPlan = await createPlan(`Harvest rewards for ${position.asset}`, [
-        {
-          id: 'harvest-1',
-          label: `Harvest ${position.asset} rewards`,
-          chain: position.chain,
-          status: 'pending',
-          dependsOn: [],
-          pluginId: position.protocol,
-          buildParams: {
-            action: 'claim',
-            protocol: position.protocol,
-            chain: position.chain,
-            asset: position.asset,
-            amount: '0', // Full amount
-            userAddress: '' // To be filled
-          }
-        }
-      ])
-
-      const result = await simulateStep(newPlan.steps[0].id)
-      if (!result.success) {
-        alert(`Simulation failed: ${result.revertReason || 'Unknown error'}`)
-        setIsHarvesting(false)
-        return
-      }
-      
-      // If success, we would normally show the Sign button
-      // For now, we'll just call the harvest hook to complete the flow
+      // Direct harvest until the sequencer-based harvest template is implemented
       await harvest(position.id)
     } catch (e) {
       console.error(e)
