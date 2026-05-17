@@ -1,4 +1,4 @@
-import { ProtocolId } from '../types/shared'
+import { ProtocolId } from '@/types/shared'
 import { ProtocolPlugin } from '../types/protocol-plugin'
 import { aavePlugin } from './aave'
 import { morphoPlugin } from './morpho'

@@ -1,5 +1,5 @@
 import { ChainPlugin } from '../types/chain-plugin'
-import { ChainId } from '../types/shared'
+import { ChainId } from '@/types/shared'
 
 export const solanaPlugin: ChainPlugin = {
   id: 'solana' as ChainId,

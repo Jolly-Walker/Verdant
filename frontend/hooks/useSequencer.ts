@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
-import { SequencePlan, SequenceStep, SimulationResult, TemplateParams, TemplateId } from '@/types/sequencer'
-import { getActiveStep } from '@/lib/sequencer/engine'
+import { SequencePlan, SequenceStep, SimulationResult, TemplateParams, TemplateId, SerializedSequencePlan } from '@/types/sequencer'
+import { getActiveStep, deserializeSequencePlan } from '@/lib/sequencer/engine'
 import { TEMPLATE_REGISTRY } from '@/lib/sequencer/templates'
 
 export { TEMPLATE_REGISTRY }
@@ -57,7 +57,8 @@ export function useSequencer() {
         throw new Error(err.error || 'Failed to create plan');
       }
 
-      const { plan: newPlan } = await res.json();
+      const { plan: serializedPlan } = await res.json();
+      const newPlan = deserializeSequencePlan(serializedPlan);
       setPlan(newPlan)
       return newPlan
     } catch (err) {
@@ -263,6 +264,14 @@ export function useSequencer() {
     simulateStep,
     executeStep,
     reset,
-    setPlan
+    setPlan: (newPlan: SequencePlan | SerializedSequencePlan | null) => {
+      if (!newPlan) {
+        setPlan(null);
+      } else if ('createdAt' in newPlan && typeof newPlan.createdAt === 'string') {
+        setPlan(deserializeSequencePlan(newPlan as SerializedSequencePlan));
+      } else {
+        setPlan(newPlan as SequencePlan);
+      }
+    }
   }
 }

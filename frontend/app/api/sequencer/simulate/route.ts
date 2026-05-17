@@ -4,7 +4,7 @@ import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlan
 import { simulateTransaction } from '@/lib/simulation/simulate'
 import { applyStepUpdate, computePlanStatus, serializeSequenceStep } from '@/lib/sequencer/engine'
 import { getNativeAssetPrice } from '@/lib/data/prices'
-import { createPublicClient, http, PublicClient } from 'viem'
+import { createPublicClient, http } from 'viem'
 import { mainnet, arbitrum, base } from 'viem/chains'
 import { getRpcUrl } from '@/lib/server/rpc'
 import { ChainId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
@@ -17,7 +17,7 @@ const SimulateStepSchema = z.object({
   walletAddress: z.string()
 })
 
-const getClient = (chain: ChainId): PublicClient => {
+const getClient = (chain: ChainId) => {
   const rpcUrl = getRpcUrl(chain)
   let viemChain
   switch (chain) {

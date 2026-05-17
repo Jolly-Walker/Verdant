@@ -1,4 +1,4 @@
-import { ChainId } from '../types/shared'
+import { ChainId } from '@/types/shared'
 
 export interface ChainDisplayMetadata {
   id: ChainId

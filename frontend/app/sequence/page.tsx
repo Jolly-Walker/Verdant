@@ -23,6 +23,7 @@ export default function SequenceTemplateSelector() {
   const [cycles, setCycles] = useState(2);
   const [fromChain, setFromChain] = useState<ChainId>('ethereum');
   const [toChain, setToChain] = useState<ChainId>('arbitrum');
+  const [fromProtocol, setFromProtocol] = useState<ProtocolId>('aave');
   const [toProtocol, setToProtocol] = useState<ProtocolId>('aave');
   
   const [ptAddress, setPtAddress] = useState('');

@@ -1,4 +1,4 @@
-import { ProtocolId } from '../types/shared'
+import { ProtocolId } from '@/types/shared'
 
 export interface ProtocolDisplayMetadata {
   id: ProtocolId

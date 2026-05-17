@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST } from '../route';
 import { SequencePlan, SequenceStep } from '@/types/sequencer';
-import { ChainId } from '@/types/shared';
+import { ChainId, TxBuildParams } from '@/types/shared';
 
 vi.mock('server-only', () => ({}));
 
@@ -98,7 +98,7 @@ describe('Simulate API Route', () => {
       label: 'Test Step',
       chain: 'ethereum' as ChainId,
       pluginId: 'aave',
-      buildParams: {} as any,
+      buildParams: {} as TxBuildParams,
       status: 'pending',
       dependsOn: []
     };
@@ -152,5 +152,148 @@ describe('Simulate API Route', () => {
     const data = await res.json();
     expect(data.simulation.success).toBe(true);
     expect(updateSequencePlanStep).toHaveBeenCalled();
+  });
+
+  it('should handle a failed simulation', async () => {
+    const { getSequencePlan, updateSequencePlanStep } = await import('@/lib/data/sequencePlans');
+    const { simulateTransaction } = await import('@/lib/simulation/simulate');
+    const { applyStepUpdate } = await import('@/lib/sequencer/engine');
+
+    const mockStep: SequenceStep = {
+      id: 'step-1',
+      label: 'Test Step',
+      chain: 'ethereum' as ChainId,
+      pluginId: 'aave',
+      buildParams: {} as TxBuildParams,
+      status: 'pending',
+      dependsOn: [],
+      unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' }
+    };
+
+    vi.mocked(getSequencePlan).mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000000',
+      walletAddress: '0xAuthorized',
+      steps: [mockStep],
+    } as unknown as SequencePlan);
+
+    vi.mocked(simulateTransaction).mockResolvedValue({
+      success: false,
+      error: 'Insufficient funds',
+      simulatedAt: new Date()
+    });
+
+    vi.mocked(applyStepUpdate).mockReturnValue({
+      steps: [{ ...mockStep, status: 'failed' }]
+    } as unknown as SequencePlan);
+
+    vi.mocked(updateSequencePlanStep).mockResolvedValue(true);
+
+    const req = createMockRequest({
+      planId: '00000000-0000-0000-0000-000000000000',
+      stepId: 'step-1',
+      walletAddress: '0xAuthorized'
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.simulation.success).toBe(false);
+    expect(data.simulation.revertReason).toBe('Insufficient funds');
+  });
+
+  it('should return 400 if buildTx returns an empty array', async () => {
+    const { getSequencePlan } = await import('@/lib/data/sequencePlans');
+    const { PROTOCOL_REGISTRY } = await import('@/lib/plugins/protocols');
+
+    vi.mocked(getSequencePlan).mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000000',
+      walletAddress: '0xAuthorized',
+      steps: [{
+        id: 'step-1',
+        chain: 'ethereum',
+        pluginId: 'aave',
+        buildParams: {} as TxBuildParams,
+        status: 'pending',
+        dependsOn: []
+      }],
+    } as unknown as SequencePlan);
+
+    vi.mocked(PROTOCOL_REGISTRY.aave.builder.buildTx).mockResolvedValue([]);
+
+    const req = createMockRequest({
+      planId: '00000000-0000-0000-0000-000000000000',
+      stepId: 'step-1',
+      walletAddress: '0xAuthorized'
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toContain('failed to build one');
+  });
+
+  it('should detect Pendle stub data and return 400', async () => {
+    const { getSequencePlan } = await import('@/lib/data/sequencePlans');
+
+    vi.mocked(getSequencePlan).mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000000',
+      walletAddress: '0xAuthorized',
+      steps: [{
+        id: 'step-1',
+        chain: 'ethereum',
+        pluginId: 'pendle',
+        buildParams: {} as TxBuildParams,
+        status: 'pending',
+        dependsOn: [],
+        unsignedTx: { data: '0x', value: 0n, to: '0x', chainId: 1, description: 'Stub' }
+      }],
+    } as unknown as SequencePlan);
+
+    const req = createMockRequest({
+      planId: '00000000-0000-0000-0000-000000000000',
+      stepId: 'step-1',
+      walletAddress: '0xAuthorized'
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toContain('stub data');
+  });
+
+  it('should return 500 if updateSequencePlanStep fails', async () => {
+    const { getSequencePlan, updateSequencePlanStep } = await import('@/lib/data/sequencePlans');
+    const { simulateTransaction } = await import('@/lib/simulation/simulate');
+    const { applyStepUpdate } = await import('@/lib/sequencer/engine');
+
+    vi.mocked(getSequencePlan).mockResolvedValue({
+      id: '00000000-0000-0000-0000-000000000000',
+      walletAddress: '0xAuthorized',
+      steps: [{
+        id: 'step-1',
+        chain: 'ethereum',
+        pluginId: 'aave',
+        buildParams: {} as TxBuildParams,
+        status: 'pending',
+        dependsOn: [],
+        unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' }
+      }],
+    } as unknown as SequencePlan);
+
+    vi.mocked(simulateTransaction).mockResolvedValue({ success: true });
+    vi.mocked(applyStepUpdate).mockReturnValue({ steps: [] } as unknown as SequencePlan);
+    vi.mocked(updateSequencePlanStep).mockResolvedValue(false);
+
+
+    const req = createMockRequest({
+      planId: '00000000-0000-0000-0000-000000000000',
+      stepId: 'step-1',
+      walletAddress: '0xAuthorized'
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toContain('Failed to save simulation result');
   });
 });
