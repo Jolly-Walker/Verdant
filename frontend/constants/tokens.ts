@@ -1,4 +1,4 @@
-import { ChainId } from './types/shared'
+import { ChainId } from '@/types/shared'
 
 export interface TokenConfig {
   symbol: string
@@ -70,6 +70,25 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
     addresses: {
       ethereum: '0xBe9895146f7AF43049ca1c1AE358B0541Ea49704',
       base: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22',
+    },
+  },
+  'PT-eETH': {
+    symbol: 'PT-eETH',
+    name: 'Pendle PT eETH',
+    decimals: 18,
+    coingeckoId: 'pendle-pt-eeth',
+    addresses: {
+      ethereum: '0x35D1A6fD38F0839e3F9329C356391d4e0258B0A8',
+    },
+  },
+  'PT-USDC': {
+    symbol: 'PT-USDC',
+    name: 'Pendle PT USDC',
+    decimals: 6,
+    coingeckoId: 'pendle-pt-usdc',
+    addresses: {
+      ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', // Using real USDC address as mock
+      arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Using real USDC address as mock
     },
   },
 }

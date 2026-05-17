@@ -1,6 +1,6 @@
 import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
-import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '../types/shared'
+import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 
 export const acrossBridgePlugin: BridgePlugin = {
   id: 'across',

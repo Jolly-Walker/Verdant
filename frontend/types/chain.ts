@@ -1,2 +1,2 @@
-import { ChainId } from '@/lib/plugins/types/shared'
+import { ChainId } from '@/types/shared'
 export type Chain = ChainId

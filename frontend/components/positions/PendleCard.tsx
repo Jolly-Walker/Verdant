@@ -1,6 +1,7 @@
 import React from 'react'
 import { Position } from '@/types/position'
 import { WarningBanner } from '@/components/ui/WarningBanner'
+import Link from 'next/link'
 
 export function PendleCard({ position }: { position: Position }) {
   const apyPercent = (position.currentApy * 100).toFixed(2)
@@ -59,9 +60,12 @@ export function PendleCard({ position }: { position: Position }) {
       </div>
 
       <div className="flex justify-end gap-2 mt-auto pt-2">
-        <button className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
+        <Link 
+          href={`/sequence?template=exitPendle&asset=${position.asset}&amount=${position.amount}&ptAddress=${position.assetAddress}&chain=${position.chain}`}
+          className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center"
+        >
           Exit
-        </button>
+        </Link>
       </div>
     </div>
   )

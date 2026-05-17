@@ -1,4 +1,4 @@
-import { ChainId, TokenSymbol } from './shared'
+import { ChainId, TokenSymbol } from '@/types/shared'
 import { PublicClient } from 'viem'
 import { Connection } from '@solana/web3.js'
 

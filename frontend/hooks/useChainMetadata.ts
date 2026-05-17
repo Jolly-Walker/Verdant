@@ -1,5 +1,5 @@
 import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata'
-import { ChainId } from '@/lib/plugins/types/shared'
+import { ChainId } from '@/types/shared'
 
 export function useChainMetadata() {
   const getChainMetadata = (chainId: ChainId) => {

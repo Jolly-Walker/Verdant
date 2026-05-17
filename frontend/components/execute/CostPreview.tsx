@@ -10,7 +10,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { WarningBanner } from '@/components/ui/WarningBanner'
 import { formatUsd, formatPercent } from '@/lib/utils/formatting'
 import { getChainDisplayName } from '@/lib/utils/chains'
-import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { useProtocolMetadata } from '@/hooks/useProtocolMetadata'
 
 interface CostPreviewProps {
   quote: CostPreviewResult | null
@@ -43,7 +43,14 @@ export function CostPreview({
   onProceed,
   onCancel,
 }: CostPreviewProps) {
+  const { getProtocolMetadata } = useProtocolMetadata()
+  const [hasConfirmedHealthFactor, setHasConfirmedHealthFactor] = React.useState(false)
   const isExpired = quoteAge > 90
+
+  const healthFactorWarning = quote?.warnings.find(w => 
+    w.message.toLowerCase().includes('health factor') && 
+    w.message.includes('below 1.5')
+  )
 
   if (isLoading && !quote) {
     return (
@@ -58,7 +65,7 @@ export function CostPreview({
     return null
   }
 
-  const protocolDisplay = PROTOCOL_REGISTRY[destProtocol]?.displayName || destProtocol
+  const protocolDisplay = getProtocolMetadata(destProtocol)?.displayName || destProtocol
 
   return (
     <Card className="flex flex-col gap-0 p-0 overflow-hidden">
@@ -180,6 +187,20 @@ export function CostPreview({
           {quote.warnings.map((w, i) => (
             <WarningBanner key={i} message={w.message} />
           ))}
+          
+          {healthFactorWarning && (
+            <label className="flex items-start gap-3 p-3 bg-red-950/20 border border-red-900/50 rounded-lg cursor-pointer hover:bg-red-950/30 transition-colors">
+              <input
+                type="checkbox"
+                checked={hasConfirmedHealthFactor}
+                onChange={(e) => setHasConfirmedHealthFactor(e.target.checked)}
+                className="mt-1 w-4 h-4 rounded border-zinc-700 text-emerald-600 focus:ring-emerald-500 focus:ring-offset-zinc-900 bg-zinc-800"
+              />
+              <span className="text-sm text-zinc-300">
+                I understand that this action brings my health factor below 1.5 and increases liquidation risk.
+              </span>
+            </label>
+          )}
         </div>
       )}
 
@@ -213,7 +234,12 @@ export function CostPreview({
           </button>
           <button
             onClick={onProceed}
-            disabled={isExpired || isLoading || amountUsd < 1000}
+            disabled={
+              isExpired || 
+              isLoading || 
+              amountUsd < 1000 || 
+              (!!healthFactorWarning && !hasConfirmedHealthFactor)
+            }
             className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed rounded-lg transition-colors"
           >
             {isExpired

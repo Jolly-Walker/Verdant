@@ -2,6 +2,8 @@
  * Token price fetching via Defillama Coins API.
  * Docs: https://defillama.com/docs/api
  */
+import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata'
+import { ChainId } from '@/types/shared'
 
 const COINS_API = 'https://coins.llama.fi/prices/current'
 
@@ -47,20 +49,38 @@ export async function fetchTokenPrices(
   return prices
 }
 
-let ethPriceCache: { price: number; fetchedAt: number } | null = null
-const ETH_CACHE_TTL_MS = 60 * 1000 // 1 minute
+const priceCache: Record<string, { price: number; fetchedAt: number }> = {}
+const CACHE_TTL_MS = 60 * 1000 // 1 minute
 
 /**
  * Get the current ETH price in USD. Cached for 1 minute.
  */
 export async function getEthPrice(): Promise<number> {
-  if (ethPriceCache && Date.now() - ethPriceCache.fetchedAt < ETH_CACHE_TTL_MS) {
-    return ethPriceCache.price
+  return getNativeAssetPrice('ethereum')
+}
+
+/**
+ * Get the current price of the native asset for a given chain.
+ */
+export async function getNativeAssetPrice(chain: string): Promise<number> {
+  const metadata = CHAIN_DISPLAY_MAP[chain as ChainId]
+  if (!metadata) {
+    throw new Error(`Unsupported chain: ${chain}`)
   }
 
-  const prices = await fetchTokenPrices(['coingecko:ethereum'])
-  const price = prices['coingecko:ethereum'] || 3000 // fallback
+  const coingeckoId = `coingecko:${metadata.coingeckoId}`
+  
+  if (priceCache[coingeckoId] && Date.now() - priceCache[coingeckoId].fetchedAt < CACHE_TTL_MS) {
+    return priceCache[coingeckoId].price
+  }
 
-  ethPriceCache = { price, fetchedAt: Date.now() }
+  const prices = await fetchTokenPrices([coingeckoId])
+  const price = prices[coingeckoId]
+  
+  if (price === undefined) {
+    throw new Error(`Failed to fetch price for ${coingeckoId}`)
+  }
+
+  priceCache[coingeckoId] = { price, fetchedAt: Date.now() }
   return price
 }

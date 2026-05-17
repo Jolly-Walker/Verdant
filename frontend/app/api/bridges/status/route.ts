@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { ChainId, BridgeId } from '@/lib/plugins/types/shared'
+import { ChainId, BridgeId } from '@/types/shared'
 
 const BridgeStatusQuerySchema = z.object({
   txHash: z.string(),

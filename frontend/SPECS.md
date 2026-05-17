@@ -1174,8 +1174,11 @@ Every error must be specific, actionable, and non-blocking.
 # Alchemy
 ALCHEMY_API_KEY_ETHEREUM=
 ALCHEMY_API_KEY_ARBITRUM=
-ALCHEMY_API_KEY_BASE=          # NEW
-ALCHEMY_API_KEY_SOLANA=        # NEW (or use Helius)
+ALCHEMY_API_KEY_BASE=
+ALCHEMY_API_KEY_SOLANA=        # Server-side Solana RPC (via Alchemy)
+
+# Solana
+NEXT_PUBLIC_SOLANA_RPC_URL=     # Client-side Solana RPC (e.g. Helius, Alchemy, or Public)
 
 # Zerion
 ZERION_API_KEY=
@@ -1310,29 +1313,29 @@ dashboard chain selector without any other code changes.
 templates. Replace existing execute flow with sequencer.
 
 **Tasks:**
-- [ ] `lib/sequencer/types.ts` — `SequencePlan`, `SequenceStep`, `StepStatus`
-- [ ] `lib/sequencer/engine.ts` — state machine: simulate → ready → sign → confirm → next step
-- [ ] `lib/sequencer/templates/bridgeAndDeposit.ts` — template
-- [ ] `lib/sequencer/templates/repayAndWithdraw.ts` — template (same-chain)
-- [ ] `lib/sequencer/templates/deleverageAave.ts` — template (computes N repay/withdraw cycles)
-- [ ] `lib/sequencer/templates/crossChainRebalance.ts` — template
-- [ ] `lib/sequencer/templates/exitPendle.ts` — template
-- [ ] `hooks/useSequencer.ts` — `createPlan`, `simulateStep`, `executeStep`, `reset`
-- [ ] Supabase migration `005_sequence_plans.sql`
-- [ ] `POST /api/sequencer/plan` route
-- [ ] `POST /api/sequencer/simulate` route
-- [ ] `PATCH /api/sequencer/plan/{planId}/step/{stepId}` route
-- [ ] `GET /api/sequencer/plan/{planId}` route
-- [ ] `app/sequence/page.tsx` — template selector
-- [ ] `app/sequence/[planId]/page.tsx` — plan review
-- [ ] `app/sequence/[planId]/step/[stepId]/page.tsx` — step execution
-- [ ] `components/sequence/TemplateSelector.tsx`
-- [ ] `components/sequence/SequencePlanView.tsx`
-- [ ] `components/sequence/SequenceStepCard.tsx`
-- [ ] `components/sequence/SequenceProgress.tsx`
-- [ ] `components/sequence/SequenceComplete.tsx`
-- [ ] Update `execution_history` table — reference `plan_id`
-- [ ] Sequencer state machine unit tests
+- [x] `lib/sequencer/types.ts` — `SequencePlan`, `SequenceStep`, `StepStatus` (Located at `lib/plugins/types/sequencer.ts`)
+- [x] `lib/sequencer/engine.ts` — state machine: simulate → ready → sign → confirm → next step
+- [x] `lib/sequencer/templates/bridgeAndDeposit.ts` — template
+- [x] `lib/sequencer/templates/repayAndWithdraw.ts` — template (same-chain)
+- [x] `lib/sequencer/templates/deleverageAave.ts` — template (computes N repay/withdraw cycles)
+- [x] `lib/sequencer/templates/crossChainRebalance.ts` — template
+- [x] `lib/sequencer/templates/exitPendle.ts` — template
+- [x] `hooks/useSequencer.ts` — `createPlan`, `simulateStep`, `executeStep`, `reset`
+- [x] Supabase migration `005_sequence_plans.sql`
+- [x] `POST /api/sequencer/plan` route
+- [x] `POST /api/sequencer/simulate` route
+- [x] `PATCH /api/sequencer/plan/{planId}/step/{stepId}` route
+- [x] `GET /api/sequencer/plan/{planId}` route
+- [x] `app/sequence/page.tsx` — template selector
+- [x] `app/sequence/[planId]/page.tsx` — plan review
+- [x] `app/sequence/[planId]/step/[stepId]/page.tsx` — step execution (Refactored: logic is in `[planId]/page.tsx` using `SequencePlanView`)
+- [x] `components/sequence/TemplateSelector.tsx` (Refactored: logic is in `app/sequence/page.tsx`)
+- [x] `components/sequence/SequencePlanView.tsx`
+- [x] `components/sequence/SequenceStepCard.tsx`
+- [x] `components/sequence/SequenceProgress.tsx`
+- [x] `components/sequence/SequenceComplete.tsx`
+- [x] Update `execution_history` table — reference `plan_id` (Done via `006_update_execution_history.sql`)
+- [x] Sequencer state machine unit tests
 
 ---
 

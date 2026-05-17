@@ -5,7 +5,7 @@ import { Chain } from '@/types/chain'
 import { Protocol } from '@/types/protocol'
 import { getRpcUrl } from '@/lib/server/rpc'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { SUPPORTED_TOKENS } from '@/lib/plugins/tokens'
+import { SUPPORTED_TOKENS } from '@/constants/tokens'
 
 // Dummy address for gas estimation routines where the user is unconnected.
 const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
@@ -126,13 +126,15 @@ export async function simulateTransaction(params: {
 
     return {
       success: true,
-      gasUsed: Number(gas),
+      gasEstimate: gas,
+      simulatedAt: new Date(),
     }
   } catch (err) {
     console.error('Simulation error details:', err)
     return {
       success: false,
       error: err instanceof Error ? err.message : 'Unknown simulation error',
+      simulatedAt: new Date(),
     }
   }
 }

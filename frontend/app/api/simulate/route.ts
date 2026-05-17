@@ -1,51 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { ALL_CHAINS } from '@/types/shared'
 import { simulateTransaction } from '@/lib/simulation/simulate'
-import { Chain } from '@/types/chain'
+
+const SimulateSchema = z.object({
+  chain: z.enum(ALL_CHAINS),
+  to: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  from: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  data: z.string().optional(),
+  value: z.string().optional(),
+})
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { to, from, data, value, chainId } = body
+    const result = SimulateSchema.safeParse(body)
 
-    if (!to || !from || !chainId) {
+    if (!result.success) {
       return NextResponse.json(
-        { error: 'Missing required parameters: to, from, chainId' },
+        { error: 'Invalid request body', details: result.error.format() },
         { status: 400 }
       )
     }
 
-    // Map chainId (which could be numeric from frontend) back to ChainId slug if needed,
-    // but simulateTransaction expects Chain (slug).
-    // Let's assume frontend passes the slug or we can resolve it.
-    // In StepTwoDeposit.tsx it passed getChainId(destChain) which is now number | string.
-    
-    // We need a way to get the slug from the chainId if it's numeric.
-    // For now, let's assume the frontend passes the slug 'ethereum', 'arbitrum', etc.
-    // Wait, StepTwoDeposit.tsx: chainId: getChainId(destChain)
-    // getChainId returns number | string.
-    
-    // Let's find the chain slug from the chainId.
-    const chainSlug = body.chain as Chain // Optional field if we want to be explicit
+    const { chain, to, from, data, value } = result.data
 
-    const result = await simulateTransaction({
-      chain: chainSlug || 'ethereum', // Fallback or resolve from chainId
+    if (chain === 'solana') {
+       // Solana simulation is handled in lib/simulation/simulate.ts but for now let's focus on EVM
+       // as simulateTransaction in simulate.ts currently only handles EVM.
+       return NextResponse.json(
+         { error: 'Solana simulation not yet implemented' },
+         { status: 501 }
+       )
+    }
+
+    const simResult = await simulateTransaction({
+      chain,
       to,
       from,
       data: data || '0x',
       value: value || '0',
     })
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error, success: false },
-        { status: 400 }
-      )
-    }
-
     return NextResponse.json({
-      success: true,
-      gasUsed: result.gasUsed,
-      expectedOutput: 'Transaction simulation successful',
+      success: simResult.success,
+      revertReason: simResult.error,
+      gasEstimate: simResult.gasEstimate?.toString(),
+      simulatedAt: (simResult.simulatedAt || new Date()).toISOString(),
     })
   } catch (error) {
     console.error('Simulation error:', error)

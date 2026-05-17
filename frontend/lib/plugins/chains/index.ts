@@ -1,4 +1,4 @@
-import { ChainId } from '../types/shared'
+import { ChainId } from '@/types/shared'
 import { ChainPlugin } from '../types/chain-plugin'
 import { ethereumPlugin } from './ethereum'
 import { arbitrumPlugin } from './arbitrum'

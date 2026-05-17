@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { BridgeQuote, BridgeStatus, ChainId, BridgeId } from '@/lib/plugins/types/shared'
+import { BridgeQuote, BridgeStatus, ChainId, BridgeId } from '@/types/shared'
 
 interface UseBridgesReturn {
   getQuote: (params: {

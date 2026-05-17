@@ -5,7 +5,7 @@ import { useSignTypedData } from 'wagmi';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
 import { useBridges } from '@/hooks/useBridges';
 import { Chain } from '@/types/chain';
-import { BridgeQuote } from '@/lib/plugins/types/shared';
+import { BridgeQuote } from '@/types/shared';
 
 export interface StepOneBridgeProps {
   asset: string;
