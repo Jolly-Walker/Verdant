@@ -1174,8 +1174,11 @@ Every error must be specific, actionable, and non-blocking.
 # Alchemy
 ALCHEMY_API_KEY_ETHEREUM=
 ALCHEMY_API_KEY_ARBITRUM=
-ALCHEMY_API_KEY_BASE=          # NEW
-ALCHEMY_API_KEY_SOLANA=        # NEW (or use Helius)
+ALCHEMY_API_KEY_BASE=
+ALCHEMY_API_KEY_SOLANA=        # Server-side Solana RPC (via Alchemy)
+
+# Solana
+NEXT_PUBLIC_SOLANA_RPC_URL=     # Client-side Solana RPC (e.g. Helius, Alchemy, or Public)
 
 # Zerion
 ZERION_API_KEY=

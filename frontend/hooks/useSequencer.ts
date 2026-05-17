@@ -24,6 +24,10 @@ export function useSequencer() {
   const [plan, setPlan] = useState<SequencePlan | null>(null)
   const [isSimulating, setIsSimulating] = useState(false)
   
+  // Use a ref to keep track of the latest plan without triggering re-renders of callbacks
+  const planRef = useRef<SequencePlan | null>(null)
+  planRef.current = plan
+
   // Synchronous lock to prevent double execution race conditions
   const executingSteps = useRef<Set<string>>(new Set())
 
@@ -55,13 +59,14 @@ export function useSequencer() {
   }, [address])
 
   const simulateStep = useCallback(async (stepId: string): Promise<SimulationResult> => {
-    if (!plan) throw new Error('No active plan')
-    const step = plan.steps.find(s => s.id === stepId)
+    const currentPlan = planRef.current
+    if (!currentPlan) throw new Error('No active plan')
+    const step = currentPlan.steps.find(s => s.id === stepId)
     if (!step) throw new Error('Step not found')
     
     // Check dependencies
     const unmetDeps = step.dependsOn.filter(depId => {
-      const depStep = plan.steps.find(s => s.id === depId)
+      const depStep = currentPlan.steps.find(s => s.id === depId)
       return !depStep || depStep.status !== 'confirmed'
     })
     if (unmetDeps.length > 0) {
@@ -81,7 +86,7 @@ export function useSequencer() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          planId: plan.id,
+          planId: currentPlan.id,
           stepId: stepId,
           walletAddress: address
         })
@@ -120,11 +125,12 @@ export function useSequencer() {
     } finally {
       setIsSimulating(false)
     }
-  }, [plan, address])
+  }, [address])
 
   const executeStep = useCallback(async (stepId: string): Promise<string> => {
-    if (!plan) throw new Error('No active plan')
-    const step = plan.steps.find(s => s.id === stepId)
+    const currentPlan = planRef.current
+    if (!currentPlan) throw new Error('No active plan')
+    const step = currentPlan.steps.find(s => s.id === stepId)
     if (!step) throw new Error('Step not found')
 
     // 1. Synchronous check to prevent double execution from rapid clicks
@@ -135,7 +141,7 @@ export function useSequencer() {
     
     // Check dependencies
     const unmetDeps = step.dependsOn.filter(depId => {
-      const depStep = plan.steps.find(s => s.id === depId)
+      const depStep = currentPlan.steps.find(s => s.id === depId)
       return !depStep || depStep.status !== 'confirmed'
     })
     if (unmetDeps.length > 0) {
@@ -156,7 +162,7 @@ export function useSequencer() {
       } : null)
 
       // 3. Update DB before prompting wallet
-      const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+      const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'signing' })
@@ -196,7 +202,7 @@ export function useSequencer() {
         });
       }
 
-      const confirmRes = await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+      const confirmRes = await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'confirmed', txHash })
@@ -228,7 +234,7 @@ export function useSequencer() {
       
       const statusToRevert = isUserRejection ? 'ready' : 'failed'
       
-      await fetchWithTimeout(`/api/sequencer/plan/${plan.id}/step/${stepId}`, {
+      await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: statusToRevert })
@@ -244,7 +250,7 @@ export function useSequencer() {
       // Always release lock
       executingSteps.current.delete(stepId)
     }
-  }, [plan, address, sendTransactionAsync, signSolanaTransaction])
+  }, [address, sendTransactionAsync, signSolanaTransaction])
 
   const reset = useCallback(() => {
     setPlan(null)
