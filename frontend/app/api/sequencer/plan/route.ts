@@ -11,6 +11,8 @@ import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { fetchTokenPrices } from '@/lib/data/prices'
 
+import { isValidAddress } from '@/lib/utils/chains'
+
 const BridgeAndDepositParamsSchema = z.object({
   asset: z.string(),
   amount: z.string(),
@@ -18,7 +20,8 @@ const BridgeAndDepositParamsSchema = z.object({
   toChain: z.enum(ALL_CHAINS),
   fromProtocol: z.string(),
   toProtocol: z.string(),
-  preferredBridgeId: z.enum(ALL_BRIDGES).optional()
+  preferredBridgeId: z.enum(ALL_BRIDGES).optional(),
+  slippagePercent: z.number().min(0).max(100).default(0.5)
 });
 
 const RepayAndWithdrawParamsSchema = z.object({
@@ -37,7 +40,8 @@ const CrossChainRebalanceParamsSchema = z.object({
   fromChain: z.enum(ALL_CHAINS),
   toProtocol: z.string(),
   toChain: z.enum(ALL_CHAINS),
-  preferredBridgeId: z.enum(ALL_BRIDGES).optional()
+  preferredBridgeId: z.enum(ALL_BRIDGES).optional(),
+  slippagePercent: z.number().min(0).max(100).default(0.5)
 });
 
 const DeleverageAaveParamsSchema = z.object({
@@ -61,13 +65,16 @@ const ExitPendleParamsSchema = z.object({
   fromChain: z.enum(ALL_CHAINS),
   toChain: z.enum(ALL_CHAINS),
   toProtocol: z.enum([...ALL_PROTOCOLS]),
-  preferredBridgeId: z.enum(ALL_BRIDGES).optional()
+  preferredBridgeId: z.enum(ALL_BRIDGES).optional(),
+  slippagePercent: z.number().min(0).max(100).default(0.5)
 });
 
 const CreatePlanSchema = z.object({
   templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave', 'exitPendle']),
   params: z.record(z.string(), z.unknown()),
-  walletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/)
+  walletAddress: z.string().refine(val => isValidAddress(val), {
+    message: 'Invalid wallet address format for supported chains'
+  })
 })
 
 async function validateMinimumSize(asset: string, amount: string): Promise<{ ok: boolean; amountUsd: number }> {

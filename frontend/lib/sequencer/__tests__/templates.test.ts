@@ -16,7 +16,8 @@ describe('Sequencer Templates', () => {
         toChain: 'arbitrum',
         fromProtocol: 'wallet',
         toProtocol: 'aave',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
+        slippagePercent: 0.5
       });
 
       expect(plan.steps.length).toBe(2);
@@ -39,7 +40,8 @@ describe('Sequencer Templates', () => {
         toChain: 'ethereum',
         fromProtocol: 'wallet',
         toProtocol: 'aave',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
+        slippagePercent: 0.5
       });
 
       expect(plan.steps.length).toBe(1);
@@ -83,7 +85,8 @@ describe('Sequencer Templates', () => {
         fromChain: 'ethereum',
         toProtocol: 'morpho',
         toChain: 'base',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
+        slippagePercent: 0.5
       });
 
       expect(plan.steps.length).toBe(3);
@@ -166,7 +169,8 @@ describe('Sequencer Templates', () => {
         fromChain: 'ethereum',
         toChain: 'arbitrum',
         toProtocol: 'aave',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
+        slippagePercent: 0.5
       });
 
       expect(plan.steps.length).toBe(3);
@@ -190,7 +194,8 @@ describe('Sequencer Templates', () => {
         fromChain: 'ethereum',
         toChain: 'ethereum',
         toProtocol: 'aave',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
+        slippagePercent: 0.5
       });
 
       expect(plan.steps.length).toBe(2);

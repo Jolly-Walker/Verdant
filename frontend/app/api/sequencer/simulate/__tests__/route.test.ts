@@ -280,7 +280,11 @@ describe('Simulate API Route', () => {
       }],
     } as unknown as SequencePlan);
 
-    vi.mocked(simulateTransaction).mockResolvedValue({ success: true });
+    vi.mocked(simulateTransaction).mockResolvedValue({ 
+      success: true, 
+      gasEstimate: 100000n, 
+      simulatedAt: new Date() 
+    });
     vi.mocked(applyStepUpdate).mockReturnValue({ steps: [] } as unknown as SequencePlan);
     vi.mocked(updateSequencePlanStep).mockResolvedValue(false);
 

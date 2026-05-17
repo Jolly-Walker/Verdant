@@ -11,6 +11,7 @@ export interface CrossChainRebalanceParams {
   toChain: ChainId;
   walletAddress: string;
   preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams): SequencePlan {
@@ -51,6 +52,7 @@ export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams):
           token: params.asset,
           amount: params.amount,
           recipientAddress: params.walletAddress,
+          slippagePercent: params.slippagePercent,
         }
       },
       {

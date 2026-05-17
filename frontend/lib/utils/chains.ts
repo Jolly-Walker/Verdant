@@ -1,5 +1,19 @@
-import { Chain } from '@/types/chain'
+import { ChainId } from '@/types/shared'
 import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata'
+
+/**
+ * Validates if a string is a valid address for a given chain or any supported chain.
+ */
+export function isValidAddress(address: string, chain?: ChainId): boolean {
+  const evmRegex = /^0x[a-fA-F0-9]{40}$/
+  const solanaRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
+
+  if (chain === 'solana') return solanaRegex.test(address)
+  if (chain && chain !== 'solana') return evmRegex.test(address)
+
+  // If no chain specified, check if it matches either format
+  return evmRegex.test(address) || solanaRegex.test(address)
+}
 
 /**
  * Get a block explorer URL for a transaction hash.

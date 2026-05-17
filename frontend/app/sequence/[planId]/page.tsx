@@ -5,11 +5,12 @@ import { useSequencer } from '@/hooks/useSequencer';
 import { SequencePlanView } from '@/components/sequence/SequencePlanView';
 import { SequenceComplete } from '@/components/sequence/SequenceComplete';
 import { useRouter } from 'next/navigation';
-import { useAccount } from 'wagmi';
+import { useWallet } from '@/hooks/useWallet';
+import { fetchWithTimeout } from '@/lib/utils/fetch';
 
 export default function SequenceExecutionPage({ params }: { params: { planId: string } }) {
   const router = useRouter();
-  const { address } = useAccount();
+  const { address } = useWallet();
   const { plan, currentStep, simulateStep, executeStep, setPlan } = useSequencer();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -19,7 +20,7 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
   useEffect(() => {
     if (!address) return;
     
-    fetch(`/api/sequencer/plan/${params.planId}?wallet=${address}`)
+    fetchWithTimeout(`/api/sequencer/plan/${params.planId}?wallet=${address}`)
       .then(res => {
         if (!res.ok) throw new Error('Plan not found or unauthorized');
         return res.json();
@@ -44,7 +45,7 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
       simulatingStepId.current = currentStep.id;
       simulateStep(currentStep.id).catch(console.error);
     }
-  }, [plan, currentStep, simulateStep]);
+  }, [plan?.id, currentStep?.id, currentStep?.status, simulateStep, plan]);
 
   if (!address) return <div className="p-8 text-center">Please connect your wallet.</div>;
   if (loading) return <div className="p-8 text-center">Loading plan...</div>;

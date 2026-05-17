@@ -33,19 +33,19 @@ export function deserializeSequenceStep(step: SerializedSequenceStep): SequenceS
   };
 }
 
-export function deserializeSequencePlan(plan: SerializedSequencePlan): SequencePlan {
-  return {
-    ...plan,
-    createdAt: new Date(plan.createdAt),
-    steps: plan.steps.map(deserializeSequenceStep)
-  };
-}
-
 export function serializeSequencePlan(plan: SequencePlan): SerializedSequencePlan {
   return {
     ...plan,
     createdAt: plan.createdAt.toISOString(),
     steps: plan.steps.map(serializeSequenceStep)
+  };
+}
+
+export function deserializeSequencePlan(plan: SerializedSequencePlan): SequencePlan {
+  return {
+    ...plan,
+    createdAt: new Date(plan.createdAt),
+    steps: plan.steps.map(deserializeSequenceStep)
   };
 }
 

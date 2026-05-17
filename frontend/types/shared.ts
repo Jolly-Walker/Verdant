@@ -66,6 +66,7 @@ export interface BridgeQuoteParams {
   token: TokenSymbol
   amount: string
   recipientAddress: string
+  slippagePercent: number
 }
 
 export interface BridgeQuote {

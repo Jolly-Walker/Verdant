@@ -30,7 +30,8 @@ export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
       userAddress: params.walletAddress,
       extraParams: {
         ptAddress: params.ptAddress,
-        underlyingAsset: params.underlyingAsset
+        underlyingAsset: params.underlyingAsset,
+        slippagePercent: params.slippagePercent
       }
     }
   });
@@ -74,6 +75,7 @@ export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
         // using Pendle SDK before creating the plan or between steps.
         amount: params.amount,
         recipientAddress: params.walletAddress,
+        slippagePercent: params.slippagePercent
       }
     });
     

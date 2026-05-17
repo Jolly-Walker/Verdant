@@ -11,6 +11,7 @@ export interface BridgeAndDepositParams {
   toProtocol: ProtocolId;    // where to deposit
   walletAddress: string;
   preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): SequencePlan {
@@ -59,6 +60,7 @@ export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): Seque
         token: params.asset,
         amount: params.amount,
         recipientAddress: params.walletAddress,
+        slippagePercent: params.slippagePercent,
       }
     });
     
