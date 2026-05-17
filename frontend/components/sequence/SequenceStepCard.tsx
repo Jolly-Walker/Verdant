@@ -67,23 +67,6 @@ export function SequenceStepCard({
           </div>
         )}
 
-        {isReady && step.simulation?.success === false && (
-          <div className="space-y-4">
-            <div className="text-sm text-red-400 bg-red-950/20 border border-red-900/30 p-3 rounded-lg">
-              <p className="font-semibold mb-1">Simulation failed</p>
-              <p className="opacity-80">{step.simulation?.revertReason || 'The transaction would revert if executed.'}</p>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={onEdit} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-2 rounded-lg transition-colors">
-                Edit Parameters
-              </button>
-              <button onClick={onSimulate} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-2 rounded-lg transition-colors">
-                Retry Simulation
-              </button>
-            </div>
-          </div>
-        )}
-
         {isSigning && (
           <div className="flex flex-col items-center justify-center py-4 gap-3">
             <Spinner size="lg" />
@@ -118,17 +101,21 @@ export function SequenceStepCard({
         {isFailed && (
           <div className="space-y-4">
             <div className="text-sm text-red-400 bg-red-950/20 border border-red-900/30 p-3 rounded-lg">
-              <p className="font-semibold mb-1">Execution failed</p>
-              <p className="opacity-80">The transaction was rejected or failed on-chain.</p>
+              <p className="font-semibold mb-1">
+                {step.simulation?.success === false ? 'Simulation failed' : 'Execution failed'}
+              </p>
+              <p className="opacity-80">
+                {step.simulation?.revertReason || 'The transaction was rejected or failed on-chain.'}
+              </p>
             </div>
-            {/* 
-              TODO: Distinguish between simulation failure vs execution failure.
-              Retrying simulation is safe here as it will re-validate and potentially 
-              refresh any stale transaction data before allowing another sign attempt.
-            */}
-            <button onClick={onSimulate} className="w-full bg-red-600 hover:bg-red-500 text-white font-semibold py-2.5 rounded-lg transition-colors">
-              Retry Step
-            </button>
+            <div className="flex gap-3">
+              <button onClick={onEdit} className="flex-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-medium py-2 rounded-lg transition-colors">
+                Edit Parameters
+              </button>
+              <button onClick={onSimulate} className="flex-1 bg-red-600 hover:bg-red-500 text-white font-semibold py-2 rounded-lg transition-colors">
+                Retry Step
+              </button>
+            </div>
           </div>
         )}
       </div>

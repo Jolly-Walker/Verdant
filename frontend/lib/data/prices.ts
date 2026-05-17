@@ -2,6 +2,8 @@
  * Token price fetching via Defillama Coins API.
  * Docs: https://defillama.com/docs/api
  */
+import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata'
+import { ChainId } from '@/types/shared'
 
 const COINS_API = 'https://coins.llama.fi/prices/current'
 
@@ -61,15 +63,18 @@ export async function getEthPrice(): Promise<number> {
  * Get the current price of the native asset for a given chain.
  */
 export async function getNativeAssetPrice(chain: string): Promise<number> {
-  const coingeckoId = chain === 'solana' ? 'coingecko:solana' : 'coingecko:ethereum'
+  const metadata = CHAIN_DISPLAY_MAP[chain as ChainId]
+  if (!metadata) {
+    throw new Error(`Unsupported chain: ${chain}`)
+  }
+
+  const coingeckoId = `coingecko:${metadata.coingeckoId}`
   
   if (priceCache[coingeckoId] && Date.now() - priceCache[coingeckoId].fetchedAt < CACHE_TTL_MS) {
     return priceCache[coingeckoId].price
   }
 
   const prices = await fetchTokenPrices([coingeckoId])
-  // RISK: These fallback values (3000 for ETH, 150 for SOL) will go stale over time. 
-  // If DefiLlama is down, gas cost calculations will use these potentially outdated values.
   const price = prices[coingeckoId]
   
   if (price === undefined) {

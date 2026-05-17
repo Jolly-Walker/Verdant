@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { SequencePlan, SequenceStep, StepStatus } from '@/types/sequencer';
 import { ChainId } from '@/types/shared';
-import { getActiveStep, canSimulateStep, canExecuteStep, applyStepUpdate, computePlanStatus, validatePlan } from '../engine';
+import { 
+  getActiveStep, 
+  canSimulateStep, 
+  canExecuteStep, 
+  applyStepUpdate, 
+  computePlanStatus, 
+  validatePlan,
+  serializeSequencePlan,
+  deserializeSequencePlan
+} from '../engine';
 
 const createBasePlan = (): SequencePlan => ({
   id: '1',
   walletAddress: '0x123',
-  createdAt: new Date(),
+  createdAt: new Date('2026-05-17T00:00:00.000Z'),
   steps: [],
   status: 'draft',
   totalCostUsd: 0,
@@ -20,10 +29,51 @@ const createStep = (id: string, status: StepStatus, dependsOn: string[] = []): S
   status,
   dependsOn,
   pluginId: 'aave',
-  buildParams: { action: 'supply', protocol: 'aave', chain: 'ethereum', asset: 'USDC', amount: '100', userAddress: '0x123' }
+  buildParams: { action: 'supply', protocol: 'aave', chain: 'ethereum', asset: 'USDC', amount: '100', userAddress: '0x123' },
+  unsignedTx: {
+    chainId: 'ethereum',
+    to: '0xTo',
+    data: '0xData',
+    value: 1000000000000000000n, // 1 ETH
+    description: 'Test Tx'
+  }
 });
 
 describe('Sequencer Engine', () => {
+  describe('Serialization', () => {
+    it('correctly serializes and deserializes a plan with BigInts and Dates', () => {
+      const plan = createBasePlan();
+      plan.steps = [createStep('1', 'pending')];
+      plan.steps[0].simulation = {
+        success: true,
+        gasEstimate: 21000n,
+        gasCostUsd: 0.5,
+        simulatedAt: new Date('2026-05-17T01:00:00.000Z')
+      };
+
+      const serialized = serializeSequencePlan(plan);
+      
+      // Check serialization
+      expect(typeof serialized.createdAt).toBe('string');
+      expect(typeof serialized.steps[0].unsignedTx?.value).toBe('string');
+      expect(serialized.steps[0].unsignedTx?.value).toBe('1000000000000000000');
+      expect(typeof serialized.steps[0].simulation?.gasEstimate).toBe('string');
+      expect(serialized.steps[0].simulation?.gasEstimate).toBe('21000');
+      expect(typeof serialized.steps[0].simulation?.simulatedAt).toBe('string');
+
+      // Check deserialization
+      const deserialized = deserializeSequencePlan(serialized);
+      expect(deserialized.createdAt).toBeInstanceOf(Date);
+      expect(deserialized.createdAt.toISOString()).toBe('2026-05-17T00:00:00.000Z');
+      expect(typeof deserialized.steps[0].unsignedTx?.value).toBe('bigint');
+      expect(deserialized.steps[0].unsignedTx?.value).toBe(1000000000000000000n);
+      expect(typeof deserialized.steps[0].simulation?.gasEstimate).toBe('bigint');
+      expect(deserialized.steps[0].simulation?.gasEstimate).toBe(21000n);
+      expect(deserialized.steps[0].simulation?.simulatedAt).toBeInstanceOf(Date);
+      expect(deserialized.steps[0].simulation?.simulatedAt.toISOString()).toBe('2026-05-17T01:00:00.000Z');
+    });
+  });
+
   describe('getActiveStep', () => {
     it('returns the first pending step with no dependencies', () => {
       const plan = createBasePlan();

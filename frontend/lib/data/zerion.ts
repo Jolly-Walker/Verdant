@@ -1,6 +1,7 @@
 import 'server-only'
 import { Position } from '@/types/position'
 import { ChainId, ProtocolId } from '@/types/shared'
+import { PROTOCOL_DISPLAY_MAP } from '@/lib/plugins/protocols/metadata'
 
 export interface ZerionPosition {
   type: 'positions'
@@ -56,6 +57,14 @@ export function getVerdantProtocol(protocol: string | null, symbol: string, name
   const s = symbol.toLowerCase()
   const n = name.toLowerCase()
 
+  // 1. Check direct mapping from PROTOCOL_DISPLAY_MAP
+  for (const metadata of Object.values(PROTOCOL_DISPLAY_MAP)) {
+    if (metadata.zerionIds.some(id => p.includes(id))) {
+      return metadata.id
+    }
+  }
+
+  // 2. Fallbacks for heuristics
   if (p.includes('aave') || (s.startsWith('a') && n.includes('aave'))) return 'aave'
   if (p.includes('morpho') || n.includes('morpho') || s.includes('morpho') || s === 'hyperusdc') return 'morpho'
   if (p.includes('pendle') || n.includes('pendle')) return 'pendle'

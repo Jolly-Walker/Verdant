@@ -105,27 +105,18 @@ export function useSequencer() {
         throw new Error(err.error || 'Simulation failed');
       }
       
-      const { simulation: rawSimulation, updatedStep } = await res.json()
-      
-      const simulation: SimulationResult = {
-        ...rawSimulation,
-        gasEstimate: rawSimulation.gasEstimate ? BigInt(rawSimulation.gasEstimate) : undefined,
-        simulatedAt: new Date(rawSimulation.simulatedAt)
-      }
+      const { updatedStep: serializedUpdatedStep } = await res.json()
+      const updatedStep = deserializeSequenceStep(serializedUpdatedStep)
 
       setPlan(prev => {
         if (!prev) return null
         return {
           ...prev,
-          steps: prev.steps.map(s => 
-            s.id === stepId 
-              ? { ...s, simulation, status: updatedStep.status } 
-              : s
-          )
+          steps: prev.steps.map(s => s.id === stepId ? updatedStep : s)
         }
       })
       
-      return simulation
+      return updatedStep.simulation!
     } catch (err) {
       console.error('Simulation error:', err)
       

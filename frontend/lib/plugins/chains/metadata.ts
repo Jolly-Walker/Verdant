@@ -7,6 +7,7 @@ export interface ChainDisplayMetadata {
   family: 'evm' | 'solana'
   nativeCurrency: { symbol: string; decimals: number }
   chainIdOrNetwork: number | string
+  coingeckoId: string
 }
 
 export const CHAIN_DISPLAY_MAP: Record<ChainId, ChainDisplayMetadata> = {
@@ -17,6 +18,7 @@ export const CHAIN_DISPLAY_MAP: Record<ChainId, ChainDisplayMetadata> = {
     family: 'evm',
     nativeCurrency: { symbol: 'ETH', decimals: 18 },
     chainIdOrNetwork: 1,
+    coingeckoId: 'ethereum'
   },
   arbitrum: {
     id: 'arbitrum',
@@ -25,6 +27,7 @@ export const CHAIN_DISPLAY_MAP: Record<ChainId, ChainDisplayMetadata> = {
     family: 'evm',
     nativeCurrency: { symbol: 'ETH', decimals: 18 },
     chainIdOrNetwork: 42161,
+    coingeckoId: 'ethereum'
   },
   base: {
     id: 'base',
@@ -33,6 +36,7 @@ export const CHAIN_DISPLAY_MAP: Record<ChainId, ChainDisplayMetadata> = {
     family: 'evm',
     nativeCurrency: { symbol: 'ETH', decimals: 18 },
     chainIdOrNetwork: 8453,
+    coingeckoId: 'ethereum'
   },
   solana: {
     id: 'solana',
@@ -41,5 +45,6 @@ export const CHAIN_DISPLAY_MAP: Record<ChainId, ChainDisplayMetadata> = {
     family: 'solana',
     nativeCurrency: { symbol: 'SOL', decimals: 9 },
     chainIdOrNetwork: 'solana-mainnet',
+    coingeckoId: 'solana'
   },
 }

@@ -85,7 +85,7 @@ export default function SequenceTemplateSelector() {
           totalCollateral: collateralAmount,
           initialHealthFactor: healthFactor,
           cycles,
-          protocol: 'aave',
+          protocol: fromProtocol,
           chain: fromChain
         };
       } else if (selectedTemplate === 'exitPendle') {
@@ -195,7 +195,7 @@ export default function SequenceTemplateSelector() {
                 <option value="base">Base</option>
               </select>
             </div>
-            {(selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'repayAndWithdraw') && (
+            {(selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') && (
               <div>
                 <label className="block text-sm font-medium mb-1 text-zinc-400">From Protocol</label>
                 <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={fromProtocol} onChange={e => setFromProtocol(e.target.value as ProtocolId)}>
