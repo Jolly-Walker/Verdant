@@ -1,6 +1,6 @@
 import 'server-only'
 import { createClient } from '@supabase/supabase-js'
-import { SequencePlan } from '../plugins/types/sequencer'
+import { SequencePlan } from '@/types/sequencer'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL

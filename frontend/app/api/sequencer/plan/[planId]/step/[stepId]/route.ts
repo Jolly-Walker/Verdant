@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
 import { applyStepUpdate, computePlanStatus } from '@/lib/sequencer/engine'
-import { SequenceStep } from '@/lib/plugins/types/sequencer'
+import { SequenceStep } from '@/types/sequencer'
 
 const UpdateStepSchema = z.object({
   status: z.enum(['simulating', 'ready', 'signing', 'confirmed', 'failed']),

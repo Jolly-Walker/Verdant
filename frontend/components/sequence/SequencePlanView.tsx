@@ -1,5 +1,5 @@
 import React from 'react';
-import { SequencePlan } from '@/lib/plugins/types/sequencer';
+import { SequencePlan } from '@/types/sequencer';
 import { SequenceProgress } from './SequenceProgress';
 import { SequenceStepCard } from './SequenceStepCard';
 import { formatUsd } from '@/lib/utils/formatting';

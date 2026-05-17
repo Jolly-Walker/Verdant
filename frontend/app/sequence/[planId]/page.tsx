@@ -44,7 +44,7 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
       simulatingStepId.current = currentStep.id;
       simulateStep(currentStep.id).catch(console.error);
     }
-  }, [plan, currentStep, simulateStep]);
+  }, [plan?.id, currentStep?.id, currentStep?.status]);
 
   if (!address) return <div className="p-8 text-center">Please connect your wallet.</div>;
   if (loading) return <div className="p-8 text-center">Loading plan...</div>;

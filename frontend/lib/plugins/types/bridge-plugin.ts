@@ -1,4 +1,4 @@
-import { BridgeId, TokenSymbol, ChainId, BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus } from './shared'
+import { BridgeId, TokenSymbol, ChainId, BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus } from '@/types/shared'
 
 export interface BridgePlugin {
   id: BridgeId

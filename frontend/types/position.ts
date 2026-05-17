@@ -1,4 +1,4 @@
-import { RawPosition, PositionType } from "@/lib/plugins/types/shared"
+import { RawPosition, PositionType } from "@/types/shared"
 
 export interface Reward {
   token: string

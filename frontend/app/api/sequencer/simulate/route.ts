@@ -3,11 +3,39 @@ import { z } from 'zod'
 import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
 import { simulateTransaction } from '@/lib/simulation/simulate'
 import { applyStepUpdate, computePlanStatus } from '@/lib/sequencer/engine'
+import { getNativeAssetPrice } from '@/lib/data/prices'
+import { createPublicClient, http, PublicClient } from 'viem'
+import { mainnet, arbitrum, base } from 'viem/chains'
+import { getRpcUrl } from '@/lib/server/rpc'
+import { ChainId } from '@/types/shared'
 
 const SimulateStepSchema = z.object({
   planId: z.string().uuid(),
   stepId: z.string(),
+  walletAddress: z.string()
 })
+
+const getClient = (chain: ChainId): PublicClient => {
+  const rpcUrl = getRpcUrl(chain)
+  let viemChain
+  switch (chain) {
+    case 'ethereum':
+      viemChain = mainnet
+      break
+    case 'arbitrum':
+      viemChain = arbitrum
+      break
+    case 'base':
+      viemChain = base
+      break
+    default:
+      viemChain = mainnet
+  }
+  return createPublicClient({
+    chain: viemChain,
+    transport: http(rpcUrl, { timeout: 10000 }),
+  })
+}
 
 export async function POST(req: Request) {
   try {
@@ -18,11 +46,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const { planId, stepId } = result.data
+    const { planId, stepId, walletAddress } = result.data
 
     const plan = await getSequencePlan(planId)
     if (!plan) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+    }
+
+    // Auth check
+    if (plan.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const step = plan.steps.find(s => s.id === stepId)
@@ -34,6 +67,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Step has no transaction to simulate' }, { status: 400 })
     }
 
+    // Detect stub data (Issue 7)
+    if (step.unsignedTx.data === '0x' && step.unsignedTx.value === 0n && step.pluginId === 'pendle') {
+      return NextResponse.json({ 
+        error: 'Transaction builder returned stub data — this template is not ready for execution' 
+      }, { status: 400 })
+    }
+
     // Perform simulation
     const simResult = await simulateTransaction({
       chain: step.chain,
@@ -43,6 +83,32 @@ export async function POST(req: Request) {
       value: step.unsignedTx.value.toString(),
     })
 
+    let gasCostUsd = 0
+    if (simResult.success && simResult.gasEstimate && step.chain !== 'solana') {
+      try {
+        const client = getClient(step.chain)
+        
+        // Timeout for price fetch
+        const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
+          return Promise.race([
+            promise,
+            new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+          ]);
+        };
+
+        const [gasPrice, nativePrice] = await Promise.all([
+          client.getGasPrice(),
+          withTimeout(getNativeAssetPrice(step.chain), 5000)
+        ])
+        
+        const costNative = simResult.gasEstimate * gasPrice
+        // For EVM chains, native asset has 18 decimals
+        gasCostUsd = Number(costNative) * nativePrice / 1e18
+      } catch (e) {
+        console.error('Failed to calculate gas cost in USD:', e)
+      }
+    }
+
     const newStatus = simResult.success ? 'ready' : 'failed'
     
     const updateData = {
@@ -50,7 +116,8 @@ export async function POST(req: Request) {
       simulation: {
         success: simResult.success,
         revertReason: simResult.error,
-        gasEstimate: simResult.gasEstimate,
+        gasEstimate: simResult.gasEstimate?.toString(), // Store as string for JSONB
+        gasCostUsd: gasCostUsd,
         simulatedAt: simResult.simulatedAt || new Date()
       }
     }

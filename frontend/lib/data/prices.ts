@@ -47,20 +47,29 @@ export async function fetchTokenPrices(
   return prices
 }
 
-let ethPriceCache: { price: number; fetchedAt: number } | null = null
-const ETH_CACHE_TTL_MS = 60 * 1000 // 1 minute
+let priceCache: Record<string, { price: number; fetchedAt: number }> = {}
+const CACHE_TTL_MS = 60 * 1000 // 1 minute
 
 /**
  * Get the current ETH price in USD. Cached for 1 minute.
  */
 export async function getEthPrice(): Promise<number> {
-  if (ethPriceCache && Date.now() - ethPriceCache.fetchedAt < ETH_CACHE_TTL_MS) {
-    return ethPriceCache.price
+  return getNativeAssetPrice('ethereum')
+}
+
+/**
+ * Get the current price of the native asset for a given chain.
+ */
+export async function getNativeAssetPrice(chain: string): Promise<number> {
+  const coingeckoId = chain === 'solana' ? 'coingecko:solana' : 'coingecko:ethereum'
+  
+  if (priceCache[coingeckoId] && Date.now() - priceCache[coingeckoId].fetchedAt < CACHE_TTL_MS) {
+    return priceCache[coingeckoId].price
   }
 
-  const prices = await fetchTokenPrices(['coingecko:ethereum'])
-  const price = prices['coingecko:ethereum'] || 3000 // fallback
+  const prices = await fetchTokenPrices([coingeckoId])
+  const price = prices[coingeckoId] || (chain === 'solana' ? 150 : 3000) // fallbacks
 
-  ethPriceCache = { price, fetchedAt: Date.now() }
+  priceCache[coingeckoId] = { price, fetchedAt: Date.now() }
   return price
 }

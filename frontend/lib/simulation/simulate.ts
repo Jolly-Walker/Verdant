@@ -5,7 +5,7 @@ import { Chain } from '@/types/chain'
 import { Protocol } from '@/types/protocol'
 import { getRpcUrl } from '@/lib/server/rpc'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { SUPPORTED_TOKENS } from '@/lib/plugins/tokens'
+import { SUPPORTED_TOKENS } from '@/constants/tokens'
 
 // Dummy address for gas estimation routines where the user is unconnected.
 const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'

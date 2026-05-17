@@ -1,17 +1,21 @@
 "use client";
 
 import React from 'react';
-import { TEMPLATE_REGISTRY, TemplateId } from '@/lib/sequencer/templates';
+import { TEMPLATE_REGISTRY } from '@/hooks/useSequencer';
+import { TemplateId } from '@/types/sequencer';
 
 interface TemplateSelectorProps {
   selectedTemplate: TemplateId | null;
   onSelect: (templateId: TemplateId) => void;
+  filter?: TemplateId[];
 }
 
-export function TemplateSelector({ selectedTemplate, onSelect }: TemplateSelectorProps) {
+export function TemplateSelector({ selectedTemplate, onSelect, filter }: TemplateSelectorProps) {
+  const templates = Object.values(TEMPLATE_REGISTRY).filter(t => !filter?.includes(t.id as TemplateId));
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-      {Object.values(TEMPLATE_REGISTRY).map(template => (
+      {templates.map(template => (
         <div 
           key={template.id} 
           className={`border rounded-xl p-6 cursor-pointer hover:border-blue-500 transition-all ${

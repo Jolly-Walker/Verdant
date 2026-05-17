@@ -1,5 +1,5 @@
 import React from 'react';
-import { SequencePlan } from '@/lib/plugins/types/sequencer';
+import { SequencePlan } from '@/types/sequencer';
 import { Spinner } from '@/components/ui/Spinner';
 
 export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; currentStepId: string | null }) {

@@ -1,5 +1,5 @@
-import { ALL_CHAINS } from '../plugins/types/shared';
-import { SequencePlan, SequenceStep } from '../plugins/types/sequencer';
+import { ALL_CHAINS } from '@/types/shared';
+import { SequencePlan, SequenceStep } from '@/types/sequencer';
 
 export function getActiveStep(plan: SequencePlan): SequenceStep | null {
   for (const step of plan.steps) {

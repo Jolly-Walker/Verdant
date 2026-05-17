@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { ALL_CHAINS } from '@/lib/plugins/types/shared'
+import { ALL_CHAINS } from '@/types/shared'
 import { simulateTransaction } from '@/lib/simulation/simulate'
 
 const SimulateSchema = z.object({

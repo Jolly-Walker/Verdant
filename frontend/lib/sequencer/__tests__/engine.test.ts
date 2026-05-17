@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { SequencePlan, SequenceStep, StepStatus } from '../../plugins/types/sequencer';
-import { ChainId } from '../../plugins/types/shared';
+import { SequencePlan, SequenceStep, StepStatus } from '@/types/sequencer';
+import { ChainId } from '@/types/shared';
 import { getActiveStep, canSimulateStep, canExecuteStep, applyStepUpdate, computePlanStatus, validatePlan } from '../engine';
 
 const createBasePlan = (): SequencePlan => ({

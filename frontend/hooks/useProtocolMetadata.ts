@@ -1,5 +1,5 @@
 import { PROTOCOL_DISPLAY_MAP } from '@/lib/plugins/protocols/metadata'
-import { ProtocolId } from '@/lib/plugins/types/shared'
+import { ProtocolId } from '@/types/shared'
 
 export function useProtocolMetadata() {
   const getProtocolMetadata = (protocolId: ProtocolId) => {

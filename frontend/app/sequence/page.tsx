@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from 'react';
-import { useSequencer } from '@/hooks/useSequencer';
-import { useRouter } from 'next/navigation';
-import { TEMPLATE_REGISTRY, TemplateId } from '@/lib/sequencer/templates';
-import { TemplateParams } from '@/lib/plugins/types/sequencer';
-import { ChainId, ProtocolId } from '@/lib/plugins/types/shared';
+import { useEffect, useState } from 'react';
+import { useSequencer, TEMPLATE_REGISTRY } from '@/hooks/useSequencer';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { TemplateParams, TemplateId } from '@/types/sequencer';
+import { ChainId, ProtocolId } from '@/types/shared';
 import { TemplateSelector } from '@/components/sequence/TemplateSelector';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
 
 export default function SequenceTemplateSelector() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { createPlan } = useSequencer();
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | null>(null);
   
@@ -17,12 +18,30 @@ export default function SequenceTemplateSelector() {
   const [borrowAsset, setBorrowAsset] = useState('USDC');
   const [collateralAsset, setCollateralAsset] = useState('ETH');
   const [amount, setAmount] = useState('100');
+  const [collateralAmount, setCollateralAmount] = useState('1');
+  const [healthFactor, setHealthFactor] = useState(2.5);
   const [cycles, setCycles] = useState(2);
   const [fromChain, setFromChain] = useState<ChainId>('ethereum');
   const [toChain, setToChain] = useState<ChainId>('arbitrum');
   const [toProtocol, setToProtocol] = useState<ProtocolId>('aave');
   
+  const [ptAddress, setPtAddress] = useState('');
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const template = searchParams.get('template') as TemplateId;
+    const assetParam = searchParams.get('asset');
+    const amountParam = searchParams.get('amount');
+    const ptAddressParam = searchParams.get('ptAddress');
+    const chainParam = searchParams.get('chain') as ChainId;
+
+    if (template) setSelectedTemplate(template);
+    if (assetParam) setAsset(assetParam);
+    if (amountParam) setAmount(amountParam);
+    if (ptAddressParam) setPtAddress(ptAddressParam);
+    if (chainParam) setFromChain(chainParam);
+  }, [searchParams]);
 
   const handleSubmit = async () => {
     if (!selectedTemplate) return;
@@ -44,7 +63,7 @@ export default function SequenceTemplateSelector() {
           borrowAsset,
           borrowAmount: amount,
           collateralAsset,
-          collateralAmount: '1',
+          collateralAmount,
           protocol: toProtocol,
           chain: fromChain
         };
@@ -62,16 +81,19 @@ export default function SequenceTemplateSelector() {
           borrowAsset,
           collateralAsset,
           totalDebt: amount,
-          totalCollateral: '1',
-          initialHealthFactor: 2.5,
+          totalCollateral: collateralAmount,
+          initialHealthFactor: healthFactor,
           cycles,
           protocol: 'aave',
           chain: fromChain
         };
       } else if (selectedTemplate === 'exitPendle') {
+        const ptAsset = asset === 'ETH' ? 'PT-eETH' : 'PT-USDC';
+        const dynamicPtAddress = SUPPORTED_TOKENS[ptAsset]?.addresses[fromChain] || '';
+        
         params = {
-          ptAsset: asset === 'ETH' ? 'PT-eETH' : 'PT-USDC',
-          ptAddress: asset === 'ETH' ? '0x35D1A6fD38F0839e3F9329C356391d4e0258B0A8' : '0x', 
+          ptAsset,
+          ptAddress: ptAddress || dynamicPtAddress, 
           amount,
           underlyingAsset: asset,
           fromChain,
@@ -99,6 +121,7 @@ export default function SequenceTemplateSelector() {
       <TemplateSelector 
         selectedTemplate={selectedTemplate} 
         onSelect={setSelectedTemplate} 
+        filter={['exitPendle']}
       />
 
       {selectedTemplate && (
@@ -146,6 +169,18 @@ export default function SequenceTemplateSelector() {
                 <input type="number" min="1" max="10" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={cycles} onChange={e => setCycles(parseInt(e.target.value) || 1)} />
                 <p className="text-xs text-zinc-500 mt-1">Higher cycles are safer but cost more gas.</p>
               </div>
+            )}
+            {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-zinc-400">Total Collateral Amount</label>
+                  <input type="number" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={collateralAmount} onChange={e => setCollateralAmount(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1 text-zinc-400">Current Health Factor</label>
+                  <input type="number" step="0.1" className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={healthFactor} onChange={e => setHealthFactor(parseFloat(e.target.value) || 2.5)} />
+                </div>
+              </>
             )}
             <div>
               <label className="block text-sm font-medium mb-1 text-zinc-400">From Chain</label>

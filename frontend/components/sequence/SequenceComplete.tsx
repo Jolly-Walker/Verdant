@@ -1,5 +1,5 @@
 import React from 'react';
-import { SequencePlan } from '@/lib/plugins/types/sequencer';
+import { SequencePlan } from '@/types/sequencer';
 import { getExplorerTxUrl } from '@/lib/utils/chains';
 import { Card } from '@/components/ui/Card';
 import { formatUsd } from '@/lib/utils/formatting';

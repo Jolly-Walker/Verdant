@@ -1,2 +1,2 @@
-import { ProtocolId } from '@/lib/plugins/types/shared'
+import { ProtocolId } from '@/types/shared'
 export type Protocol = ProtocolId

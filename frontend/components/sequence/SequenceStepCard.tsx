@@ -1,5 +1,5 @@
 import React from 'react';
-import { SequenceStep } from '@/lib/plugins/types/sequencer';
+import { SequenceStep } from '@/types/sequencer';
 import { getExplorerTxUrl, getChainDisplayName } from '@/lib/utils/chains';
 import { Spinner } from '@/components/ui/Spinner';
 import { Card } from '@/components/ui/Card';

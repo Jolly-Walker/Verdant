@@ -1,6 +1,6 @@
 import 'server-only'
 import { Position } from '@/types/position'
-import { ChainId, ProtocolId } from '@/lib/plugins/types/shared'
+import { ChainId, ProtocolId } from '@/types/shared'
 
 export interface ZerionPosition {
   type: 'positions'

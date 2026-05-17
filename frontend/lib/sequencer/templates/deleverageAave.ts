@@ -1,5 +1,5 @@
-import { SequencePlan } from '../../plugins/types/sequencer';
-import { ChainId, ProtocolId } from '../../plugins/types/shared';
+import { SequencePlan } from '@/types/sequencer';
+import { ChainId, ProtocolId } from '@/types/shared';
 
 export interface DeleverageAaveParams {
   borrowAsset: string;

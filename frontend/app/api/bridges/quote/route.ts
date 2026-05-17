@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { ALL_CHAINS, BridgeQuote } from '@/lib/plugins/types/shared'
+import { ALL_CHAINS, BridgeQuote } from '@/types/shared'
 
 const BridgeQuoteQuerySchema = z.object({
   fromChain: z.enum(ALL_CHAINS),

@@ -4,7 +4,7 @@ import { PositionCard } from './PositionCard'
 import { PositionSkeleton } from './PositionSkeleton'
 import { PositionTypeFilter } from './PositionTypeFilter'
 import { useChainMetadata } from '@/hooks/useChainMetadata'
-import { PositionType } from '@/lib/plugins/types/shared'
+import { PositionType } from '@/types/shared'
 
 interface PositionListProps {
   positions: Position[]

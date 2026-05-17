@@ -1,4 +1,4 @@
-import { SequencePlan, ExitPendleParams } from '../../plugins/types/sequencer';
+import { SequencePlan, ExitPendleParams } from '@/types/sequencer';
 
 export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
   const isSameChain = params.fromChain === params.toChain;
@@ -49,7 +49,10 @@ export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
         protocol: params.toProtocol,
         chain: params.toChain,
         asset: params.underlyingAsset,
-        amount: params.amount, // Note: amount might change slightly after redemption, but we use the target amount as placeholder
+        // TODO: amount might change slightly after redemption (e.g. discount/fees). 
+        // A proper implementation should dynamically compute redemption output 
+        // using Pendle SDK before creating the plan or between steps.
+        amount: params.amount, 
         userAddress: params.walletAddress,
       }
     });
@@ -66,6 +69,9 @@ export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
         fromChain: params.fromChain,
         toChain: params.toChain,
         token: params.underlyingAsset,
+        // TODO: amount might change slightly after redemption (e.g. discount/fees). 
+        // A proper implementation should dynamically compute redemption output 
+        // using Pendle SDK before creating the plan or between steps.
         amount: params.amount,
         recipientAddress: params.walletAddress,
       }
@@ -84,6 +90,9 @@ export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
         protocol: params.toProtocol,
         chain: params.toChain,
         asset: params.underlyingAsset,
+        // TODO: amount might change slightly after redemption (e.g. discount/fees). 
+        // A proper implementation should dynamically compute redemption output 
+        // using Pendle SDK before creating the plan or between steps.
         amount: params.amount,
         userAddress: params.walletAddress,
       }

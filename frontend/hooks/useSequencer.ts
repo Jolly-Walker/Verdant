@@ -1,7 +1,10 @@
 import { useState, useMemo, useRef } from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
-import { SequencePlan, SequenceStep, SimulationResult, TemplateParams } from '@/lib/plugins/types/sequencer'
+import { SequencePlan, SequenceStep, SimulationResult, TemplateParams, TemplateId } from '@/types/sequencer'
 import { getActiveStep } from '@/lib/sequencer/engine'
+import { TEMPLATE_REGISTRY } from '@/lib/sequencer/templates'
+
+export { TEMPLATE_REGISTRY }
 
 const CHAIN_ID_MAP: Record<string, number> = {
   ethereum: 1,
@@ -92,6 +95,7 @@ export function useSequencer() {
         body: JSON.stringify({
           planId: plan.id,
           stepId: stepId,
+          walletAddress: address
         })
       })
 

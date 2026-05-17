@@ -1,5 +1,5 @@
-import { SequencePlan } from '../../plugins/types/sequencer';
-import { ChainId, ProtocolId, BridgeId } from '../../plugins/types/shared';
+import { SequencePlan } from '@/types/sequencer';
+import { ChainId, ProtocolId, BridgeId } from '@/types/shared';
 
 export interface BridgeAndDepositParams {
   asset: string;          // e.g. 'USDC'

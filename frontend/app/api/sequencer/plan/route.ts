@@ -6,8 +6,8 @@ import { buildCrossChainRebalancePlan } from '@/lib/sequencer/templates/crossCha
 import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAave'
 import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle'
 import { createSequencePlan } from '@/lib/data/sequencePlans'
-import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/lib/plugins/types/shared'
-import { SUPPORTED_TOKENS } from '@/lib/plugins/tokens'
+import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/types/shared'
+import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { fetchTokenPrices } from '@/lib/data/prices'
 
 const BridgeAndDepositParamsSchema = z.object({

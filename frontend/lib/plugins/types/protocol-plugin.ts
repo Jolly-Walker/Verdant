@@ -1,4 +1,4 @@
-import { ChainId, ProtocolId, PositionType, RawPosition, UnsignedTx, TxBuildParams, Reward } from './shared'
+import { ChainId, ProtocolId, PositionType, RawPosition, UnsignedTx, TxBuildParams, Reward } from '@/types/shared'
 
 export interface ClaimParams {
   address: string

@@ -1,4 +1,4 @@
-export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave' | 'exitPendle';
+import { TemplateId } from '@/types/sequencer';
 
 export const TEMPLATE_REGISTRY: Record<TemplateId, {
   id: TemplateId;

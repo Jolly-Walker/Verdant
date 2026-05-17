@@ -1,5 +1,7 @@
 import { ChainId, ProtocolId, BridgeId, UnsignedTx, TxBuildParams, BridgeQuoteParams } from './shared'
 
+export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave' | 'exitPendle';
+
 export type StepStatus = 'pending' | 'simulating' | 'ready' | 'signing' | 'confirmed' | 'failed'
 
 export interface SimulationResult {
