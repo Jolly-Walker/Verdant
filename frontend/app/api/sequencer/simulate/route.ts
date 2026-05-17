@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
 import { simulateTransaction } from '@/lib/simulation/simulate'
-import { applyStepUpdate, computePlanStatus } from '@/lib/sequencer/engine'
+import { applyStepUpdate, computePlanStatus, serializeSequenceStep } from '@/lib/sequencer/engine'
 import { getNativeAssetPrice } from '@/lib/data/prices'
 import { createPublicClient, http, PublicClient } from 'viem'
 import { mainnet, arbitrum, base } from 'viem/chains'
 import { getRpcUrl } from '@/lib/server/rpc'
-import { ChainId } from '@/types/shared'
+import { ChainId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 
 const SimulateStepSchema = z.object({
   planId: z.string().uuid(),
@@ -64,7 +66,23 @@ export async function POST(req: Request) {
     }
 
     if (!step.unsignedTx) {
-      return NextResponse.json({ error: 'Step has no transaction to simulate' }, { status: 400 })
+      if (PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]) {
+        const plugin = PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]
+        const txs = await plugin.builder.buildTx(step.buildParams as TxBuildParams)
+        if (txs && txs.length > 0) {
+          step.unsignedTx = txs[0]
+        }
+      } else if (BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]) {
+        const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
+        const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams)
+        if (quote) {
+          step.unsignedTx = await plugin.buildBridgeTx(quote)
+        }
+      }
+
+      if (!step.unsignedTx) {
+        return NextResponse.json({ error: 'Step has no transaction to simulate and failed to build one' }, { status: 400 })
+      }
     }
 
     // Detect stub data (Issue 7)
@@ -109,14 +127,14 @@ export async function POST(req: Request) {
       }
     }
 
-    const newStatus = simResult.success ? 'ready' : 'failed'
+    const newStatus: 'ready' | 'failed' = simResult.success ? 'ready' : 'failed'
     
     const updateData = {
       status: newStatus,
       simulation: {
         success: simResult.success,
         revertReason: simResult.error,
-        gasEstimate: simResult.gasEstimate?.toString(), // Store as string for JSONB
+        gasEstimate: simResult.gasEstimate,
         gasCostUsd: gasCostUsd,
         simulatedAt: simResult.simulatedAt || new Date()
       }
@@ -131,9 +149,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to save simulation result to database' }, { status: 500 })
     }
 
+    const returnStep = updatedPlan.steps.find(s => s.id === stepId)
+    
+    if (!returnStep) {
+      return NextResponse.json({ error: 'Updated step not found' }, { status: 500 })
+    }
+
     return NextResponse.json({ 
-      simulation: updateData.simulation,
-      updatedStep: updatedPlan.steps.find(s => s.id === stepId)
+      simulation: {
+        ...updateData.simulation,
+        gasEstimate: updateData.simulation.gasEstimate ? updateData.simulation.gasEstimate.toString() : undefined
+      },
+      updatedStep: serializeSequenceStep(returnStep)
     })
   } catch (error) {
     console.error('Error in /api/sequencer/simulate:', error)

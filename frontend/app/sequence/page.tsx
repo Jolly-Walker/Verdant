@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useSequencer, TEMPLATE_REGISTRY } from '@/hooks/useSequencer';
+import { useSequencer } from '@/hooks/useSequencer';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { TemplateParams, TemplateId } from '@/types/sequencer';
 import { ChainId, ProtocolId } from '@/types/shared';
@@ -64,14 +64,14 @@ export default function SequenceTemplateSelector() {
           borrowAmount: amount,
           collateralAsset,
           collateralAmount,
-          protocol: toProtocol,
+          protocol: fromProtocol,
           chain: fromChain
         };
       } else if (selectedTemplate === 'crossChainRebalance') {
         params = {
           asset,
           amount,
-          fromProtocol: 'aave',
+          fromProtocol,
           fromChain,
           toProtocol,
           toChain
@@ -124,8 +124,12 @@ export default function SequenceTemplateSelector() {
         filter={['exitPendle']}
       />
 
-      {selectedTemplate && (
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 max-w-xl mx-auto">
+      {selectedTemplate === 'exitPendle' && !ptAddress ? (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 max-w-xl mx-auto text-center mt-8">
+          <p className="text-red-400">Please use the Exit button from your Pendle position.</p>
+        </div>
+      ) : selectedTemplate && (
+        <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-8 max-w-xl mx-auto mt-8">
           <h2 className="font-bold text-xl mb-6">Configure Parameters</h2>
           
           <div className="space-y-4">
@@ -190,6 +194,16 @@ export default function SequenceTemplateSelector() {
                 <option value="base">Base</option>
               </select>
             </div>
+            {(selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'repayAndWithdraw') && (
+              <div>
+                <label className="block text-sm font-medium mb-1 text-zinc-400">From Protocol</label>
+                <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={fromProtocol} onChange={e => setFromProtocol(e.target.value as ProtocolId)}>
+                  <option value="aave">Aave V3</option>
+                  <option value="morpho">Morpho</option>
+                  <option value="euler">Euler</option>
+                </select>
+              </div>
+            )}
             {(selectedTemplate === 'bridgeAndDeposit' || selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'exitPendle') && (
               <div>
                 <label className="block text-sm font-medium mb-1 text-zinc-400">To Chain</label>
@@ -200,14 +214,16 @@ export default function SequenceTemplateSelector() {
                 </select>
               </div>
             )}
-            <div>
-              <label className="block text-sm font-medium mb-1 text-zinc-400">Destination Protocol</label>
-              <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={toProtocol} onChange={e => setToProtocol(e.target.value as ProtocolId)}>
-                <option value="aave">Aave V3</option>
-                <option value="morpho">Morpho</option>
-                <option value="euler">Euler</option>
-              </select>
-            </div>
+            {selectedTemplate !== 'repayAndWithdraw' && selectedTemplate !== 'deleverageAave' && selectedTemplate !== 'exitPendle' && (
+              <div>
+                <label className="block text-sm font-medium mb-1 text-zinc-400">Destination Protocol</label>
+                <select className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100" value={toProtocol} onChange={e => setToProtocol(e.target.value as ProtocolId)}>
+                  <option value="aave">Aave V3</option>
+                  <option value="morpho">Morpho</option>
+                  <option value="euler">Euler</option>
+                </select>
+              </div>
+            )}
           </div>
           
           <button 

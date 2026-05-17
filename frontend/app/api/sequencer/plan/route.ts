@@ -6,6 +6,7 @@ import { buildCrossChainRebalancePlan } from '@/lib/sequencer/templates/crossCha
 import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAave'
 import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle'
 import { createSequencePlan } from '@/lib/data/sequencePlans'
+import { serializeSequencePlan } from '@/lib/sequencer/engine'
 import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { fetchTokenPrices } from '@/lib/data/prices'
@@ -204,7 +205,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to save plan to database' }, { status: 500 })
     }
 
-    return NextResponse.json({ plan: savedPlan })
+    return NextResponse.json({ plan: serializeSequencePlan(savedPlan) })
   } catch (error) {
     console.error('Error in /api/sequencer/plan:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

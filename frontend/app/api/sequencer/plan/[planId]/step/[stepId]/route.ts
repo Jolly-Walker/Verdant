@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
-import { applyStepUpdate, computePlanStatus } from '@/lib/sequencer/engine'
+import { applyStepUpdate, computePlanStatus, serializeSequencePlan } from '@/lib/sequencer/engine'
 import { SequenceStep } from '@/types/sequencer'
 
 const UpdateStepSchema = z.object({
@@ -73,7 +73,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Failed to update plan in database' }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true, plan: updatedPlan })
+    return NextResponse.json({ success: true, plan: serializeSequencePlan(updatedPlan) })
   } catch (error) {
     console.error('Error updating step:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

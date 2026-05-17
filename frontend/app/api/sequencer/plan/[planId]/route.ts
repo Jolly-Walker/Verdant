@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getSequencePlan } from '@/lib/data/sequencePlans'
+import { serializeSequencePlan } from '@/lib/sequencer/engine'
 
 export async function GET(req: Request, { params }: { params: { planId: string } }) {
   try {
@@ -20,7 +21,7 @@ export async function GET(req: Request, { params }: { params: { planId: string }
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    return NextResponse.json({ plan })
+    return NextResponse.json({ plan: serializeSequencePlan(plan) })
   } catch (error) {
     console.error('Error fetching plan:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

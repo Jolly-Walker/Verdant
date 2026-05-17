@@ -47,7 +47,7 @@ export async function fetchTokenPrices(
   return prices
 }
 
-let priceCache: Record<string, { price: number; fetchedAt: number }> = {}
+const priceCache: Record<string, { price: number; fetchedAt: number }> = {}
 const CACHE_TTL_MS = 60 * 1000 // 1 minute
 
 /**
@@ -68,7 +68,13 @@ export async function getNativeAssetPrice(chain: string): Promise<number> {
   }
 
   const prices = await fetchTokenPrices([coingeckoId])
-  const price = prices[coingeckoId] || (chain === 'solana' ? 150 : 3000) // fallbacks
+  // RISK: These fallback values (3000 for ETH, 150 for SOL) will go stale over time. 
+  // If DefiLlama is down, gas cost calculations will use these potentially outdated values.
+  const price = prices[coingeckoId]
+  
+  if (price === undefined) {
+    throw new Error(`Failed to fetch price for ${coingeckoId}`)
+  }
 
   priceCache[coingeckoId] = { price, fetchedAt: Date.now() }
   return price

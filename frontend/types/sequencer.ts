@@ -13,6 +13,11 @@ export interface SimulationResult {
   simulatedAt: Date
 }
 
+export interface SerializedSimulationResult extends Omit<SimulationResult, 'gasEstimate' | 'simulatedAt'> {
+  gasEstimate?: string
+  simulatedAt: string
+}
+
 export interface SequenceStep {
   id: string
   label: string
@@ -26,6 +31,16 @@ export interface SequenceStep {
   buildParams: TxBuildParams | BridgeQuoteParams
 }
 
+export interface SerializedUnsignedTx extends Omit<UnsignedTx, 'value' | 'gasLimit'> {
+  value: string
+  gasLimit?: string
+}
+
+export interface SerializedSequenceStep extends Omit<SequenceStep, 'unsignedTx' | 'simulation'> {
+  unsignedTx?: SerializedUnsignedTx
+  simulation?: SerializedSimulationResult
+}
+
 export interface SequencePlan {
   id: string
   walletAddress: string
@@ -34,6 +49,11 @@ export interface SequencePlan {
   status: 'draft' | 'in-progress' | 'complete' | 'failed'
   totalCostUsd: number
   description: string
+}
+
+export interface SerializedSequencePlan extends Omit<SequencePlan, 'steps' | 'createdAt'> {
+  createdAt: string
+  steps: SerializedSequenceStep[]
 }
 
 export interface BridgeAndDepositParams {

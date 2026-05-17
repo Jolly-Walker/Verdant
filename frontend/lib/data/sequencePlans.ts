@@ -1,6 +1,7 @@
 import 'server-only'
 import { createClient } from '@supabase/supabase-js'
-import { SequencePlan } from '@/types/sequencer'
+import { SequencePlan, SerializedSequenceStep } from '@/types/sequencer'
+import { serializeSequenceStep, deserializeSequenceStep } from '@/lib/sequencer/engine'
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -14,6 +15,7 @@ function getSupabase() {
 export async function createSequencePlan(plan: SequencePlan, templateId: string): Promise<SequencePlan | null> {
   try {
     const supabase = getSupabase()
+    const serializedSteps = plan.steps.map(serializeSequenceStep)
     const { data, error } = await supabase
       .from('sequence_plans')
       .insert({
@@ -22,7 +24,7 @@ export async function createSequencePlan(plan: SequencePlan, templateId: string)
         description: plan.description,
         status: plan.status,
         total_cost_usd: plan.totalCostUsd,
-        steps: plan.steps
+        steps: serializedSteps
       })
       .select()
       .single()
@@ -32,7 +34,8 @@ export async function createSequencePlan(plan: SequencePlan, templateId: string)
     return {
       ...plan,
       id: data.id,
-      createdAt: new Date(data.created_at)
+      createdAt: new Date(data.created_at),
+      steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep)
     }
   } catch (error) {
     console.error('Error creating sequence plan:', error)
@@ -55,7 +58,7 @@ export async function getSequencePlan(id: string): Promise<SequencePlan | null> 
       id: data.id,
       walletAddress: data.wallet_address,
       createdAt: new Date(data.created_at),
-      steps: data.steps,
+      steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
       status: data.status,
       totalCostUsd: Number(data.total_cost_usd || 0),
       description: data.description
@@ -69,7 +72,8 @@ export async function getSequencePlan(id: string): Promise<SequencePlan | null> 
 export async function updateSequencePlanStep(planId: string, stepId: string, steps: SequencePlan['steps'], newStatus: SequencePlan['status']): Promise<boolean> {
   try {
     const supabase = getSupabase()
-    const updates: Record<string, unknown> = { steps, status: newStatus }
+    const serializedSteps = steps.map(serializeSequenceStep)
+    const updates: Record<string, unknown> = { steps: serializedSteps, status: newStatus }
     if (newStatus === 'complete') {
       updates.completed_at = new Date().toISOString()
     }
@@ -83,6 +87,43 @@ export async function updateSequencePlanStep(planId: string, stepId: string, ste
     return true
   } catch (error) {
     console.error('Error updating sequence plan step:', error)
+    return false
+  }
+}
+
+export async function markPlanComplete(id: string): Promise<boolean> {
+  try {
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('sequence_plans')
+      .update({
+        status: 'complete',
+        completed_at: new Date().toISOString()
+      })
+      .eq('id', id)
+
+    if (error) throw error
+    return true
+  } catch (error) {
+    console.error('Error marking plan complete:', error)
+    return false
+  }
+}
+
+export async function markPlanFailed(id: string): Promise<boolean> {
+  try {
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('sequence_plans')
+      .update({
+        status: 'failed'
+      })
+      .eq('id', id)
+
+    if (error) throw error
+    return true
+  } catch (error) {
+    console.error('Error marking plan failed:', error)
     return false
   }
 }

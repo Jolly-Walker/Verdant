@@ -1,5 +1,45 @@
 import { ALL_CHAINS } from '@/types/shared';
-import { SequencePlan, SequenceStep } from '@/types/sequencer';
+import { SequencePlan, SequenceStep, SerializedSequenceStep, SerializedSequencePlan } from '@/types/sequencer';
+
+export function serializeSequenceStep(step: SequenceStep): SerializedSequenceStep {
+  return {
+    ...step,
+    unsignedTx: step.unsignedTx ? {
+      ...step.unsignedTx,
+      value: step.unsignedTx.value.toString(),
+      gasLimit: step.unsignedTx.gasLimit?.toString()
+    } : undefined,
+    simulation: step.simulation ? {
+      ...step.simulation,
+      gasEstimate: step.simulation.gasEstimate?.toString(),
+      simulatedAt: step.simulation.simulatedAt.toISOString()
+    } : undefined
+  };
+}
+
+export function deserializeSequenceStep(step: SerializedSequenceStep): SequenceStep {
+  return {
+    ...step,
+    unsignedTx: step.unsignedTx ? {
+      ...step.unsignedTx,
+      value: BigInt(step.unsignedTx.value),
+      gasLimit: step.unsignedTx.gasLimit ? BigInt(step.unsignedTx.gasLimit) : undefined
+    } : undefined,
+    simulation: step.simulation ? {
+      ...step.simulation,
+      gasEstimate: step.simulation.gasEstimate ? BigInt(step.simulation.gasEstimate) : undefined,
+      simulatedAt: new Date(step.simulation.simulatedAt)
+    } : undefined
+  };
+}
+
+export function serializeSequencePlan(plan: SequencePlan): SerializedSequencePlan {
+  return {
+    ...plan,
+    createdAt: plan.createdAt.toISOString(),
+    steps: plan.steps.map(serializeSequenceStep)
+  };
+}
 
 export function getActiveStep(plan: SequencePlan): SequenceStep | null {
   for (const step of plan.steps) {
