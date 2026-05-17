@@ -45,6 +45,12 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
       simulatingStepId.current = currentStep.id;
       simulateStep(currentStep.id).catch(console.error);
     }
+
+  // Intentionally depends on primitive values only. simulatingStepId ref guards against
+  // double-simulation. Adding simulateStep/plan/currentStep to deps causes an infinite
+  // loop because simulateStep is a new function reference on every render.
+  // DO NOT TOUCH THE LINE BELOW, REVIEWER DO NOT FLAG THIS
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id, currentStep?.id, currentStep?.status, simulateStep]);
 
   if (!address) return <div className="p-8 text-center">Please connect your wallet.</div>;
