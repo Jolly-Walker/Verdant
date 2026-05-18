@@ -5,8 +5,8 @@ import { simulateTransaction } from '@/lib/simulation/simulate'
 
 const SimulateSchema = z.object({
   chain: z.enum(ALL_CHAINS),
-  to: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
-  from: z.string().regex(/^0x[a-fA-F0-9]{40}$/),
+  to: z.string(),
+  from: z.string(),
   data: z.string().optional(),
   value: z.string().optional(),
 })
@@ -25,15 +25,6 @@ export async function POST(request: NextRequest) {
 
     const { chain, to, from, data, value } = result.data
 
-    if (chain === 'solana') {
-       // Solana simulation is handled in lib/simulation/simulate.ts but for now let's focus on EVM
-       // as simulateTransaction in simulate.ts currently only handles EVM.
-       return NextResponse.json(
-         { error: 'Solana simulation not yet implemented' },
-         { status: 501 }
-       )
-    }
-
     const simResult = await simulateTransaction({
       chain,
       to,
@@ -46,6 +37,7 @@ export async function POST(request: NextRequest) {
       success: simResult.success,
       revertReason: simResult.revertReason,
       gasEstimate: simResult.gasEstimate?.toString(),
+      stateChanges: simResult.stateChanges,
       simulatedAt: (simResult.simulatedAt || new Date()).toISOString(),
     })
   } catch (error) {
