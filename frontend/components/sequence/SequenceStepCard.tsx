@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/Badge';
 import { HealthFactor } from '@/components/ui/HealthFactor';
 import { formatUsd } from '@/lib/utils/formatting';
 
+import { SimulationResultView } from '@/components/execute/SimulationResult';
+
 export function SequenceStepCard({ 
   step, 
   onSimulate, 
@@ -21,6 +23,7 @@ export function SequenceStepCard({
   isActive: boolean
 }) {
   const [hfConfirmed, setHfConfirmed] = useState(false);
+  const [simulationReviewed, setSimulationReviewed] = useState(false);
   
   const isCompleted = step.status === 'confirmed';
   const isFailed = step.status === 'failed';
@@ -29,7 +32,7 @@ export function SequenceStepCard({
   const isSigning = step.status === 'signing';
 
   const needsHfConfirmation = step.projectedHealthFactor !== undefined && step.projectedHealthFactor < 1.5;
-  const canSign = !needsHfConfirmation || hfConfirmed;
+  const canSign = (!needsHfConfirmation || hfConfirmed) && simulationReviewed;
 
   return (
     <Card className={`mb-4 overflow-hidden border-zinc-800 ${isActive ? 'ring-1 ring-emerald-500/50 bg-zinc-900/40' : 'opacity-60'}`}>
@@ -54,6 +57,15 @@ export function SequenceStepCard({
       </div>
 
       <div className="px-6 py-4">
+        {step.status === 'pending' && isActive && (
+          <button 
+            onClick={onSimulate}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg transition-colors shadow-lg shadow-emerald-900/20"
+          >
+            Simulate Step
+          </button>
+        )}
+
         {isSimulating && (
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <Spinner size="sm" />
@@ -61,13 +73,25 @@ export function SequenceStepCard({
           </div>
         )}
 
-        {isReady && step.simulation?.success === true && (
+        {isReady && step.simulation && (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 p-3 rounded-lg">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <span>Simulation passed. Estimated gas: <span className="font-bold">{formatUsd(step.simulation.gasCostUsd || 0)}</span></span>
+            <SimulationResultView result={step.simulation} />
+
+            <div className="bg-zinc-800/30 border border-zinc-700/30 p-4 rounded-lg">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5">
+                  <input 
+                    type="checkbox" 
+                    id={`review-sim-${step.id}`}
+                    checked={simulationReviewed}
+                    onChange={(e) => setSimulationReviewed(e.target.checked)}
+                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-emerald-600 focus:ring-emerald-600 focus:ring-offset-zinc-900"
+                  />
+                </div>
+                <label htmlFor={`review-sim-${step.id}`} className="text-sm text-zinc-300 leading-tight cursor-pointer">
+                  I have reviewed the expected balance changes and wish to proceed.
+                </label>
+              </div>
             </div>
 
             {needsHfConfirmation && (
