@@ -1,11 +1,16 @@
+import { deduplicatePositions } from '@/lib/data/aggregation'
 import { fetchSolanaTokenBalances } from '@/lib/data/solana'
 import { fetchZerionPositions } from '@/lib/data/zerion'
+import { isValidAddress } from '@/lib/utils/chains'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 const PositionsQuerySchema = z.object({
   address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address').optional(),
-  solana: z.string().optional(),
+  solana: z.string().refine(
+    addr => isValidAddress(addr, 'solana'),
+    { message: 'Invalid Solana address' }
+  ).optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -32,8 +37,10 @@ export async function GET(req: NextRequest) {
       solana ? fetchSolanaTokenBalances(solana) : Promise.resolve([]),
     ])
 
+    const allPositions = deduplicatePositions([...evmPositions, ...solanaPositions])
+
     return NextResponse.json(
-      { positions: [...evmPositions, ...solanaPositions] },
+      { positions: allPositions },
       {
         headers: {
           'Cache-Control': 's-maxage=60, stale-while-revalidate=120',

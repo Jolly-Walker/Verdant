@@ -2,6 +2,21 @@ import { getSolanaConnection } from '@/lib/server/solana'
 import { PublicKey } from '@solana/web3.js'
 import { RawPosition } from '@/types/shared'
 import { fetchTokenPrices } from './prices'
+import { SUPPORTED_TOKENS } from '@/constants/tokens'
+
+function getSymbolAndCoingeckoId(mint: string): { symbol: string; coingeckoId: string | null } {
+  if (mint === '11111111111111111111111111111111' || mint === 'SOL') {
+    return { symbol: 'SOL', coingeckoId: 'coingecko:solana' }
+  }
+
+  for (const token of Object.values(SUPPORTED_TOKENS)) {
+    if (token.addresses.solana === mint) {
+      return { symbol: token.symbol, coingeckoId: `coingecko:${token.coingeckoId}` }
+    }
+  }
+
+  return { symbol: mint, coingeckoId: null }
+}
 
 export async function fetchSolanaTokenBalances(address: string): Promise<RawPosition[]> {
   const connection = getSolanaConnection()
@@ -19,18 +34,19 @@ export async function fetchSolanaTokenBalances(address: string): Promise<RawPosi
   const positions: RawPosition[] = []
 
   if (solAmount > 0) {
+    const { symbol, coingeckoId } = getSymbolAndCoingeckoId('SOL')
     positions.push({
       id: `solana-sol-${address}`,
       protocol: 'wallet',
       chain: 'solana',
-      asset: 'SOL',
+      asset: symbol,
       assetAddress: '11111111111111111111111111111111',
       amount: solAmount,
-      amountUsd: 0, // Will enrich later
+      amountUsd: 0,
       currentApy: 0,
       positionType: 'wallet',
       claimableRewards: [],
-      metadata: {}
+      metadata: { coingeckoId }
     })
   }
 
@@ -40,26 +56,36 @@ export async function fetchSolanaTokenBalances(address: string): Promise<RawPosi
     const amount = data.tokenAmount.uiAmount
     
     if (amount > 0) {
+      const { symbol, coingeckoId } = getSymbolAndCoingeckoId(mint)
       positions.push({
         id: `solana-${mint}-${address}`,
         protocol: 'wallet',
         chain: 'solana',
-        asset: mint, // Should map to symbol if possible
+        asset: symbol,
         assetAddress: mint,
         amount: amount,
         amountUsd: 0,
         currentApy: 0,
         positionType: 'wallet',
         claimableRewards: [],
-        metadata: {}
+        metadata: { coingeckoId }
       })
     }
   }
 
   // Enrich with prices
-  const prices = await fetchTokenPrices(positions.map(p => p.asset))
-  return positions.map(p => ({
-    ...p,
-    amountUsd: p.amount * (prices[p.asset] || 0)
-  }))
+  const coingeckoIds = positions
+    .map(p => p.metadata.coingeckoId as string)
+    .filter(id => !!id)
+  
+  const prices = await fetchTokenPrices(coingeckoIds)
+  
+  return positions.map(p => {
+    const cgId = p.metadata.coingeckoId as string
+    const price = cgId ? (prices[cgId] || 0) : 0
+    return {
+      ...p,
+      amountUsd: p.amount * price
+    }
+  })
 }
