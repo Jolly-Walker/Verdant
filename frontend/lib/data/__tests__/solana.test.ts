@@ -1,5 +1,9 @@
 // frontend/lib/data/__tests__/solana.test.ts
 import { describe, it, expect, vi } from 'vitest'
+
+// Mock server-only before other imports
+vi.mock('server-only', () => ({}))
+
 import { fetchSolanaTokenBalances } from '../solana'
 
 vi.mock('@/lib/server/solana', () => ({

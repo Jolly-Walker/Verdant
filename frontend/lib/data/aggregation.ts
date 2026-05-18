@@ -1,3 +1,4 @@
+import 'server-only'
 import { Position } from '@/types/position'
 
 /**

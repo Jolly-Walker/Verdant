@@ -1,5 +1,12 @@
 export const DEFAULT_TIMEOUT = 30000;
 
+export async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  const timeoutPromise = new Promise<T>((_, reject) =>
+    setTimeout(() => reject(new Error('Operation timed out')), timeoutMs)
+  );
+  return Promise.race([promise, timeoutPromise]);
+}
+
 export async function fetchWithTimeout(url: string, options: RequestInit & { timeout?: number } = {}) {
   const { timeout = DEFAULT_TIMEOUT, ...fetchOptions } = options;
   

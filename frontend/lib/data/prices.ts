@@ -1,3 +1,4 @@
+import 'server-only'
 /**
  * Token price fetching via Defillama Coins API.
  * Docs: https://defillama.com/docs/api

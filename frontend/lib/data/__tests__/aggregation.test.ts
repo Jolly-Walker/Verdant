@@ -1,4 +1,8 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// Mock server-only before other imports
+vi.mock('server-only', () => ({}))
+
 import { deduplicatePositions } from '../aggregation'
 import { Position } from '@/types/position'
 

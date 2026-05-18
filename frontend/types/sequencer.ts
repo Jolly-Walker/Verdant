@@ -29,6 +29,7 @@ export interface SequenceStep {
   dependsOn: string[]
   pluginId: ProtocolId | BridgeId
   buildParams: TxBuildParams | BridgeQuoteParams
+  projectedHealthFactor?: number
 }
 
 export interface SerializedUnsignedTx extends Omit<UnsignedTx, 'value' | 'gasLimit'> {
@@ -39,6 +40,7 @@ export interface SerializedUnsignedTx extends Omit<UnsignedTx, 'value' | 'gasLim
 export interface SerializedSequenceStep extends Omit<SequenceStep, 'unsignedTx' | 'simulation'> {
   unsignedTx?: SerializedUnsignedTx
   simulation?: SerializedSimulationResult
+  projectedHealthFactor?: number
 }
 
 export interface SequencePlan {

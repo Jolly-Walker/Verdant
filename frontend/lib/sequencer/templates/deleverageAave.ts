@@ -44,6 +44,10 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     const withdrawAmountUsd = totalCollateralUsd / params.cycles;
 
     // 1. Repay step (increases HF)
+    const repayProjectedHF = currentDebtUsd - repayAmountUsd > 0 
+      ? (currentCollateralUsd * lt) / (currentDebtUsd - repayAmountUsd) 
+      : Infinity;
+
     plan.steps.push({
       id: repayId,
       label: `Cycle ${i+1}: Repay ${repayAmount} ${params.borrowAsset}`,
@@ -51,6 +55,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       pluginId: params.protocol,
       dependsOn: previousStepId ? [previousStepId] : [],
       status: 'pending',
+      projectedHealthFactor: repayProjectedHF,
       buildParams: {
         action: 'repay',
         protocol: params.protocol,
@@ -79,6 +84,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       pluginId: params.protocol,
       dependsOn: [repayId],
       status: 'pending',
+      projectedHealthFactor: projectedHF,
       buildParams: {
         action: 'withdraw',
         protocol: params.protocol,
