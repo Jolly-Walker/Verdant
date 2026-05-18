@@ -1,15 +1,18 @@
+import { fetchSolanaTokenBalances } from '@/lib/data/solana'
 import { fetchZerionPositions } from '@/lib/data/zerion'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 const PositionsQuerySchema = z.object({
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid wallet address'),
+  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address').optional(),
+  solana: z.string().optional(),
 })
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const query = {
-    address: searchParams.get('address'),
+    address: searchParams.get('address') || undefined,
+    solana: searchParams.get('solana') || undefined,
   }
 
   const result = PositionsQuerySchema.safeParse(query)
@@ -21,12 +24,16 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const { address } = result.data
+  const { address, solana } = result.data
 
   try {
-    const positions = await fetchZerionPositions(address)
+    const [evmPositions, solanaPositions] = await Promise.all([
+      address ? fetchZerionPositions(address) : Promise.resolve([]),
+      solana ? fetchSolanaTokenBalances(solana) : Promise.resolve([]),
+    ])
+
     return NextResponse.json(
-      { positions },
+      { positions: [...evmPositions, ...solanaPositions] },
       {
         headers: {
           'Cache-Control': 's-maxage=60, stale-while-revalidate=120',
@@ -34,7 +41,7 @@ export async function GET(req: NextRequest) {
       }
     )
   } catch (err) {
-    console.error('[positions] Zerion fetch failed:', err)
+    console.error('[positions] fetch failed:', err)
     return NextResponse.json(
       { error: 'Could not load positions. Please try again.' },
       { status: 502 }
