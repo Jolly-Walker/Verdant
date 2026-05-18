@@ -24,7 +24,7 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
       estimatedTimeSeconds: 60,
       expectedOutputAmount: amountOutStr,
       slippagePercent: 0.5,
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 90 * 1000),
       rawQuote: { intentId: `intent_${Math.random().toString(36).substring(2, 11)}` }
     }
   },

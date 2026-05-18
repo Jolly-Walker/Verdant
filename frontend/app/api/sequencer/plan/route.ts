@@ -77,15 +77,15 @@ const CreatePlanSchema = z.object({
   })
 })
 
-async function validateMinimumSize(asset: string, amount: string): Promise<{ ok: boolean; amountUsd: number }> {
+async function validateMinimumSize(asset: string, amount: string): Promise<{ ok: boolean; amountUsd: number; error?: string }> {
   const tokenConfig = SUPPORTED_TOKENS[asset];
-  if (!tokenConfig) return { ok: false, amountUsd: 0 };
+  if (!tokenConfig) return { ok: false, amountUsd: 0, error: 'unsupported_asset' };
 
   const priceId = `coingecko:${tokenConfig.coingeckoId}`;
   const prices = await fetchTokenPrices([priceId]);
   const price = prices[priceId];
   
-  if (!price) return { ok: false, amountUsd: 0 };
+  if (!price) return { ok: false, amountUsd: 0, error: 'price_fetch_failed' };
 
   // Properly normalize the amount using token decimals before multiplying by price.
   // amount is expected to be in base atomic units (Wei).
@@ -124,7 +124,7 @@ export async function POST(req: Request) {
       const collateralToken = SUPPORTED_TOKENS[parsedParams.collateralAsset];
       
       if (!borrowToken || !collateralToken) {
-        return NextResponse.json({ error: 'Unsupported asset' }, { status: 400 });
+        return NextResponse.json({ error: 'Unsupported asset for de-leveraging' }, { status: 400 });
       }
 
       const prices = await fetchTokenPrices([
@@ -135,8 +135,8 @@ export async function POST(req: Request) {
       const borrowPrice = prices[`coingecko:${borrowToken.coingeckoId}`];
       const collateralPrice = prices[`coingecko:${collateralToken.coingeckoId}`];
 
-      if (!borrowPrice || !collateralPrice) {
-        return NextResponse.json({ error: 'Could not fetch asset prices' }, { status: 500 });
+      if (borrowPrice === undefined || collateralPrice === undefined) {
+        return NextResponse.json({ error: 'Could not fetch asset prices for de-leveraging' }, { status: 500 });
       }
 
       const totalDebtUsd = (Number(parsedParams.totalDebt) / Math.pow(10, borrowToken.decimals)) * borrowPrice;
@@ -185,6 +185,12 @@ export async function POST(req: Request) {
       // Minimum transaction size validation (Server-side)
       const validation = await validateMinimumSize(assetToValidate, amountToValidate);
       if (!validation.ok) {
+        if (validation.error === 'unsupported_asset') {
+          return NextResponse.json({ error: `Asset '${assetToValidate}' is not currently supported.` }, { status: 400 });
+        }
+        if (validation.error === 'price_fetch_failed') {
+          return NextResponse.json({ error: `Could not fetch price for asset '${assetToValidate}'. Please try again.` }, { status: 500 });
+        }
         return NextResponse.json({ 
           error: `Minimum transaction size of $1,000 USD required. Current: $${validation.amountUsd.toFixed(2)}` 
         }, { status: 400 });

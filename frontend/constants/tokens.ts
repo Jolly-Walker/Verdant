@@ -18,6 +18,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
       ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
       arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
       base: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      solana: 'EPjFW3F2KVq7V8iMsyqqzFuU6CHqL76vAndFmXGLh6rk',
     },
   },
   USDT: {
@@ -28,6 +29,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
     addresses: {
       ethereum: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
       arbitrum: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
+      solana: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
     },
   },
   WETH: {
@@ -39,6 +41,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
       ethereum: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
       arbitrum: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
       base: '0x4200000000000000000000000000000000000006',
+      solana: '7vf7Nm1sRUXS78ndY7idS2o2QjhKQY4h6iH8E4fQUyEc',
     },
   },
   WBTC: {
@@ -49,6 +52,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
     addresses: {
       ethereum: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
       arbitrum: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
+      solana: '3NZ9J7P67mR27mN6w3EeymFcyHstC997S8z8U9',
     },
   },
   wstETH: {

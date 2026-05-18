@@ -29,6 +29,7 @@ export interface SequenceStep {
   dependsOn: string[]
   pluginId: ProtocolId | BridgeId
   buildParams: TxBuildParams | BridgeQuoteParams
+  projectedHealthFactor?: number
 }
 
 export interface SerializedUnsignedTx extends Omit<UnsignedTx, 'value' | 'gasLimit'> {
@@ -39,6 +40,7 @@ export interface SerializedUnsignedTx extends Omit<UnsignedTx, 'value' | 'gasLim
 export interface SerializedSequenceStep extends Omit<SequenceStep, 'unsignedTx' | 'simulation'> {
   unsignedTx?: SerializedUnsignedTx
   simulation?: SerializedSimulationResult
+  projectedHealthFactor?: number
 }
 
 export interface SequencePlan {
@@ -64,6 +66,9 @@ export interface BridgeAndDepositParams {
   toChain: ChainId;
   fromProtocol: ProtocolId | 'wallet';
   toProtocol: ProtocolId;
+  walletAddress: string;
+  preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export interface RepayAndWithdrawParams {
@@ -74,6 +79,7 @@ export interface RepayAndWithdrawParams {
   collateralAmount: string;
   protocol: ProtocolId;
   chain: ChainId;
+  walletAddress: string;
 }
 
 export interface CrossChainRebalanceParams {
@@ -84,6 +90,9 @@ export interface CrossChainRebalanceParams {
   fromChain: ChainId;
   toProtocol: ProtocolId;
   toChain: ChainId;
+  walletAddress: string;
+  preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export interface DeleverageAaveParams {
@@ -112,6 +121,7 @@ export interface ExitPendleParams {
   toProtocol: ProtocolId;
   walletAddress: string;
   preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export type TemplateParams = 

@@ -1,16 +1,4 @@
-import { SequencePlan } from '@/types/sequencer';
-import { ChainId, ProtocolId } from '@/types/shared';
-
-export interface RepayAndWithdrawParams {
-  borrowAsset: string;    // asset to repay
-  borrowAmount: string;   // amount of debt to repay
-  amountUsd: number;
-  collateralAsset: string;
-  collateralAmount: string;
-  protocol: ProtocolId;   // must be 'aave' or 'euler'
-  chain: ChainId;
-  walletAddress: string;
-}
+import { SequencePlan, RepayAndWithdrawParams } from '@/types/sequencer';
 
 export function buildRepayAndWithdrawPlan(params: RepayAndWithdrawParams): SequencePlan {
   return {

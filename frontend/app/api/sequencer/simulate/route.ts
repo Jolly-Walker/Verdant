@@ -76,6 +76,10 @@ export async function POST(req: Request) {
         const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
         const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams)
         if (quote) {
+          // Check quote expiry (Issue 3)
+          if (new Date(quote.expiresAt).getTime() < Date.now() + 5000) {
+            return NextResponse.json({ error: 'Bridge quote expired. Please retry simulation.' }, { status: 400 })
+          }
           step.unsignedTx = await plugin.buildBridgeTx(quote)
         }
       }

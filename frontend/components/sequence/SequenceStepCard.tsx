@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SequenceStep } from '@/types/sequencer';
 import { getExplorerTxUrl, getChainDisplayName } from '@/lib/utils/chains';
 import { Spinner } from '@/components/ui/Spinner';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { HealthFactor } from '@/components/ui/HealthFactor';
 import { formatUsd } from '@/lib/utils/formatting';
 
 export function SequenceStepCard({ 
@@ -19,11 +20,16 @@ export function SequenceStepCard({
   onEdit: () => void,
   isActive: boolean
 }) {
+  const [hfConfirmed, setHfConfirmed] = useState(false);
+  
   const isCompleted = step.status === 'confirmed';
   const isFailed = step.status === 'failed';
   const isReady = step.status === 'ready';
   const isSimulating = step.status === 'simulating';
   const isSigning = step.status === 'signing';
+
+  const needsHfConfirmation = step.projectedHealthFactor !== undefined && step.projectedHealthFactor < 1.5;
+  const canSign = !needsHfConfirmation || hfConfirmed;
 
   return (
     <Card className={`mb-4 overflow-hidden border-zinc-800 ${isActive ? 'ring-1 ring-emerald-500/50 bg-zinc-900/40' : 'opacity-60'}`}>
@@ -34,11 +40,16 @@ export function SequenceStepCard({
             {getChainDisplayName(step.chain)}
           </Badge>
         </div>
-        <div>
-          {isCompleted && <Badge variant="success">Confirmed</Badge>}
-          {isFailed && <Badge variant="error">Failed</Badge>}
-          {isReady && <Badge variant="warning">Ready</Badge>}
-          {(isSimulating || isSigning) && <Spinner size="sm" />}
+        <div className="flex items-center gap-4">
+          {step.projectedHealthFactor !== undefined && (
+            <HealthFactor value={step.projectedHealthFactor} />
+          )}
+          <div>
+            {isCompleted && <Badge variant="success">Confirmed</Badge>}
+            {isFailed && <Badge variant="error">Failed</Badge>}
+            {isReady && <Badge variant="warning">Ready</Badge>}
+            {(isSimulating || isSigning) && <Spinner size="sm" />}
+          </div>
         </div>
       </div>
 
@@ -58,9 +69,35 @@ export function SequenceStepCard({
               </svg>
               <span>Simulation passed. Estimated gas: <span className="font-bold">{formatUsd(step.simulation.gasCostUsd || 0)}</span></span>
             </div>
+
+            {needsHfConfirmation && (
+              <div className="bg-amber-950/20 border border-amber-900/30 p-4 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    <input 
+                      type="checkbox" 
+                      id={`confirm-hf-${step.id}`}
+                      checked={hfConfirmed}
+                      onChange={(e) => setHfConfirmed(e.target.checked)}
+                      className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-emerald-600 focus:ring-emerald-600 focus:ring-offset-zinc-900"
+                    />
+                  </div>
+                  <label htmlFor={`confirm-hf-${step.id}`} className="text-sm text-amber-200 leading-tight cursor-pointer">
+                    I understand this action brings my Health Factor to <span className="font-bold">{step.projectedHealthFactor?.toFixed(2)}</span>, 
+                    increasing liquidation risk.
+                  </label>
+                </div>
+              </div>
+            )}
+
             <button 
               onClick={onSign} 
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg transition-colors shadow-lg shadow-emerald-900/20"
+              disabled={!canSign}
+              className={`w-full font-semibold py-2.5 rounded-lg transition-colors shadow-lg ${
+                canSign 
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/20' 
+                  : 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
+              }`}
             >
               Sign Transaction
             </button>

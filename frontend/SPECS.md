@@ -1293,17 +1293,17 @@ dashboard chain selector without any other code changes.
 **Goal:** Connect Solana wallet, display SOL + SPL token balances. No Solana DeFi protocols yet.
 
 **Tasks:**
-- [ ] Add dependencies: `@solana/web3.js`, `@solana/wallet-adapter-react`, `@solana/wallet-adapter-wallets`, `@solana/wallet-adapter-phantom`
-- [ ] `lib/plugins/chains/solana.ts` — Solana chain plugin, wraps `@solana/web3.js` Connection
-- [ ] `components/wallet/SolanaConnectButton.tsx` — Phantom + Ledger Solana
-- [ ] `components/wallet/WalletProvider.tsx` — wrap both EVM and Solana context providers
-- [ ] `hooks/useWallet.ts` — extend to expose `evmAddress` and `solanaPublicKey`
-- [ ] `lib/server/solana.ts` — server-side Solana RPC with Alchemy API key
-- [ ] `lib/data/solana.ts` — `fetchSolanaTokenBalances(publicKey)` using `getParsedTokenAccountsByOwner`
-- [ ] Update `/api/positions` — accept `?solana={publicKey}`, merge SPL balances
-- [ ] Update dashboard — show Solana section if Solana wallet connected
-- [ ] Update position aggregation pipeline — `deduplicatePositions()` skips Solana vs EVM dedupe
-- [ ] Phantom + Ledger Solana wallet connection tests
+- [x] Add dependencies: `@solana/web3.js`, `@solana/wallet-adapter-react`, `@solana/wallet-adapter-wallets`, `@solana/wallet-adapter-phantom`
+- [x] `lib/plugins/chains/solana.ts` — Solana chain plugin, wraps `@solana/web3.js` Connection
+- [x] `components/wallet/SolanaConnectButton.tsx` — Phantom + Ledger Solana
+- [x] `components/wallet/WalletProvider.tsx` — wrap both EVM and Solana context providers
+- [x] `hooks/useWallet.ts` — extend to expose `evmAddress` and `solanaPublicKey`
+- [x] `lib/server/solana.ts` — server-side Solana RPC with Alchemy API key
+- [x] `lib/data/solana.ts` — `fetchSolanaTokenBalances(publicKey)` using `getParsedTokenAccountsByOwner`
+- [x] Update `/api/positions` — accept `?solana={publicKey}`, merge SPL balances
+- [x] Update dashboard — show Solana section if Solana wallet connected
+- [x] Update position aggregation pipeline — `deduplicatePositions()` skips Solana vs EVM dedupe
+- [x] Phantom + Ledger Solana wallet connection tests
 
 ---
 

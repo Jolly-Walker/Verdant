@@ -8,7 +8,7 @@ import { wagmiConfig } from '@/lib/wagmi'
 import { useState, useEffect, useMemo } from 'react'
 import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react'
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base'
-import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets'
+import { PhantomWalletAdapter, SolflareWalletAdapter, LedgerWalletAdapter } from '@solana/wallet-adapter-wallets'
 import { clusterApiUrl } from '@solana/web3.js'
 
 function WalletProviderInner({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,8 @@ function WalletProviderInner({ children }: { children: React.ReactNode }) {
   const endpoint = useMemo(() => clusterApiUrl(network), [network])
   const wallets = useMemo(() => [
     new PhantomWalletAdapter(),
-    new SolflareWalletAdapter()
+    new SolflareWalletAdapter(),
+    new LedgerWalletAdapter()
   ], [])
 
   return (

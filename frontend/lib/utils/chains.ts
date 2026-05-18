@@ -9,7 +9,7 @@ export function isValidAddress(address: string, chain?: ChainId): boolean {
   const solanaRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 
   if (chain === 'solana') return solanaRegex.test(address)
-  if (chain && chain !== 'solana') return evmRegex.test(address)
+  if (chain) return evmRegex.test(address)
 
   // If no chain specified, check if it matches either format
   return evmRegex.test(address) || solanaRegex.test(address)
