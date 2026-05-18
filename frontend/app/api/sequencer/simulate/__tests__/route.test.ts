@@ -178,7 +178,7 @@ describe('Simulate API Route', () => {
 
     vi.mocked(simulateTransaction).mockResolvedValue({
       success: false,
-      error: 'Insufficient funds',
+      revertReason: 'Insufficient funds',
       simulatedAt: new Date()
     });
 

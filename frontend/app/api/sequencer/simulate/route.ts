@@ -137,10 +137,11 @@ export async function POST(req: Request) {
       status: newStatus,
       simulation: {
         success: simResult.success,
-        revertReason: simResult.error,
+        revertReason: simResult.revertReason,
         gasEstimate: simResult.gasEstimate,
         gasCostUsd: gasCostUsd,
-        simulatedAt: simResult.simulatedAt || new Date()
+        simulatedAt: simResult.simulatedAt || new Date(),
+        stateChanges: simResult.stateChanges
       }
     }
 

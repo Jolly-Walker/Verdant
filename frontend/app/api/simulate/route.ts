@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: simResult.success,
-      revertReason: simResult.error,
+      revertReason: simResult.revertReason,
       gasEstimate: simResult.gasEstimate?.toString(),
       simulatedAt: (simResult.simulatedAt || new Date()).toISOString(),
     })

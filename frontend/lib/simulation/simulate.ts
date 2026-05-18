@@ -6,6 +6,10 @@ import { Protocol } from '@/types/protocol'
 import { getRpcUrl } from '@/lib/server/rpc'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
+import { SimulationResult, StateChange } from '@/types/sequencer'
+import { decodeRevertReason } from './errors'
+import { VersionedTransaction } from '@solana/web3.js'
+import { getSolanaConnection } from '../server/solana'
 
 // Dummy address for gas estimation routines where the user is unconnected.
 const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
@@ -105,7 +109,7 @@ export async function estimateDepositGas(destChain: Chain, protocol: Protocol, a
 }
 
 /**
- * Performs a full simulation of a transaction.
+ * Performs a full simulation of a transaction using Alchemy Simulation API or Solana's simulateTransaction.
  */
 export async function simulateTransaction(params: {
   chain: Chain
@@ -113,27 +117,93 @@ export async function simulateTransaction(params: {
   from: string
   data: string
   value: string
-}) {
+}): Promise<SimulationResult> {
+  if (params.chain === 'solana') {
+    return simulateSolanaTransaction(params)
+  }
+
   const client = getClient(params.chain)
   
   try {
-    const gas = await client.estimateGas({
-      account: params.from as `0x${string}`,
-      to: params.to as `0x${string}`,
-      data: params.data as `0x${string}`,
-      value: BigInt(params.value),
-    })
+    // 1. Use alchemy_simulateExecution to get detailed trace and asset changes
+    const result = await client.request({
+      // @ts-ignore - alchemy_simulateExecution is an Alchemy extension
+      method: 'alchemy_simulateExecution',
+      params: [{
+        from: params.from as `0x${string}`,
+        to: params.to as `0x${string}`,
+        data: params.data as `0x${string}`,
+        value: `0x${BigInt(params.value).toString(16)}`,
+      }]
+    }) as any
+
+    if (result.error) {
+      return {
+        success: false,
+        revertReason: decodeRevertReason(result.error),
+        revertData: result.error,
+        simulatedAt: new Date(),
+      }
+    }
+
+    // 2. Extract asset changes
+    const stateChanges: StateChange[] = []
+    if (result.assetChanges) {
+      for (const change of result.assetChanges) {
+        const isUserFrom = change.from?.toLowerCase() === params.from.toLowerCase()
+        const isUserTo = change.to?.toLowerCase() === params.from.toLowerCase()
+
+        if (isUserFrom || isUserTo) {
+          const amount = Number(change.rawAmount) / Math.pow(10, change.decimals)
+          const delta = isUserFrom ? -amount : amount
+          
+          stateChanges.push({
+            asset: change.symbol || 'Unknown',
+            assetAddress: change.contractAddress || '',
+            change: delta > 0 ? `+${delta}` : `${delta}`,
+            type: 'balance',
+            decimals: change.decimals,
+            chainId: params.chain
+          })
+        }
+      }
+    }
 
     return {
       success: true,
-      gasEstimate: gas,
+      gasEstimate: BigInt(result.gasUsed || 0),
+      stateChanges,
       simulatedAt: new Date(),
     }
   } catch (err) {
     console.error('Simulation error details:', err)
     return {
       success: false,
-      error: err instanceof Error ? err.message : 'Unknown simulation error',
+      revertReason: err instanceof Error ? err.message : 'Unknown simulation error',
+      simulatedAt: new Date(),
+    }
+  }
+}
+
+async function simulateSolanaTransaction(params: {
+  to: string
+  from: string
+  data: string // tx in base64
+}): Promise<SimulationResult> {
+  try {
+    const connection = getSolanaConnection()
+    const tx = VersionedTransaction.deserialize(Buffer.from(params.data, 'base64'))
+    const result = await connection.simulateTransaction(tx)
+
+    return {
+      success: !result.value.err,
+      revertReason: result.value.err ? JSON.stringify(result.value.err) : undefined,
+      simulatedAt: new Date(),
+    }
+  } catch (err) {
+    return {
+      success: false,
+      revertReason: err instanceof Error ? err.message : 'Solana simulation failed',
       simulatedAt: new Date(),
     }
   }
