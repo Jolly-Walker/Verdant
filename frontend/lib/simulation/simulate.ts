@@ -1,40 +1,17 @@
 import 'server-only'
-import { createPublicClient, http, parseAbi, parseUnits } from 'viem'
-import { mainnet, arbitrum, base } from 'viem/chains'
+import { parseAbi, parseUnits } from 'viem'
 import { Chain } from '@/types/chain'
 import { Protocol } from '@/types/protocol'
-import { getRpcUrl } from '@/lib/server/rpc'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { SimulationResult, StateChange } from '@/types/sequencer'
 import { decodeRevertReason } from './errors'
 import { VersionedTransaction } from '@solana/web3.js'
 import { getSolanaConnection } from '../server/solana'
+import { getPublicClient } from '../server/rpc'
 
 // Dummy address for gas estimation routines where the user is unconnected.
 const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
-
-const getClient = (chain: Chain) => {
-  const rpcUrl = getRpcUrl(chain)
-  let viemChain
-  switch (chain) {
-    case 'ethereum':
-      viemChain = mainnet
-      break
-    case 'arbitrum':
-      viemChain = arbitrum
-      break
-    case 'base':
-      viemChain = base
-      break
-    default:
-      viemChain = mainnet
-  }
-  return createPublicClient({
-    chain: viemChain,
-    transport: http(rpcUrl),
-  })
-}
 
 // Minimal ERC20 ABI for proxying simulation operations
 const ERC20_ABI = parseAbi([
@@ -47,7 +24,7 @@ const ERC20_ABI = parseAbi([
  */
 export async function estimateBridgeGas(sourceChain: Chain, asset: string): Promise<number> {
   try {
-    const client = getClient(sourceChain)
+    const client = getPublicClient(sourceChain)
     const tokenConfig = SUPPORTED_TOKENS[asset]
     if (!tokenConfig || !tokenConfig.addresses[sourceChain]) {
       return 65_000 // default fallback
@@ -78,7 +55,7 @@ export async function estimateBridgeGas(sourceChain: Chain, asset: string): Prom
  */
 export async function estimateDepositGas(destChain: Chain, protocol: Protocol, asset: string): Promise<number> {
   try {
-    const client = getClient(destChain)
+    const client = getPublicClient(destChain)
     const tokenConfig = SUPPORTED_TOKENS[asset]
     const protocolConfig = PROTOCOL_REGISTRY[protocol]
     
@@ -122,7 +99,7 @@ export async function simulateTransaction(params: {
     return simulateSolanaTransaction(params)
   }
 
-  const client = getClient(params.chain)
+  const client = getPublicClient(params.chain)
   
   try {
     // 1. Use alchemy_simulateExecution to get detailed trace and asset changes
