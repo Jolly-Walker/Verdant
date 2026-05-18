@@ -4,6 +4,15 @@ export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRe
 
 export type StepStatus = 'pending' | 'simulating' | 'ready' | 'signing' | 'confirmed' | 'failed'
 
+export interface StateChange {
+  asset: string
+  assetAddress: string
+  change: string
+  type: 'balance' | 'allowance' | 'position'
+  decimals: number
+  chainId: string
+}
+
 export interface SimulationResult {
   success: boolean
   revertReason?: string
@@ -11,6 +20,7 @@ export interface SimulationResult {
   gasEstimate?: bigint
   gasCostUsd?: number
   simulatedAt: Date
+  stateChanges?: StateChange[]
 }
 
 export interface SerializedSimulationResult extends Omit<SimulationResult, 'gasEstimate' | 'simulatedAt'> {
