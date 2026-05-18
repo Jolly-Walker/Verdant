@@ -15,13 +15,13 @@ interface UsePositionsReturn {
 }
 
 export function usePositions(): UsePositionsReturn {
-  const { address, isConnected, isMounted } = useWallet()
+  const { address: evmAddress, solanaAddress, isConnected, isMounted } = useWallet()
   const [positions, setPositions] = useState<Position[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
-    if (!isMounted || !address || !isConnected) {
+    if (!isMounted || (!evmAddress && !solanaAddress) || !isConnected) {
       setPositions([])
       return
     }
@@ -30,7 +30,11 @@ export function usePositions(): UsePositionsReturn {
     setError(null)
 
     try {
-      const res = await fetch(`/api/positions?address=${encodeURIComponent(address)}`)
+      const url = new URL('/api/positions', window.location.origin)
+      if (evmAddress) url.searchParams.set('address', evmAddress)
+      if (solanaAddress) url.searchParams.set('solana', solanaAddress)
+      
+      const res = await fetch(url.toString())
       if (!res.ok) throw new Error(`API error: ${res.status}`)
       const data = await res.json()
       setPositions(data.positions || [])
@@ -41,7 +45,7 @@ export function usePositions(): UsePositionsReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [address, isConnected, isMounted])
+  }, [evmAddress, solanaAddress, isConnected, isMounted])
 
   useEffect(() => {
     fetchData()
