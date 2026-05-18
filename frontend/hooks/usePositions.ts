@@ -15,7 +15,7 @@ interface UsePositionsReturn {
 }
 
 export function usePositions(): UsePositionsReturn {
-  const { address: evmAddress, solanaAddress, isConnected, isMounted } = useWallet()
+  const { evmAddress, solanaAddress, isConnected, isMounted } = useWallet()
   const [positions, setPositions] = useState<Position[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

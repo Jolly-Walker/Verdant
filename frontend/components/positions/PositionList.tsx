@@ -6,6 +6,8 @@ import { PositionTypeFilter } from './PositionTypeFilter'
 import { useChainMetadata } from '@/hooks/useChainMetadata'
 import { PositionType } from '@/types/shared'
 
+import { Badge } from '../ui/Badge'
+
 interface PositionListProps {
   positions: Position[]
   isLoading?: boolean
@@ -36,10 +38,12 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
     const chainPositions = filteredPositions.filter(p => p.chain === chainId)
     const assets = chainPositions.filter(p => p.positionType !== 'borrow')
     const liabilities = chainPositions.filter(p => p.positionType === 'borrow')
+    const metadata = getChainMetadata(chainId)
     
     return {
       chainId,
-      displayName: getChainMetadata(chainId).displayName,
+      displayName: metadata.displayName,
+      family: metadata.family,
       assets,
       liabilities,
       hasPositions: chainPositions.length > 0
@@ -74,6 +78,9 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
           <section key={group.chainId}>
             <div className="flex items-center gap-3 mb-6">
               <h2 className="text-xl font-bold text-zinc-100">{group.displayName}</h2>
+              {group.family === 'solana' && (
+                <Badge className="bg-purple-900/30 text-purple-300 border-purple-800/50">Solana</Badge>
+              )}
               <div className="h-px flex-1 bg-zinc-800"></div>
               <p className="text-xs text-zinc-500 font-mono uppercase">
                 {group.assets.length + group.liabilities.length} positions

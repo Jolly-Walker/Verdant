@@ -64,6 +64,9 @@ export interface BridgeAndDepositParams {
   toChain: ChainId;
   fromProtocol: ProtocolId | 'wallet';
   toProtocol: ProtocolId;
+  walletAddress: string;
+  preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export interface RepayAndWithdrawParams {
@@ -74,6 +77,7 @@ export interface RepayAndWithdrawParams {
   collateralAmount: string;
   protocol: ProtocolId;
   chain: ChainId;
+  walletAddress: string;
 }
 
 export interface CrossChainRebalanceParams {
@@ -84,6 +88,9 @@ export interface CrossChainRebalanceParams {
   fromChain: ChainId;
   toProtocol: ProtocolId;
   toChain: ChainId;
+  walletAddress: string;
+  preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export interface DeleverageAaveParams {
@@ -112,6 +119,7 @@ export interface ExitPendleParams {
   toProtocol: ProtocolId;
   walletAddress: string;
   preferredBridgeId?: BridgeId;
+  slippagePercent: number;
 }
 
 export type TemplateParams = 

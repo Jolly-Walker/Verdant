@@ -1,20 +1,4 @@
-import { SequencePlan } from '@/types/sequencer';
-import { ChainId, ProtocolId } from '@/types/shared';
-
-export interface DeleverageAaveParams {
-  borrowAsset: string;
-  collateralAsset: string;
-  totalDebt: string;
-  totalCollateral: string;
-  totalDebtUsd: number;
-  totalCollateralUsd: number;
-  initialHealthFactor: number;
-  amountUsd: number;
-  cycles: number;
-  protocol: ProtocolId; // usually 'aave'
-  chain: ChainId;
-  walletAddress: string;
-}
+import { SequencePlan, DeleverageAaveParams } from '@/types/sequencer';
 
 export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequencePlan {
   const plan: SequencePlan = {

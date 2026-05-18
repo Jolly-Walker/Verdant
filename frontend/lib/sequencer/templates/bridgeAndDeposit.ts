@@ -1,18 +1,4 @@
-import { SequencePlan } from '@/types/sequencer';
-import { ChainId, ProtocolId, BridgeId } from '@/types/shared';
-
-export interface BridgeAndDepositParams {
-  asset: string;          // e.g. 'USDC'
-  amount: string;         // token units as string
-  amountUsd: number;
-  fromChain: ChainId;
-  toChain: ChainId;
-  fromProtocol: ProtocolId;  // where funds are currently (used for display)
-  toProtocol: ProtocolId;    // where to deposit
-  walletAddress: string;
-  preferredBridgeId?: BridgeId;
-  slippagePercent: number;
-}
+import { SequencePlan, BridgeAndDepositParams } from '@/types/sequencer';
 
 export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): SequencePlan {
   const isSameChain = params.fromChain === params.toChain;

@@ -1,18 +1,4 @@
-import { SequencePlan } from '@/types/sequencer';
-import { ChainId, ProtocolId, BridgeId } from '@/types/shared';
-
-export interface CrossChainRebalanceParams {
-  asset: string;
-  amount: string;
-  amountUsd: number;
-  fromProtocol: ProtocolId;
-  fromChain: ChainId;
-  toProtocol: ProtocolId;
-  toChain: ChainId;
-  walletAddress: string;
-  preferredBridgeId?: BridgeId;
-  slippagePercent: number;
-}
+import { SequencePlan, CrossChainRebalanceParams } from '@/types/sequencer';
 
 export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams): SequencePlan {
   return {

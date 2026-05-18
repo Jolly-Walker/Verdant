@@ -9,6 +9,7 @@ const BridgeQuoteQuerySchema = z.object({
   token: z.string(),
   amount: z.string(),
   recipientAddress: z.string(),
+  slippagePercent: z.string().optional().default('0.5').transform(v => parseFloat(v)),
 })
 
 export async function GET(req: NextRequest) {
@@ -19,6 +20,7 @@ export async function GET(req: NextRequest) {
     token: searchParams.get('token'),
     amount: searchParams.get('amount'),
     recipientAddress: searchParams.get('recipientAddress'),
+    slippagePercent: searchParams.get('slippagePercent') || undefined,
   }
 
   const result = BridgeQuoteQuerySchema.safeParse(query)
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const { fromChain, toChain, token, amount, recipientAddress } = result.data
+  const { fromChain, toChain, token, amount, recipientAddress, slippagePercent } = result.data
 
   try {
     // For MVP, we're focusing on NEAR Intents and Across
@@ -56,7 +58,8 @@ export async function GET(req: NextRequest) {
           toChain,
           token,
           amount,
-          recipientAddress
+          recipientAddress,
+          slippagePercent
         })
       }))
 
