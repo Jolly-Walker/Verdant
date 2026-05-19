@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@aave/contract-helpers": "^1.38.0",
+    "@across-protocol/app-sdk": "^0.6.0",
     "@morpho-org/morpho-ts": "^1.12.7",
     "@rainbow-me/rainbowkit": "^2.2.11",
     "@solana/wallet-adapter-base": "^0.9.27",
