@@ -3,19 +3,12 @@ import { BridgeId, BridgeQuote, BridgeQuoteParams } from '@/types/shared'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { acrossBridgePlugin } from './across'
 import { nearIntentsBridgePlugin } from './nearIntents'
+import { layerzeroBridgePlugin } from './layerzero'
 
 export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
   across: acrossBridgePlugin,
   nearIntents: nearIntentsBridgePlugin,
-  layerzero: {
-    id: 'layerzero',
-    displayName: 'LayerZero',
-    supportedTokens: ['USDC'],
-    supportedRoutes: [],
-    getQuote: async () => null,
-    buildBridgeTx: async () => ({ chainId: 'ethereum', to: '', data: '', value: BigInt(0), description: '' }),
-    pollStatus: async () => ({ status: 'pending' })
-  },
+  layerzero: layerzeroBridgePlugin,
   chainlink: {
     id: 'chainlink',
     displayName: 'Chainlink CCIP',
