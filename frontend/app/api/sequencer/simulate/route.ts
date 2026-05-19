@@ -10,6 +10,8 @@ import { getRpcUrl } from '@/lib/server/rpc'
 import { ChainId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
+import { detectWarnings } from '@/lib/utils/warnings'
+import { Warning } from '@/types/quote'
 
 const SimulateStepSchema = z.object({
   planId: z.string().uuid(),
@@ -105,6 +107,23 @@ export async function POST(req: Request) {
       value: step.unsignedTx.value.toString(),
     })
 
+    // Detect warnings
+    let warnings: Warning[] = []
+    const amountUsd = 'amountUsd' in step.buildParams ? (step.buildParams as any).amountUsd : 0
+    
+    if (BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]) {
+      const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
+      const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams)
+      if (quote) {
+        warnings = detectWarnings({
+          bridgeFeeUsd: quote.feeUsd,
+          slippageUsd: amountUsd * (quote.slippagePercent / 100)
+        }, amountUsd)
+      }
+    } else {
+      warnings = detectWarnings({}, amountUsd)
+    }
+
     let gasCostUsd = 0
     if (simResult.success && simResult.gasEstimate && step.chain !== 'solana') {
       try {
@@ -137,10 +156,12 @@ export async function POST(req: Request) {
       status: newStatus,
       simulation: {
         success: simResult.success,
-        revertReason: simResult.error,
+        revertReason: simResult.revertReason,
         gasEstimate: simResult.gasEstimate,
         gasCostUsd: gasCostUsd,
-        simulatedAt: simResult.simulatedAt || new Date()
+        simulatedAt: simResult.simulatedAt || new Date(),
+        stateChanges: simResult.stateChanges,
+        warnings: warnings.length > 0 ? warnings : undefined
       }
     }
 

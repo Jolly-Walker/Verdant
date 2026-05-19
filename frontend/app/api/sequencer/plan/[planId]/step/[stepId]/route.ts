@@ -6,13 +6,15 @@ import { SequenceStep } from '@/types/sequencer'
 
 const UpdateStepSchema = z.object({
   status: z.enum(['simulating', 'ready', 'signing', 'confirmed', 'failed']),
+  walletAddress: z.string(),
   txHash: z.string().optional(),
   simulation: z.object({
     success: z.boolean(),
     revertReason: z.string().optional(),
     gasEstimate: z.string().optional(),
     gasCostUsd: z.number().optional(),
-  }).optional()
+  }).optional(),
+  acknowledged: z.boolean().optional(),
 })
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -41,6 +43,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
+    // Verify ownership
+    if (plan.walletAddress.toLowerCase() !== result.data.walletAddress.toLowerCase()) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const step = plan.steps.find(s => s.id === params.stepId)
     if (!step) {
       return NextResponse.json({ error: 'Step not found' }, { status: 404 })
@@ -51,6 +58,16 @@ export async function PATCH(
     // Validate status transition
     if (!VALID_TRANSITIONS[step.status]?.includes(newStatus)) {
       return NextResponse.json({ error: `Invalid status transition from ${step.status} to ${newStatus}` }, { status: 400 })
+    }
+
+    // Enforce simulation acknowledgment for ready -> signing
+    if (newStatus === 'signing' && step.status === 'ready') {
+      if (!result.data.acknowledged) {
+        return NextResponse.json(
+          { error: 'Simulation must be acknowledged before signing' },
+          { status: 400 }
+        )
+      }
     }
 
     // Apply update to plan using pure engine functions

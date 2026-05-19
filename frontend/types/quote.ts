@@ -1,13 +1,12 @@
-import { Protocol } from "./protocol"
-import { Chain } from "./chain"
+import { ProtocolId, ChainId } from "./shared"
 
 export interface CostPreviewInput {
   asset: string
   amountUsd: number
-  sourceProtocol: Protocol
-  sourceChain: Chain
-  destProtocol: Protocol
-  destChain: Chain
+  sourceProtocol: ProtocolId
+  sourceChain: ChainId
+  destProtocol: ProtocolId
+  destChain: ChainId
   /** Unix ms timestamp of Pendle maturity, if source is a Pendle position */
   pendleMaturityMs?: number
 }

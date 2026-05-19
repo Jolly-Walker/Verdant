@@ -165,7 +165,7 @@ export function useSequencer() {
       const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'signing' })
+        body: JSON.stringify({ status: 'signing', acknowledged: true, walletAddress: address })
       })
 
       if (!patchRes.ok) {
@@ -205,7 +205,7 @@ export function useSequencer() {
       const confirmRes = await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'confirmed', txHash })
+        body: JSON.stringify({ status: 'confirmed', txHash, walletAddress: address })
       })
 
       if (!confirmRes.ok) {
@@ -237,7 +237,7 @@ export function useSequencer() {
       await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: statusToRevert })
+        body: JSON.stringify({ status: statusToRevert, walletAddress: address })
       }).catch(() => {})
 
       setPlan(prev => prev ? { 
