@@ -15,6 +15,15 @@ export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
     getQuote: async () => null,
     buildBridgeTx: async () => ({ chainId: 'ethereum', to: '', data: '', value: BigInt(0), description: '' }),
     pollStatus: async () => ({ status: 'pending' })
+  },
+  chainlink: {
+    id: 'chainlink',
+    displayName: 'Chainlink CCIP',
+    supportedTokens: ['ETH', 'USDC', 'LINK'],
+    supportedRoutes: [],
+    getQuote: async () => null,
+    buildBridgeTx: async () => ({ chainId: 'ethereum', to: '', data: '', value: BigInt(0), description: '' }),
+    pollStatus: async () => ({ status: 'pending' })
   }
 }
 
