@@ -165,7 +165,7 @@ export function useSequencer() {
       const patchRes = await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'signing' })
+        body: JSON.stringify({ status: 'signing', acknowledged: true })
       })
 
       if (!patchRes.ok) {

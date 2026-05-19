@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAccount, useDisconnect } from 'wagmi'
 import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react'
 
-const SPOOF_ADDRESS = '0x8ab71ad4037a06002fdcfbef051f2fa9799df240' as `0x${string}`
+const SPOOF_ADDRESS = '0x3a6e410eb151673c3746ef073f1b475d10376e72' as `0x${string}`
 
 export function useWallet() {
   const { address: evmAddress, isConnected: isEvmConnected } = useAccount()

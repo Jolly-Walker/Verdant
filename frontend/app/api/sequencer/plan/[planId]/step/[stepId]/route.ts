@@ -12,7 +12,8 @@ const UpdateStepSchema = z.object({
     revertReason: z.string().optional(),
     gasEstimate: z.string().optional(),
     gasCostUsd: z.number().optional(),
-  }).optional()
+  }).optional(),
+  acknowledged: z.boolean().optional(),
 })
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -51,6 +52,16 @@ export async function PATCH(
     // Validate status transition
     if (!VALID_TRANSITIONS[step.status]?.includes(newStatus)) {
       return NextResponse.json({ error: `Invalid status transition from ${step.status} to ${newStatus}` }, { status: 400 })
+    }
+
+    // Enforce simulation acknowledgment for ready -> signing
+    if (newStatus === 'signing' && step.status === 'ready') {
+      if (!result.data.acknowledged) {
+        return NextResponse.json(
+          { error: 'Simulation must be acknowledged before signing' },
+          { status: 400 }
+        )
+      }
     }
 
     // Apply update to plan using pure engine functions

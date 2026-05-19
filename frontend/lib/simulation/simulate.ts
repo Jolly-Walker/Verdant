@@ -99,9 +99,9 @@ export async function simulateTransaction(params: {
     return simulateSolanaTransaction(params)
   }
 
-  const client = getPublicClient(params.chain)
-  
   try {
+    const client = getPublicClient(params.chain)
+    
     // 1. Use alchemy_simulateExecution to get detailed trace and asset changes
     const result = await client.request({
       // @ts-ignore - alchemy_simulateExecution is an Alchemy extension
@@ -146,6 +146,20 @@ export async function simulateTransaction(params: {
       }
     }
 
+    if (result.approvals) {
+      for (const approval of result.approvals) {
+        if (approval.owner?.toLowerCase() !== params.from.toLowerCase()) continue
+        stateChanges.push({
+          asset: approval.symbol || 'Unknown',
+          assetAddress: approval.contractAddress || '',
+          change: `Approve ${Number(approval.rawAmount) / Math.pow(10, approval.decimals)}`,
+          type: 'allowance',
+          decimals: approval.decimals,
+          chainId: params.chain
+        })
+      }
+    }
+
     return {
       success: true,
       gasEstimate: BigInt(result.gasUsed || 0),
@@ -153,12 +167,67 @@ export async function simulateTransaction(params: {
       simulatedAt: new Date(),
     }
   } catch (err) {
-    console.error('Simulation error details:', err)
+    console.error('Alchemy simulation error:', err)
+    
+    // Fallback to Tenderly if configured
+    if (process.env.TENDERLY_ACCESS_KEY) {
+      try {
+        return await simulateWithTenderly(params)
+      } catch (tenderlyErr) {
+        console.error('Tenderly fallback also failed:', tenderlyErr)
+      }
+    }
+
     return {
       success: false,
       revertReason: err instanceof Error ? err.message : 'Unknown simulation error',
       simulatedAt: new Date(),
     }
+  }
+}
+
+async function simulateWithTenderly(params: {
+  chain: Chain, to: string, from: string, data: string, value: string
+}): Promise<SimulationResult> {
+  const key = process.env.TENDERLY_ACCESS_KEY
+  const account = process.env.TENDERLY_ACCOUNT_SLUG
+  const project = process.env.TENDERLY_PROJECT_SLUG
+  if (!key || !account || !project) throw new Error('Tenderly not configured')
+
+  const CHAIN_ID_MAP: Partial<Record<Chain, number>> = {
+    ethereum: 1, arbitrum: 42161, base: 8453
+  }
+  const networkId = CHAIN_ID_MAP[params.chain]
+  if (!networkId) throw new Error(`Tenderly does not support chain: ${params.chain}`)
+
+  const res = await fetch(
+    `https://api.tenderly.co/api/v1/account/${account}/project/${project}/simulate`,
+    {
+      method: 'POST',
+      headers: { 'X-Access-Key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        network_id: networkId.toString(),
+        from: params.from,
+        to: params.to,
+        input: params.data,
+        value: params.value,
+        save: false,
+      })
+    }
+  )
+  const json = await res.json()
+  if (!json.transaction?.status) {
+    return { 
+      success: false, 
+      revertReason: json.transaction?.error_message || 'Tenderly simulation failed', 
+      simulatedAt: new Date() 
+    }
+  }
+  return { 
+    success: true, 
+    gasEstimate: BigInt(json.transaction.gas_used || 0), 
+    stateChanges: [], 
+    simulatedAt: new Date() 
   }
 }
 
