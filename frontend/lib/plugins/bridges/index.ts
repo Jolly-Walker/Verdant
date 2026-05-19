@@ -4,20 +4,13 @@ import { BridgePlugin } from '../types/bridge-plugin'
 import { acrossBridgePlugin } from './across'
 import { nearIntentsBridgePlugin } from './nearIntents'
 import { layerzeroBridgePlugin } from './layerzero'
+import { chainlinkBridgePlugin } from './chainlink'
 
 export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
   across: acrossBridgePlugin,
   nearIntents: nearIntentsBridgePlugin,
   layerzero: layerzeroBridgePlugin,
-  chainlink: {
-    id: 'chainlink',
-    displayName: 'Chainlink CCIP',
-    supportedTokens: ['ETH', 'USDC', 'LINK'],
-    supportedRoutes: [],
-    getQuote: async () => null,
-    buildBridgeTx: async () => ({ chainId: 'ethereum', to: '', data: '', value: BigInt(0), description: '' }),
-    pollStatus: async () => ({ status: 'pending' })
-  }
+  chainlink: chainlinkBridgePlugin
 }
 
 export async function getBridgeQuotes(
