@@ -1,8 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Protocol } from '@/types/protocol'
-import { Chain } from '@/types/chain'
+import { ChainId, ProtocolId } from '@/types/shared'
 
 interface UseApysReturn {
   apy: number | null

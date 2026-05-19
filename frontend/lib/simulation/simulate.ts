@@ -1,7 +1,6 @@
 import 'server-only'
-import { parseAbi, parseUnits } from 'viem'
-import { Chain } from '@/types/chain'
-import { Protocol } from '@/types/protocol'
+import { parseAbi, parseUnits, formatUnits } from 'viem'
+import { ChainId, ProtocolId } from '@/types/shared'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { SimulationResult, StateChange } from '@/types/sequencer'
@@ -9,6 +8,13 @@ import { decodeRevertReason } from './errors'
 import { VersionedTransaction } from '@solana/web3.js'
 import { getSolanaConnection } from '../server/solana'
 import { getPublicClient } from '../server/rpc'
+
+interface AlchemySimulateResult {
+  gasUsed?: string
+  error?: string
+  assetChanges?: Array<{ from?: string; to?: string; rawAmount: string; symbol?: string; decimals: number; contractAddress?: string }>
+  approvals?: Array<{ owner?: string; rawAmount: string; symbol?: string; decimals: number; contractAddress?: string }>
+}
 
 // Dummy address for gas estimation routines where the user is unconnected.
 const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
@@ -22,7 +28,7 @@ const ERC20_ABI = parseAbi([
 /**
  * Estimates the gas required to bridge an asset out of the source chain.
  */
-export async function estimateBridgeGas(sourceChain: Chain, asset: string): Promise<number> {
+export async function estimateBridgeGas(sourceChain: ChainId, asset: string): Promise<number> {
   try {
     const client = getPublicClient(sourceChain)
     const tokenConfig = SUPPORTED_TOKENS[asset]
@@ -53,7 +59,7 @@ export async function estimateBridgeGas(sourceChain: Chain, asset: string): Prom
 /**
  * Estimates the gas required to deposit into a protocol on the destination chain.
  */
-export async function estimateDepositGas(destChain: Chain, protocol: Protocol, asset: string): Promise<number> {
+export async function estimateDepositGas(destChain: ChainId, protocol: ProtocolId, asset: string): Promise<number> {
   try {
     const client = getPublicClient(destChain)
     const tokenConfig = SUPPORTED_TOKENS[asset]
@@ -89,7 +95,7 @@ export async function estimateDepositGas(destChain: Chain, protocol: Protocol, a
  * Performs a full simulation of a transaction using Alchemy Simulation API or Solana's simulateTransaction.
  */
 export async function simulateTransaction(params: {
-  chain: Chain
+  chain: ChainId
   to: string
   from: string
   data: string
@@ -112,7 +118,7 @@ export async function simulateTransaction(params: {
         data: params.data as `0x${string}`,
         value: `0x${BigInt(params.value).toString(16)}`,
       }]
-    }) as any
+    }) as AlchemySimulateResult
 
     if (result.error) {
       return {
@@ -131,13 +137,13 @@ export async function simulateTransaction(params: {
         const isUserTo = change.to?.toLowerCase() === params.from.toLowerCase()
 
         if (isUserFrom || isUserTo) {
-          const amount = Number(change.rawAmount) / Math.pow(10, change.decimals)
-          const delta = isUserFrom ? -amount : amount
+          const amount = formatUnits(BigInt(change.rawAmount), change.decimals)
+          const delta = isUserFrom ? `-${amount}` : `+${amount}`
           
           stateChanges.push({
             asset: change.symbol || 'Unknown',
             assetAddress: change.contractAddress || '',
-            change: delta > 0 ? `+${delta}` : `${delta}`,
+            change: delta,
             type: 'balance',
             decimals: change.decimals,
             chainId: params.chain
@@ -152,7 +158,7 @@ export async function simulateTransaction(params: {
         stateChanges.push({
           asset: approval.symbol || 'Unknown',
           assetAddress: approval.contractAddress || '',
-          change: `Approve ${Number(approval.rawAmount) / Math.pow(10, approval.decimals)}`,
+          change: `Approve ${formatUnits(BigInt(approval.rawAmount), approval.decimals)}`,
           type: 'allowance',
           decimals: approval.decimals,
           chainId: params.chain
@@ -187,47 +193,55 @@ export async function simulateTransaction(params: {
 }
 
 async function simulateWithTenderly(params: {
-  chain: Chain, to: string, from: string, data: string, value: string
+  chain: ChainId, to: string, from: string, data: string, value: string
 }): Promise<SimulationResult> {
   const key = process.env.TENDERLY_ACCESS_KEY
   const account = process.env.TENDERLY_ACCOUNT_SLUG
   const project = process.env.TENDERLY_PROJECT_SLUG
   if (!key || !account || !project) throw new Error('Tenderly not configured')
 
-  const CHAIN_ID_MAP: Partial<Record<Chain, number>> = {
+  const CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {
     ethereum: 1, arbitrum: 42161, base: 8453
   }
   const networkId = CHAIN_ID_MAP[params.chain]
   if (!networkId) throw new Error(`Tenderly does not support chain: ${params.chain}`)
 
-  const res = await fetch(
-    `https://api.tenderly.co/api/v1/account/${account}/project/${project}/simulate`,
-    {
-      method: 'POST',
-      headers: { 'X-Access-Key': key, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        network_id: networkId.toString(),
-        from: params.from,
-        to: params.to,
-        input: params.data,
-        value: params.value,
-        save: false,
-      })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+  try {
+    const res = await fetch(
+      `https://api.tenderly.co/api/v1/account/${account}/project/${project}/simulate`,
+      {
+        method: 'POST',
+        headers: { 'X-Access-Key': key, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          network_id: networkId.toString(),
+          from: params.from,
+          to: params.to,
+          input: params.data,
+          value: params.value,
+          save: false,
+        }),
+        signal: controller.signal
+      }
+    )
+    const json = await res.json()
+    if (!json.transaction?.status) {
+      return { 
+        success: false, 
+        revertReason: json.transaction?.error_message || 'Tenderly simulation failed', 
+        simulatedAt: new Date() 
+      }
     }
-  )
-  const json = await res.json()
-  if (!json.transaction?.status) {
     return { 
-      success: false, 
-      revertReason: json.transaction?.error_message || 'Tenderly simulation failed', 
+      success: true, 
+      gasEstimate: BigInt(json.transaction.gas_used || 0), 
+      stateChanges: [], 
       simulatedAt: new Date() 
     }
-  }
-  return { 
-    success: true, 
-    gasEstimate: BigInt(json.transaction.gas_used || 0), 
-    stateChanges: [], 
-    simulatedAt: new Date() 
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 

@@ -2,8 +2,7 @@
 
 import React from 'react'
 import { CostPreviewResult } from '@/types/quote'
-import { Protocol } from '@/types/protocol'
-import { Chain } from '@/types/chain'
+import { ProtocolId, ChainId } from '@/types/shared'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'

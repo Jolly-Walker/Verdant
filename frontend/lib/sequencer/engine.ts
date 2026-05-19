@@ -12,7 +12,8 @@ export function serializeSequenceStep(step: SequenceStep): SerializedSequenceSte
     simulation: step.simulation ? {
       ...step.simulation,
       gasEstimate: step.simulation.gasEstimate?.toString(),
-      simulatedAt: step.simulation.simulatedAt.toISOString()
+      simulatedAt: step.simulation.simulatedAt.toISOString(),
+      warnings: step.simulation.warnings
     } : undefined
   };
 }
@@ -28,7 +29,8 @@ export function deserializeSequenceStep(step: SerializedSequenceStep): SequenceS
     simulation: step.simulation ? {
       ...step.simulation,
       gasEstimate: step.simulation.gasEstimate ? BigInt(step.simulation.gasEstimate) : undefined,
-      simulatedAt: new Date(step.simulation.simulatedAt)
+      simulatedAt: new Date(step.simulation.simulatedAt),
+      warnings: step.simulation.warnings
     } : undefined
   };
 }
@@ -78,7 +80,7 @@ export function canSimulateStep(plan: SequencePlan, stepId: string): boolean {
 export function canExecuteStep(plan: SequencePlan, stepId: string): boolean {
   const step = plan.steps.find(s => s.id === stepId);
   if (!step) return false;
-  return step.status === 'ready';
+  return step.status === 'ready' && step.simulation?.success === true;
 }
 
 export function applyStepUpdate(

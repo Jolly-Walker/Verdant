@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SequenceStep } from '@/types/sequencer';
 import { getExplorerTxUrl, getChainDisplayName } from '@/lib/utils/chains';
 import { Spinner } from '@/components/ui/Spinner';
@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { HealthFactor } from '@/components/ui/HealthFactor';
 import { formatUsd } from '@/lib/utils/formatting';
+import { WarningBanner } from '@/components/ui/WarningBanner';
 
 import { SimulationResultView } from '@/components/execute/SimulationResult';
 
@@ -23,6 +24,7 @@ export function SequenceStepCard({
   isActive: boolean
 }) {
   const [hfConfirmed, setHfConfirmed] = useState(false);
+  const [warningsConfirmed, setWarningsConfirmed] = useState(false);
   const [simulationReviewed, setSimulationReviewed] = useState(false);
   
   const isCompleted = step.status === 'confirmed';
@@ -31,8 +33,20 @@ export function SequenceStepCard({
   const isSimulating = step.status === 'simulating';
   const isSigning = step.status === 'signing';
 
+  const warnings = step.simulation?.warnings || [];
+  const hasWarnings = warnings.length > 0;
   const needsHfConfirmation = step.projectedHealthFactor !== undefined && step.projectedHealthFactor < 1.5;
-  const canSign = (!needsHfConfirmation || hfConfirmed) && simulationReviewed;
+  
+  const canSign = (!needsHfConfirmation || hfConfirmed) && 
+                 (!hasWarnings || warningsConfirmed) && 
+                 simulationReviewed;
+
+  // Reset confirmations when step changes
+  useEffect(() => {
+    setHfConfirmed(false);
+    setWarningsConfirmed(false);
+    setSimulationReviewed(false);
+  }, [step.id]);
 
   return (
     <Card className={`mb-4 overflow-hidden border-zinc-800 ${isActive ? 'ring-1 ring-emerald-500/50 bg-zinc-900/40' : 'opacity-60'}`}>
@@ -76,6 +90,30 @@ export function SequenceStepCard({
         {isReady && step.simulation && (
           <div className="space-y-4">
             <SimulationResultView result={step.simulation} />
+
+            {hasWarnings && (
+              <div className="space-y-3">
+                {warnings.map((warning, i) => (
+                  <WarningBanner key={i} warning={warning} />
+                ))}
+                <div className="bg-amber-950/20 border border-amber-900/30 p-4 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">
+                      <input 
+                        type="checkbox" 
+                        id={`confirm-warnings-${step.id}`}
+                        checked={warningsConfirmed}
+                        onChange={(e) => setWarningsConfirmed(e.target.checked)}
+                        className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-emerald-600 focus:ring-emerald-600 focus:ring-offset-zinc-900"
+                      />
+                    </div>
+                    <label htmlFor={`confirm-warnings-${step.id}`} className="text-sm text-amber-200 leading-tight cursor-pointer">
+                      I have reviewed the warnings above and wish to proceed anyway.
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-zinc-800/30 border border-zinc-700/30 p-4 rounded-lg">
               <div className="flex items-start gap-3">

@@ -7,11 +7,11 @@
  */
 
 import 'server-only'
-import { Chain } from '@/types/chain'
+import { ChainId } from '@/types/shared'
 import { createPublicClient, http, PublicClient, Chain as ViemChain } from 'viem'
 import { mainnet, arbitrum, base } from 'viem/chains'
 
-const ALCHEMY_RPC_URLS: Record<Chain, string> = {
+const ALCHEMY_RPC_URLS: Record<ChainId, string> = {
   ethereum: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ETHEREUM || ''}`,
   arbitrum: `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ARBITRUM || ''}`,
   base: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_BASE || ''}`,

@@ -6,6 +6,7 @@ import { SequenceStep } from '@/types/sequencer'
 
 const UpdateStepSchema = z.object({
   status: z.enum(['simulating', 'ready', 'signing', 'confirmed', 'failed']),
+  walletAddress: z.string(),
   txHash: z.string().optional(),
   simulation: z.object({
     success: z.boolean(),
@@ -40,6 +41,11 @@ export async function PATCH(
     const plan = await getSequencePlan(params.planId)
     if (!plan) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+    }
+
+    // Verify ownership
+    if (plan.walletAddress.toLowerCase() !== result.data.walletAddress.toLowerCase()) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const step = plan.steps.find(s => s.id === params.stepId)

@@ -1,4 +1,5 @@
 import { ChainId, ProtocolId, BridgeId, UnsignedTx, TxBuildParams, BridgeQuoteParams } from './shared'
+import { Warning } from './quote'
 
 export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave' | 'exitPendle';
 
@@ -21,6 +22,7 @@ export interface SimulationResult {
   gasCostUsd?: number
   simulatedAt: Date
   stateChanges?: StateChange[]
+  warnings?: Warning[]
 }
 
 export interface SerializedSimulationResult extends Omit<SimulationResult, 'gasEstimate' | 'simulatedAt'> {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSignTypedData } from 'wagmi';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
 import { useBridges } from '@/hooks/useBridges';
-import { Chain } from '@/types/chain';
+import { ChainId } from '@/types/shared';
 import { BridgeQuote } from '@/types/shared';
 
 export interface StepOneBridgeProps {
