@@ -7,7 +7,7 @@ import { fetchWithTimeout } from '@/lib/utils/fetch'
 
 interface UseBridgesReturn {
   getQuotes: (params: BridgeQuoteParams) => Promise<BridgeQuote[]>
-  buildTransaction: (bridgeId: BridgeId, quote: BridgeQuote) => Promise<SerializedUnsignedTx>
+  buildTransaction: (bridgeId: BridgeId, quote: BridgeQuote, walletAddress: string) => Promise<SerializedUnsignedTx>
   pollStatus: (params: {
     txHash: string
     fromChain: ChainId
@@ -43,11 +43,11 @@ export function useBridges(): UseBridgesReturn {
     }
   }, [])
 
-  const buildTransaction = useCallback(async (bridgeId: BridgeId, quote: BridgeQuote): Promise<SerializedUnsignedTx> => {
+  const buildTransaction = useCallback(async (bridgeId: BridgeId, quote: BridgeQuote, walletAddress: string): Promise<SerializedUnsignedTx> => {
     const res = await fetchWithTimeout('/api/bridges/build', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bridgeId, quote }),
+      body: JSON.stringify({ bridgeId, quote, walletAddress }),
       timeout: 12000
     })
 

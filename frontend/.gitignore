@@ -30,6 +30,7 @@ get-aave-whale.ts
 
 # local env files
 .env*.local
+/.antigravitycli/
 
 # vercel
 .vercel

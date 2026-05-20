@@ -7,6 +7,7 @@ import { useBridges } from '@/hooks/useBridges';
 import { BridgeQuote, ChainId } from '@/types/shared';
 import { Spinner } from '@/components/ui/Spinner';
 import { BridgeQuoteSelector } from './BridgeQuoteSelector';
+import { SerializedUnsignedTx } from '@/types/sequencer';
 
 interface StepOneBridgeProps {
   fromChain: ChainId;
@@ -35,8 +36,14 @@ export function StepOneBridge({
   const [bridgeStatus, setBridgeStatus] = useState<'pending' | 'complete' | 'failed'>('pending');
   const [trackingUrl, setTrackingUrl] = useState<string | null>(null);
   const [isBuildingTx, setIsBuildingTx] = useState(false);
+  const [serializedTx, setSerializedTx] = useState<SerializedUnsignedTx | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
 
-  const { sendTransactionAsync, isLoading: isPending } = useSendTransaction();
+  // NOTE: This uses sendTransactionAsync directly outside of useSequencer.ts.
+  // This is a known exception for the pre-M5 legacy single-step bridge-only flow
+  // that exists alongside the sequencer.
+  // TODO: Consolidate by routing all bridge-only flows through the sequencer as a single-step plan.
+  const { sendTransactionAsync, isPending } = useSendTransaction();
 
   useEffect(() => {
     async function fetchQuotes() {
@@ -69,6 +76,28 @@ export function StepOneBridge({
   }, [fromChain, toChain, token, amount, getQuotes, address]);
 
   useEffect(() => {
+    async function simulateSelectedQuote() {
+      if (!selectedQuote || !address) {
+        setSerializedTx(null);
+        return;
+      }
+      setIsSimulating(true);
+      setError(null);
+      try {
+        const tx = await buildTransaction(selectedQuote.bridgeId, selectedQuote, address);
+        setSerializedTx(tx);
+      } catch (err: unknown) {
+        console.error('[StepOneBridge] Simulation failed:', err);
+        setError(err instanceof Error ? err.message : 'Bridge simulation failed');
+        setSerializedTx(null);
+      } finally {
+        setIsSimulating(false);
+      }
+    }
+    simulateSelectedQuote();
+  }, [selectedQuote, address, buildTransaction]);
+
+  useEffect(() => {
     if (!txHash || !selectedQuote || bridgeStatus === 'complete') return;
 
     const interval = setInterval(async () => {
@@ -97,13 +126,11 @@ export function StepOneBridge({
   }, [txHash, fromChain, pollStatus, onComplete, bridgeStatus, selectedQuote]);
 
   const handleBridge = async () => {
-    if (!selectedQuote) return;
+    if (!selectedQuote || !serializedTx) return;
     
     setIsBuildingTx(true);
     setError(null);
     try {
-      const serializedTx = await buildTransaction(selectedQuote.bridgeId, selectedQuote);
-      
       const hash = await sendTransactionAsync({
         to: serializedTx.to as `0x${string}`,
         data: serializedTx.data as `0x${string}`,
@@ -137,7 +164,7 @@ export function StepOneBridge({
     );
   }
 
-  const isSigning = isBuildingTx || isPending;
+  const isSigning = isBuildingTx || isPending || isSimulating;
 
   return (
     <div className="space-y-6 mt-4">
@@ -152,10 +179,10 @@ export function StepOneBridge({
 
           <button
             onClick={handleBridge}
-            disabled={isSigning || !selectedQuote}
+            disabled={isSigning || !selectedQuote || !serializedTx}
             className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl transition-colors shadow-lg shadow-emerald-900/20"
           >
-            {isSigning ? 'Waiting for Wallet...' : `Approve & Bridge ${amount} ${token}`}
+            {isSimulating ? 'Simulating route...' : isSigning ? 'Waiting for Wallet...' : `Approve & Bridge ${amount} ${token}`}
           </button>
         </>
       ) : (

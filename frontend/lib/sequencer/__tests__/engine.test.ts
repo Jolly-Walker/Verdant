@@ -146,9 +146,14 @@ describe('Sequencer Engine', () => {
   describe('canExecuteStep', () => {
     it('returns true if step is ready', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'ready')
-      ];
+      const step = createStep('1', 'ready');
+      step.simulation = {
+        success: true,
+        gasEstimate: 21000n,
+        gasCostUsd: 0.5,
+        simulatedAt: new Date()
+      };
+      plan.steps = [step];
       expect(canExecuteStep(plan, '1')).toBe(true);
     });
 

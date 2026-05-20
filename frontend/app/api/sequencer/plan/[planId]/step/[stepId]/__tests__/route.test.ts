@@ -11,12 +11,13 @@ describe('PATCH /api/sequencer/plan/[planId]/step/[stepId]', () => {
   it('returns 400 if ready -> signing transition lacks acknowledgment', async () => {
     vi.mocked(getSequencePlan).mockResolvedValue({
       id: 'plan-1',
+      walletAddress: '0x123',
       steps: [{ id: 'step-1', status: 'ready' }]
     } as any)
 
     const req = new Request('http://localhost/api/sequencer/plan/plan-1/step/step-1', {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'signing' })
+      body: JSON.stringify({ status: 'signing', walletAddress: '0x123' })
     })
 
     const res = await PATCH(req, { params: { planId: 'plan-1', stepId: 'step-1' } })
@@ -28,6 +29,7 @@ describe('PATCH /api/sequencer/plan/[planId]/step/[stepId]', () => {
   it('returns 200 if ready -> signing transition has acknowledgment', async () => {
     vi.mocked(getSequencePlan).mockResolvedValue({
       id: 'plan-1',
+      walletAddress: '0x123',
       createdAt: new Date(),
       steps: [{ id: 'step-1', status: 'ready' }]
     } as any)
@@ -35,7 +37,7 @@ describe('PATCH /api/sequencer/plan/[planId]/step/[stepId]', () => {
 
     const req = new Request('http://localhost/api/sequencer/plan/plan-1/step/step-1', {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'signing', acknowledged: true })
+      body: JSON.stringify({ status: 'signing', acknowledged: true, walletAddress: '0x123' })
     })
 
     const res = await PATCH(req, { params: { planId: 'plan-1', stepId: 'step-1' } })
