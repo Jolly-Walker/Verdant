@@ -69,4 +69,33 @@ describe('layerzeroBridgePlugin', () => {
     expect(status.status).toBe('pending')
     expect(status.trackingUrl).toBe('https://layerzeroscan.com/tx/0x123')
   })
+
+  it('should return null for unsupported token', async () => {
+    const quote = await layerzeroBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      token: 'ETH'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should return null for unsupported route', async () => {
+    const quote = await layerzeroBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      toChain: 'solana'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should throw for unsupported fromChain in buildBridgeTx', async () => {
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'layerzero',
+      rawQuote: {
+        fromChain: 'solana' as any,
+        amount: '1000000',
+        destDomain: 3
+      }
+    }
+    await expect(layerzeroBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote))
+      .rejects.toThrow('Unsupported chain solana')
+  })
 })

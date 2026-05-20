@@ -103,6 +103,7 @@ export const chainlinkBridgePlugin: BridgePlugin = {
 
   async getQuote(params: BridgeQuoteParams): Promise<BridgeQuote | null> {
     const { fromChain, toChain, token, amount } = params
+    if (!this.supportedTokens.includes(token)) return null
     const destSelector = CCIP_SELECTORS[toChain]
     if (!destSelector) return null
 

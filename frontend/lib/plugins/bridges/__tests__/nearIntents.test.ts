@@ -142,6 +142,57 @@ describe('nearIntentsBridgePlugin', () => {
     expect(status.trackingUrl).toBe('https://bridge.chaindefuser.com')
   })
 
+  it('should return null for unsupported toChain', async () => {
+    const quote = await nearIntentsBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      toChain: 'arbitrum'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should return null for unsupported token', async () => {
+    // Mock fetch to return a result, to ensure it returns null due to validation
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ jsonrpc: '2.0', result: '0x123' }),
+    })
+
+    const quote = await nearIntentsBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      token: 'LINK'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should return null when RPC returns error', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ jsonrpc: '2.0', error: { message: 'invalid account' } }),
+    })
+
+    const quote = await nearIntentsBridgePlugin.getQuote(mockQuoteParams)
+    expect(quote).toBeNull()
+  })
+
+  it('should return null when API returns non-OK response', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: false,
+    })
+
+    const quote = await nearIntentsBridgePlugin.getQuote(mockQuoteParams)
+    expect(quote).toBeNull()
+  })
+
+  it('should return null when API throws', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockRejectedValueOnce(new Error('Network error'))
+
+    const quote = await nearIntentsBridgePlugin.getQuote(mockQuoteParams)
+    expect(quote).toBeNull()
+  })
+
   it('should return null if getQuote times out', async () => {
     // Mock fetch to hang and handle abort signal
     ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {

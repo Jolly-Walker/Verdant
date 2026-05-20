@@ -165,6 +165,40 @@ describe('acrossBridgePlugin', () => {
     expect(status.trackingUrl).toBe('https://across.to/explorer/transactions/0x123')
   })
 
+  it('should return null for unsupported token', async () => {
+    const quote = await acrossBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      token: 'INVALID'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should return null for unsupported route', async () => {
+    const quote = await acrossBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      toChain: 'solana'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should return null when API returns non-OK response', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: false,
+    })
+
+    const quote = await acrossBridgePlugin.getQuote(mockQuoteParams)
+    expect(quote).toBeNull()
+  })
+
+  it('should return null when API throws', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockRejectedValueOnce(new Error('Network error'))
+
+    const quote = await acrossBridgePlugin.getQuote(mockQuoteParams)
+    expect(quote).toBeNull()
+  })
+
   it('should return null if getQuote times out', async () => {
     // Mock fetch to hang and handle abort signal
     ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {

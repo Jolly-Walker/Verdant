@@ -54,6 +54,7 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
   async getQuote(params: BridgeQuoteParams): Promise<BridgeQuote | null> {
     const { fromChain, toChain, token, amount, recipientAddress } = params
 
+    if (!this.supportedTokens.includes(token)) return null
     if (toChain !== 'solana') return null
     const defuseChain = CHAIN_MAP[fromChain]
     if (!defuseChain) return null

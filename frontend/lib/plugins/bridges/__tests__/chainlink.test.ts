@@ -151,4 +151,40 @@ describe('chainlinkBridgePlugin', () => {
     expect(status.status).toBe('pending')
     expect(status.trackingUrl).toBe('https://ccip.chain.link/tx/0x123')
   })
+
+  it('should return null for unsupported route (solana)', async () => {
+    const quote = await chainlinkBridgePlugin.getQuote({
+      ...mockQuoteParams,
+      toChain: 'solana'
+    })
+    expect(quote).toBeNull()
+  })
+
+  it('should throw for unknown fromChain in buildBridgeTx', async () => {
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'chainlink',
+      rawQuote: {
+        fromChain: 'solana' as any,
+        token: 'USDC',
+        amount: '1000000',
+        destSelector: 4949039107694359620n
+      }
+    }
+    await expect(chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote))
+      .rejects.toThrow('No CCIP router for solana')
+  })
+
+  it('should throw for unsupported token on fromChain in buildBridgeTx', async () => {
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'chainlink',
+      rawQuote: {
+        fromChain: 'ethereum',
+        token: 'UNSUPPORTED',
+        amount: '1000000',
+        destSelector: 4949039107694359620n
+      }
+    }
+    await expect(chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote))
+      .rejects.toThrow('Token UNSUPPORTED not supported on ethereum')
+  })
 })
