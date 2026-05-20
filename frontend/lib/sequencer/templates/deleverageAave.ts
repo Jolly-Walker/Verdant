@@ -105,6 +105,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
         asset: params.borrowAsset,
         amount: repayAmount,
         userAddress: params.walletAddress,
+        extraParams: { isWei: true }
       }
     });
 
@@ -134,6 +135,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
         asset: params.collateralAsset,
         amount: withdrawAmount,
         userAddress: params.walletAddress,
+        extraParams: { isWei: true }
       }
     });
 

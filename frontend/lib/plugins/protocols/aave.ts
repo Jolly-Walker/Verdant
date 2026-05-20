@@ -3,6 +3,7 @@ import { ChainId, RawPosition, UnsignedTx, TxBuildParams, Reward } from '@/types
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
+import { fetchAaveUserData } from '@/lib/data/aaveSubgraph'
 import { encodeFunctionData, parseAbi } from 'viem'
 
 const AAVE_POOL_ABI = parseAbi([
@@ -68,20 +69,113 @@ export const aavePlugin: ProtocolPlugin = {
       const positions: RawPosition[] = []
 
       try {
-        // 1. Get user account data to check if they have any interaction
-        const [totalCollateralBase, totalDebtBase] = await client.readContract({
+        // 1. Try to fetch from subgraph first for richer data (e.g. per-reserve collateral status)
+        const subgraphData = await fetchAaveUserData(address, chain)
+        
+        if (subgraphData?.user) {
+          const user = subgraphData.user
+          const healthFactor = Number(user.healthFactor) / 1e18
+          
+          const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
+          const priceIds = tokensToQuery.map(t => `coingecko:${t.coingeckoId}`)
+          const priceMap = await fetchTokenPrices(priceIds).catch(() => ({} as Record<string, number>))
+
+          for (const userReserve of user.userReserves) {
+            const assetAddress = userReserve.reserve.underlyingAsset.toLowerCase()
+            const token = Object.values(SUPPORTED_TOKENS).find(
+              t => t.addresses[chain]?.toLowerCase() === assetAddress
+            )
+            
+            if (!token) continue
+
+            const price = priceMap[`coingecko:${token.coingeckoId}`] || 0
+            const aTokenBalance = BigInt(userReserve.currentATokenBalance)
+            const variableDebt = BigInt(userReserve.currentVariableDebt)
+            const isCollateral = userReserve.usageAsCollateralEnabledOnUser
+
+            // Still need APY from RPC as subgraph might be slightly delayed or not have latest rates
+            let supplyApy = 0
+            let borrowApy = 0
+            let aTokenAddress = ''
+            let variableDebtTokenAddress = ''
+
+            try {
+              const result = await client.readContract({
+                address: poolAddress as `0x${string}`,
+                abi: AAVE_POOL_ABI,
+                functionName: 'getReserveData',
+                args: [assetAddress as `0x${string}`],
+              }) as any
+              supplyApy = Number(result[4]) / 1e27
+              borrowApy = Number(result[5]) / 1e27
+              aTokenAddress = result[9] as string
+              variableDebtTokenAddress = result[11] as string
+            } catch (e) {
+              console.error(`Failed to get Aave rates for ${token.symbol} on ${chain}:`, e)
+            }
+
+            if (aTokenBalance > 0n) {
+              const amount = Number(aTokenBalance) / Math.pow(10, token.decimals)
+              positions.push({
+                id: `aave-supply-${chain}-${token.symbol}`,
+                protocol: 'aave',
+                chain,
+                asset: token.symbol,
+                assetAddress: token.addresses[chain]!,
+                amount,
+                amountUsd: amount * price,
+                currentApy: supplyApy,
+                positionType: 'supply',
+                claimableRewards: [],
+                metadata: { 
+                  aTokenAddress,
+                  healthFactor,
+                  isCollateral
+                }
+              })
+            }
+
+            if (variableDebt > 0n) {
+              const amount = Number(variableDebt) / Math.pow(10, token.decimals)
+              positions.push({
+                id: `aave-borrow-${chain}-${token.symbol}`,
+                protocol: 'aave',
+                chain,
+                asset: token.symbol,
+                assetAddress: token.addresses[chain]!,
+                amount,
+                amountUsd: amount * price,
+                currentApy: borrowApy,
+                positionType: 'borrow',
+                claimableRewards: [],
+                metadata: { 
+                  variableDebtTokenAddress,
+                  healthFactor
+                }
+              })
+            }
+          }
+          
+          if (positions.length > 0) return positions
+        }
+
+        // 2. Fallback to RPC if subgraph fails or returns no user
+        const accountData = await client.readContract({
           address: poolAddress as `0x${string}`,
           abi: AAVE_POOL_ABI,
           functionName: 'getUserAccountData',
           args: [address as `0x${string}`],
         }) as [bigint, bigint, bigint, bigint, bigint, bigint]
 
+        const [totalCollateralBase, totalDebtBase] = accountData
+        const healthFactor = Number(accountData[5]) / 1e18
+
         // If both are zero, the user has no positions on this Aave market.
         if (totalCollateralBase === 0n && totalDebtBase === 0n) {
           return []
         }
 
-        // 2. Query reserve data and balances for all supported tokens that have an address on this chain
+        // Query reserve data and balances for all supported tokens that have an address on this chain
         const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
 
         // Fetch prices in parallel
@@ -126,7 +220,7 @@ export const aavePlugin: ProtocolPlugin = {
                 currentApy: supplyApy,
                 positionType: 'supply',
                 claimableRewards: [],
-                metadata: { aTokenAddress }
+                metadata: { aTokenAddress, healthFactor }
               })
             }
 
@@ -151,7 +245,7 @@ export const aavePlugin: ProtocolPlugin = {
                 currentApy: borrowApy,
                 positionType: 'borrow',
                 claimableRewards: [],
-                metadata: { variableDebtTokenAddress }
+                metadata: { variableDebtTokenAddress, healthFactor }
               })
             }
           } catch (e) {
@@ -185,9 +279,12 @@ export const aavePlugin: ProtocolPlugin = {
 
       const decimals = tokenConfig.decimals
       const isMax = amount === 'max'
+      const isWei = params.extraParams?.isWei === true
       const amountBigInt = isMax 
         ? 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn 
-        : BigInt(Math.floor(Number(amount) * Math.pow(10, decimals)))
+        : isWei 
+          ? BigInt(amount)
+          : BigInt(Math.floor(Number(amount) * Math.pow(10, decimals)))
 
       const chainMap: Record<ChainId, number> = {
         ethereum: 1,

@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { UnsignedTx, ChainId } from '@/types/shared'
 import { useWallet } from '@/hooks/useWallet'
 import { useSendTransaction } from 'wagmi'
-import { getSupabaseAdmin } from '@/lib/data/supabase'
+import { fetchWithTimeout } from '@/lib/utils/fetch'
 
 const CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {
   ethereum: 1,
@@ -44,10 +44,11 @@ export function useHarvest(): UseHarvestReturn {
       let txs: UnsignedTx[] = []
       try {
         // 1. Build claim transactions via the API route
-        const buildRes = await fetch('/api/rewards/claim', {
+        const buildRes = await fetchWithTimeout('/api/rewards/claim', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ protocol, chain, address: evmAddress }),
+          timeout: 12000,
         })
 
         if (!buildRes.ok) {
@@ -65,7 +66,7 @@ export function useHarvest(): UseHarvestReturn {
 
         // 2. Simulate each transaction (per-step simulation via /api/simulate)
         for (const tx of txs) {
-          const simRes = await fetch('/api/simulate', {
+          const simRes = await fetchWithTimeout('/api/simulate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -75,16 +76,21 @@ export function useHarvest(): UseHarvestReturn {
               data: tx.data,
               value: tx.value.toString(),
             }),
+            timeout: 12000,
           })
 
-          if (simRes.ok) {
-            const simData = await simRes.json()
-            if (!simData.success) {
-              throw new Error(`Simulation failed: ${simData.revertReason ?? 'unknown error'}`)
-            }
+          if (!simRes.ok) {
+            throw new Error(`Simulation request failed: ${simRes.statusText || 'unknown error'}`)
           }
-          // If simulate fails (network error), we continue to allow signing anyway
+
+          const simData = await simRes.json()
+          if (!simData.success) {
+            throw new Error(`Simulation failed: ${simData.revertReason ?? 'unknown error'}`)
+          }
         }
+      } catch (err: any) {
+        setState(s => ({ ...s, error: err.message || 'Simulation failed' }))
+        throw err
       } finally {
         setState(s => ({ ...s, isSimulating: false }))
       }

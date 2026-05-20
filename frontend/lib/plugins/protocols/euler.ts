@@ -166,9 +166,12 @@ export const eulerPlugin: ProtocolPlugin = {
 
       const decimals = tokenConfig.decimals
       const isMax = amount === 'max'
+      const isWei = params.extraParams?.isWei === true
       const amountBigInt = isMax 
         ? 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn 
-        : BigInt(Math.floor(Number(amount) * Math.pow(10, decimals)))
+        : isWei 
+          ? BigInt(amount)
+          : BigInt(Math.floor(Number(amount) * Math.pow(10, decimals)))
 
       const chainId = 1 // Ethereum mainnet
       const txs: UnsignedTx[] = []

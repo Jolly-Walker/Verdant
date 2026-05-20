@@ -101,13 +101,13 @@ describe('Sequencer Templates', () => {
     });
   });
 
-  describe('deleverageAave', () => {
+    describe('deleverageAave', () => {
     it('creates an N-cycle plan correctly dependent on previous cycles', () => {
       const plan = buildDeleverageAavePlan({
         borrowAsset: 'USDC',
         collateralAsset: 'ETH',
-        totalDebt: '3000',
-        totalCollateral: '2.5',
+        totalDebt: '3000000000', // 3000 USDC (6 decimals)
+        totalCollateral: '2500000000000000000', // 2.5 ETH (18 decimals)
         totalDebtUsd: 3000,
         totalCollateralUsd: 7500, // 2.5 ETH @ $3,000
         initialHealthFactor: 2.0,
@@ -144,8 +144,8 @@ describe('Sequencer Templates', () => {
       expect(() => buildDeleverageAavePlan({
         borrowAsset: 'USDC',
         collateralAsset: 'ETH',
-        totalDebt: '3000',
-        totalCollateral: '2.5',
+        totalDebt: '3000000000', // 3000 USDC (6 decimals)
+        totalCollateral: '2500000000000000000', // 2.5 ETH (18 decimals)
         totalDebtUsd: 3000,
         totalCollateralUsd: 3100, // Very thin collateral margin
         initialHealthFactor: 1.01, // Low initial HF

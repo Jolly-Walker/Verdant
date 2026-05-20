@@ -1,9 +1,42 @@
 import React from 'react'
+import { useRouter } from 'next/navigation'
 import { Position } from '@/types/position'
+import { usePositions } from '@/hooks/usePositions'
 import { HealthFactor } from '../ui/HealthFactor'
 
 export function BorrowCard({ position }: { position: Position }) {
+  const router = useRouter()
+  const { positions } = usePositions()
   const borrowApyPercent = (position.currentApy * 100).toFixed(2)
+
+  const collateralPosition = positions.find(
+    p => p.chain === position.chain &&
+         p.protocol === position.protocol &&
+         p.positionType === 'supply'
+  )
+
+  const handleDeleverage = () => {
+    const query = new URLSearchParams({
+      template: 'deleverageAave',
+      protocol: position.protocol,
+      chain: position.chain,
+      borrowAsset: position.asset,
+      amount: position.amount.toString(),
+      totalDebtUsd: position.amountUsd.toString(),
+    })
+
+    if (collateralPosition) {
+      query.set('collateralAsset', collateralPosition.asset)
+      query.set('collateralAmount', collateralPosition.amount.toString())
+      query.set('totalCollateralUsd', collateralPosition.amountUsd.toString())
+    }
+
+    if (position.healthFactor !== undefined) {
+      query.set('healthFactor', position.healthFactor.toString())
+    }
+
+    router.push(`/sequence?${query.toString()}`)
+  }
   
   return (
     <div className="bg-zinc-900 border border-red-900/30 rounded-xl p-5 flex flex-col gap-5 hover:border-red-900/50 transition">
@@ -42,9 +75,18 @@ export function BorrowCard({ position }: { position: Position }) {
       </div>
 
       <div className="flex justify-end gap-2 mt-auto pt-2">
-        <button className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
-          Repay
-        </button>
+        {position.healthFactor !== undefined ? (
+          <button 
+            onClick={handleDeleverage}
+            className="text-sm bg-red-650 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+          >
+            De-leverage
+          </button>
+        ) : (
+          <button className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
+            Repay
+          </button>
+        )}
       </div>
     </div>
   )

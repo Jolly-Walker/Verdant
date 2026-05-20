@@ -4,6 +4,8 @@ import { useState, useCallback } from 'react'
 import { useWallet } from '@/hooks/useWallet'
 import { ChainId, Reward } from '@/types/shared'
 
+import { fetchWithTimeout } from '@/lib/utils/fetch'
+
 export interface AggregatedReward extends Reward {
   protocol: string
   chain: ChainId
@@ -38,7 +40,7 @@ export function useRewards(): UseRewardsReturn {
       const url = new URL('/api/rewards', window.location.origin)
       url.searchParams.set('address', evmAddress)
 
-      const res = await fetch(url.toString())
+      const res = await fetchWithTimeout(url.toString(), { timeout: 12000 })
       if (!res.ok) throw new Error(`Rewards API error: ${res.status}`)
       const data = await res.json()
       setRewards(data.rewards ?? [])

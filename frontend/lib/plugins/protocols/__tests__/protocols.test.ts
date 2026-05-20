@@ -18,6 +18,10 @@ vi.mock('@/lib/data/merkl', () => ({
   MERKL_DISTRIBUTOR_ADDRESS: '0x3Ef3D8bA38EBe18DB133cEc108f4D14CE00Dd9Ae',
 }))
 
+vi.mock('@/lib/data/aaveSubgraph', () => ({
+  fetchAaveUserData: vi.fn(),
+}))
+
 // Mock fetch for Pendle API and DeFiLlama
 global.fetch = vi.fn()
 
@@ -47,6 +51,48 @@ describe('Aave V3 Protocol Plugin', () => {
 
       const positions = await aavePlugin.fetcher.fetchPositions('0x1234567890123456789012345678901234567890', 'ethereum')
       expect(positions).toEqual([])
+    })
+
+    it('should return enriched positions when subgraph data exists', async () => {
+      const { fetchAaveUserData } = await import('@/lib/data/aaveSubgraph')
+      vi.mocked(fetchAaveUserData).mockResolvedValueOnce({
+        user: {
+          id: '0x123',
+          totalCollateralBase: '1000',
+          totalDebtBase: '500',
+          healthFactor: '1500000000000000000', // 1.5
+          userReserves: [
+            {
+              reserve: {
+                underlyingAsset: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // USDC on Arbitrum
+                symbol: 'USDC',
+                decimals: 6
+              },
+              currentATokenBalance: '1000000000', // 1000 USDC
+              currentVariableDebt: '0',
+              usageAsCollateralEnabledOnUser: true
+            }
+          ]
+        }
+      })
+
+      mockPublicClient.readContract.mockResolvedValue([
+        0n, 0n, 0n, 0n,
+        50000000000000000000000000n,
+        60000000000000000000000000n,
+        0n, 0n, 0n,
+        '0xATokenAddress',
+        '0xStableDebtTokenAddress',
+        '0xVariableDebtTokenAddress',
+        '0xStrategyAddress'
+      ])
+
+      const positions = await aavePlugin.fetcher.fetchPositions('0x1234567890123456789012345678901234567890', 'arbitrum')
+
+      expect(positions.length).toBe(1)
+      expect(positions[0].amount).toBe(1000)
+      expect(positions[0].metadata.healthFactor).toBe(1.5)
+      expect(positions[0].metadata.isCollateral).toBe(true)
     })
 
     it('should return positions when balances exist', async () => {
