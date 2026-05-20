@@ -124,13 +124,45 @@ describe('acrossBridgePlugin', () => {
     // @ts-expect-error - mocking fetch
     ;(global.fetch as vi.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ status: 'filled', fillTxs: [{ hash: '0xabc' }] }),
+      json: async () => ({ 
+        status: 'filled', 
+        fillTxs: [{ hash: '0xabc' }],
+        destinationChainId: 42161 // Arbitrum
+      }),
     })
 
     const status = await acrossBridgePlugin.pollStatus('0x123', 'ethereum')
 
     expect(status.status).toBe('complete')
     expect(status.destinationTxHash).toBe('0xabc')
+    expect(status.trackingUrl).toBe('https://arbiscan.io/tx/0xabc')
+  })
+
+  it('should return pending status if not filled', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'pending' }),
+    })
+
+    const status = await acrossBridgePlugin.pollStatus('0x123', 'ethereum')
+
+    expect(status.status).toBe('pending')
+    expect(status.trackingUrl).toBe('https://across.to/explorer/transactions/0x123')
+  })
+
+  it('should return failed status if expired', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'expired' }),
+    })
+
+    const status = await acrossBridgePlugin.pollStatus('0x123', 'ethereum')
+
+    expect(status.status).toBe('failed')
+    expect(status.errorMessage).toBe('Across deposit expired')
+    expect(status.trackingUrl).toBe('https://across.to/explorer/transactions/0x123')
   })
 
   it('should return null if getQuote times out', async () => {

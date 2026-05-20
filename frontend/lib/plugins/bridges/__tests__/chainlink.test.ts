@@ -145,4 +145,10 @@ describe('chainlinkBridgePlugin', () => {
     expect(tx.value).toBe(1000000000000000n) // Just the fee
     expect(tx.description).toContain('Bridge LINK')
   })
+
+  it('should return pending status with tracking URL', async () => {
+    const status = await chainlinkBridgePlugin.pollStatus('0x123', 'ethereum')
+    expect(status.status).toBe('pending')
+    expect(status.trackingUrl).toBe('https://ccip.chain.link/tx/0x123')
+  })
 })

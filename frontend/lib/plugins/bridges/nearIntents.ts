@@ -145,6 +145,15 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     // 3. Look up the transaction on-chain to find the deposit address and map it back.
     
     // For now, we return pending as we cannot call recent_deposits without account_id.
-    return { status: 'pending' }
+    // When complete, we would return:
+    // return { 
+    //   status: 'complete', 
+    //   destinationTxHash: '...', 
+    //   trackingUrl: `https://solscan.io/tx/${destinationTxHash}` 
+    // }
+    return { 
+      status: 'pending',
+      trackingUrl: 'https://bridge.chaindefuser.com'
+    }
   },
 }

@@ -136,9 +136,10 @@ describe('nearIntentsBridgePlugin', () => {
     expect(tx.description).toContain('Bridge ETH')
   })
 
-  it('should return pending status', async () => {
+  it('should return pending status with tracking URL', async () => {
     const status = await nearIntentsBridgePlugin.pollStatus('0x123', 'ethereum')
     expect(status.status).toBe('pending')
+    expect(status.trackingUrl).toBe('https://bridge.chaindefuser.com')
   })
 
   it('should return null if getQuote times out', async () => {

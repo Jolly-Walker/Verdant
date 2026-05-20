@@ -187,9 +187,10 @@ export const chainlinkBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+  async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     return {
       status: 'pending',
+      trackingUrl: `https://ccip.chain.link/tx/${txHash}`,
     }
   },
 }

@@ -113,10 +113,11 @@ export const layerzeroBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+  async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     // LayerZero Scan API can be used to poll status
     return {
       status: 'pending',
+      trackingUrl: `https://layerzeroscan.com/tx/${txHash}`,
     }
   },
 }

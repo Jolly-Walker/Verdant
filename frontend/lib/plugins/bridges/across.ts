@@ -14,6 +14,12 @@ const CHAIN_ID_MAP: Record<ChainId, number> = {
   solana: 0,
 }
 
+const REVERSE_CHAIN_ID_MAP: Record<number, ChainId> = {
+  1: 'ethereum',
+  42161: 'arbitrum',
+  8453: 'base',
+}
+
 const SPOKE_POOL_ADDRESSES: Record<number, string> = {
   1: '0x59728544B08AB483533076417FbBB2fD0B17CE3a',
   42161: '0xe35e90606014e36ce7752fe314d19af0c7e0c7e9',
@@ -176,36 +182,55 @@ export const acrossBridgePlugin: BridgePlugin = {
   },
 
   async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+    const apiUrl = `https://across.to/api/deposit/status?originTransactionHash=${txHash}`
+    const explorerUrl = `https://across.to/explorer/transactions/${txHash}`
+    
     try {
-      const response = await fetchWithTimeout(`https://across.to/api/deposit/status?originTransactionHash=${txHash}`, {
+      const response = await fetchWithTimeout(apiUrl, {
         timeout: 8000,
         cache: 'no-store'
       })
 
       if (!response.ok) {
-        return { status: 'pending' }
+        return { status: 'pending', trackingUrl: explorerUrl }
       }
 
       const data = await response.json()
       
       if (data.status === 'filled') {
+        const destinationTxHash = data.fillTxs?.[0]?.hash
+        const destinationChainId = data.destinationChainId
+        const destinationChain = destinationChainId ? REVERSE_CHAIN_ID_MAP[destinationChainId] : null
+        
+        let trackingUrl = explorerUrl
+        if (destinationTxHash && destinationChain) {
+          try {
+            const { getExplorerTxUrl } = await import('@/lib/utils/chains')
+            trackingUrl = getExplorerTxUrl(destinationChain, destinationTxHash)
+          } catch (e) {
+            console.warn('Failed to get explorer URL', e)
+          }
+        }
+
         return {
           status: 'complete',
-          destinationTxHash: data.fillTxs?.[0]?.hash
+          destinationTxHash,
+          trackingUrl
         }
       }
 
       if (data.status === 'expired') {
         return {
           status: 'failed',
-          errorMessage: 'Across deposit expired'
+          errorMessage: 'Across deposit expired',
+          trackingUrl: explorerUrl
         }
       }
 
-      return { status: 'pending' }
+      return { status: 'pending', trackingUrl: explorerUrl }
     } catch (error) {
       console.error('Error polling Across bridge status:', error)
-      return { status: 'pending' }
+      return { status: 'pending', trackingUrl: explorerUrl }
     }
   }
 }

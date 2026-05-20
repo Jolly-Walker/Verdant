@@ -31,6 +31,7 @@ export function StepOneBridge({
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [bridgeStatus, setBridgeStatus] = useState<'pending' | 'complete' | 'failed'>('pending');
+  const [trackingUrl, setTrackingUrl] = useState<string | null>(null);
 
   const { signTypedData, isLoading: isSigning } = useSignTypedData({
     mutation: {
@@ -82,6 +83,10 @@ export function StepOneBridge({
         fromChain,
         bridgeId: selectedQuote.bridgeId,
       });
+
+      if (status.trackingUrl) {
+        setTrackingUrl(status.trackingUrl);
+      }
       
       if (status.status === 'complete') {
         setBridgeStatus('complete');
@@ -155,6 +160,16 @@ export function StepOneBridge({
                 <p className="text-sm text-zinc-300">
                   Bridging funds to {getChainDisplayName(toChain)} via {selectedQuote?.bridgeId}...
                 </p>
+                {trackingUrl && (
+                  <a 
+                    href={trackingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline"
+                  >
+                    View status ↗
+                  </a>
+                )}
                 <p className="text-xs text-zinc-500 mt-2">
                   This usually takes a few minutes.
                 </p>

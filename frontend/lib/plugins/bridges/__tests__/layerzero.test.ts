@@ -64,8 +64,9 @@ describe('layerzeroBridgePlugin', () => {
     expect(tx.description).toContain('Bridge USDC')
   })
 
-  it('should return pending status', async () => {
+  it('should return pending status with tracking URL', async () => {
     const status = await layerzeroBridgePlugin.pollStatus('0x123', 'ethereum')
     expect(status.status).toBe('pending')
+    expect(status.trackingUrl).toBe('https://layerzeroscan.com/tx/0x123')
   })
 })

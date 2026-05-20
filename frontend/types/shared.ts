@@ -83,4 +83,5 @@ export interface BridgeStatus {
   status: 'pending' | 'complete' | 'failed'
   destinationTxHash?: string
   errorMessage?: string
+  trackingUrl?: string
 }
