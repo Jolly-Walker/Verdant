@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 import { chainlinkBridgePlugin } from '../chainlink'
-import { BridgeQuoteParams } from '@/types/shared'
+import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
 
 describe('chainlinkBridgePlugin', () => {
   const mockQuoteParams: BridgeQuoteParams = {
@@ -21,12 +21,13 @@ describe('chainlinkBridgePlugin', () => {
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('chainlink')
     expect(quote?.feeUsd).toBe(2.50)
-    expect((quote?.rawQuote as any).destSelector).toBe(4949039107694359620n)
+    // @ts-expect-error - accessing rawQuote
+    expect(quote?.rawQuote.destSelector).toBe(4949039107694359620n)
   })
 
   it('should build a bridge transaction for ERC20 correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'chainlink' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'chainlink',
       feeUsd: 2.50,
       estimatedTimeSeconds: 900,
       expectedOutputAmount: '100000000',
@@ -42,7 +43,7 @@ describe('chainlinkBridgePlugin', () => {
       },
     }
 
-    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d')
@@ -52,8 +53,8 @@ describe('chainlinkBridgePlugin', () => {
   })
 
   it('should build a bridge transaction for ETH correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'chainlink' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'chainlink',
       feeUsd: 2.50,
       estimatedTimeSeconds: 900,
       expectedOutputAmount: '1000000000000000000',
@@ -69,7 +70,7 @@ describe('chainlinkBridgePlugin', () => {
       },
     }
 
-    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.value).toBe(1000000000000000000n)

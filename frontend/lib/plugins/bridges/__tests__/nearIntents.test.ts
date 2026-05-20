@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 import { nearIntentsBridgePlugin } from '../nearIntents'
-import { BridgeQuoteParams } from '@/types/shared'
+import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
 
 describe('nearIntentsBridgePlugin', () => {
   const mockQuoteParams: BridgeQuoteParams = {
@@ -24,10 +24,11 @@ describe('nearIntentsBridgePlugin', () => {
     const mockApiResponse = {
       jsonrpc: '2.0',
       id: 1,
-      result: '0xDEPOSIT_ADDRESS',
+      result: '0x1234567890123456789012345678901234567890',
     }
 
-    ;(global.fetch as any).mockResolvedValueOnce({
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => mockApiResponse,
     })
@@ -38,7 +39,8 @@ describe('nearIntentsBridgePlugin', () => {
     expect(quote?.bridgeId).toBe('nearIntents')
     expect(quote?.expectedOutputAmount).toBe('100000000')
     expect(quote?.feeUsd).toBe(2.0)
-    expect((quote?.rawQuote as any).depositAddress).toBe('0xDEPOSIT_ADDRESS')
+    // @ts-expect-error - accessing rawQuote
+    expect(quote?.rawQuote.depositAddress).toBe('0x1234567890123456789012345678901234567890')
     
     expect(global.fetch).toHaveBeenCalledWith(
       'https://bridge.chaindefuser.com/rpc',
@@ -50,9 +52,10 @@ describe('nearIntentsBridgePlugin', () => {
   })
 
   it('should map chains correctly', async () => {
-    ;(global.fetch as any).mockResolvedValue({
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValue({
       ok: true,
-      json: async () => ({ jsonrpc: '2.0', result: '0xADDR' }),
+      json: async () => ({ jsonrpc: '2.0', result: '0x1234567890123456789012345678901234567890' }),
     })
 
     await nearIntentsBridgePlugin.getQuote({ ...mockQuoteParams, fromChain: 'arbitrum' })
@@ -73,8 +76,8 @@ describe('nearIntentsBridgePlugin', () => {
   })
 
   it('should build an ERC20 bridge transaction correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'nearIntents' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'nearIntents',
       feeUsd: 2.0,
       estimatedTimeSeconds: 60,
       expectedOutputAmount: '100000000',
@@ -89,7 +92,7 @@ describe('nearIntentsBridgePlugin', () => {
       },
     }
 
-    const tx = await nearIntentsBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await nearIntentsBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48') // USDC Mainnet
@@ -99,8 +102,8 @@ describe('nearIntentsBridgePlugin', () => {
   })
 
   it('should build a native ETH bridge transaction correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'nearIntents' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'nearIntents',
       feeUsd: 2.0,
       estimatedTimeSeconds: 60,
       expectedOutputAmount: '1000000000000000000',
@@ -115,7 +118,7 @@ describe('nearIntentsBridgePlugin', () => {
       },
     }
 
-    const tx = await nearIntentsBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await nearIntentsBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0x1234567890123456789012345678901234567890')

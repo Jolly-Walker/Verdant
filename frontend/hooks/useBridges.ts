@@ -1,16 +1,10 @@
 'use client'
 
-import { useState, useCallback } from 'react'
-import { BridgeQuote, BridgeStatus, ChainId, BridgeId } from '@/types/shared'
+import { useCallback } from 'react'
+import { BridgeQuote, BridgeStatus, ChainId, BridgeId, BridgeQuoteParams } from '@/types/shared'
 
 interface UseBridgesReturn {
-  getQuote: (params: {
-    fromChain: ChainId
-    toChain: ChainId
-    token: string
-    amount: string
-    recipientAddress: string
-  }) => Promise<BridgeQuote | null>
+  getQuotes: (params: BridgeQuoteParams) => Promise<BridgeQuote[]>
   pollStatus: (params: {
     txHash: string
     fromChain: ChainId
@@ -19,13 +13,7 @@ interface UseBridgesReturn {
 }
 
 export function useBridges(): UseBridgesReturn {
-  const getQuote = useCallback(async (params: {
-    fromChain: ChainId
-    toChain: ChainId
-    token: string
-    amount: string
-    recipientAddress: string
-  }): Promise<BridgeQuote | null> => {
+  const getQuotes = useCallback(async (params: BridgeQuoteParams): Promise<BridgeQuote[]> => {
     try {
       const searchParams = new URLSearchParams({
         fromChain: params.fromChain,
@@ -33,19 +21,20 @@ export function useBridges(): UseBridgesReturn {
         token: params.token,
         amount: params.amount,
         recipientAddress: params.recipientAddress,
+        slippagePercent: params.slippagePercent.toString(),
       })
 
       const res = await fetch(`/api/bridges/quote?${searchParams.toString()}`)
       if (!res.ok) {
         const error = await res.json()
-        throw new Error(error.error || 'Failed to fetch bridge quote')
+        throw new Error(error.error || 'Failed to fetch bridge quotes')
       }
 
       const data = await res.json()
-      return data.recommended
+      return data.quotes || []
     } catch (err) {
-      console.error('[useBridges] getQuote failed:', err)
-      return null
+      console.error('[useBridges] getQuotes failed:', err)
+      return []
     }
   }, [])
 
@@ -73,5 +62,5 @@ export function useBridges(): UseBridgesReturn {
     }
   }, [])
 
-  return { getQuote, pollStatus }
+  return { getQuotes, pollStatus }
 }

@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
 import { layerzeroBridgePlugin } from '../layerzero'
-import { BridgeQuoteParams } from '@/types/shared'
+import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
 
 describe('layerzeroBridgePlugin', () => {
   const mockQuoteParams: BridgeQuoteParams = {
@@ -21,12 +21,13 @@ describe('layerzeroBridgePlugin', () => {
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('layerzero')
     expect(quote?.feeUsd).toBe(1.50)
-    expect((quote?.rawQuote as any).destDomain).toBe(3) // Arbitrum
+    // @ts-expect-error - accessing rawQuote
+    expect(quote?.rawQuote.destDomain).toBe(3) // Arbitrum
   })
 
   it('should build a bridge transaction correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'layerzero' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'layerzero',
       feeUsd: 1.50,
       estimatedTimeSeconds: 600,
       expectedOutputAmount: '100000000',
@@ -41,7 +42,7 @@ describe('layerzeroBridgePlugin', () => {
       },
     }
 
-    const tx = await layerzeroBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await layerzeroBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d')

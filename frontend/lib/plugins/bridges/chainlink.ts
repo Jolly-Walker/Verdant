@@ -46,6 +46,15 @@ const ROUTER_ABI = [
   },
 ] as const
 
+interface ChainlinkRawQuote {
+  destSelector: bigint
+  fromChain: ChainId
+  toChain: ChainId
+  token: string
+  amount: string
+  recipientAddress: string
+}
+
 export const chainlinkBridgePlugin: BridgePlugin = {
   id: 'chainlink',
   displayName: 'Chainlink CCIP',
@@ -86,13 +95,13 @@ export const chainlinkBridgePlugin: BridgePlugin = {
   },
 
   async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
-    const raw = quote.rawQuote as any
+    const raw = quote.rawQuote as ChainlinkRawQuote
     const { destSelector, fromChain, token, amount, recipientAddress } = raw
-    const routerAddress = CCIP_ROUTERS[fromChain as ChainId]
+    const routerAddress = CCIP_ROUTERS[fromChain]
     if (!routerAddress) throw new Error(`No CCIP router for ${fromChain}`)
 
     const tokenConfig = SUPPORTED_TOKENS[token]
-    const tokenAddress = tokenConfig?.addresses[fromChain as ChainId]
+    const tokenAddress = tokenConfig?.addresses[fromChain]
     if (!tokenAddress && token !== 'ETH') throw new Error(`Token ${token} not supported on ${fromChain}`)
 
     // Encode receiver address as bytes
@@ -130,13 +139,11 @@ export const chainlinkBridgePlugin: BridgePlugin = {
       to: routerAddress,
       data,
       value: token === 'ETH' ? BigInt(amount) : BigInt(0), // Value also needs to cover the fee! 
-      // For simplicity in this step, we assume 'value' is just the bridged ETH.
-      // In a real implementation, we'd add the fee.
       description: `Bridge ${token} via Chainlink CCIP`,
     }
   },
 
-  async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     return {
       status: 'pending',
     }

@@ -41,6 +41,20 @@ const SPOKE_POOL_ABI = [
   },
 ] as const
 
+interface AcrossRawQuote {
+  inputAmount: string
+  inputToken: `0x${string}`
+  outputToken: `0x${string}`
+  originChainId: number
+  destinationChainId: number
+  recipientAddress: `0x${string}`
+  tokenSymbol: string
+  decimals: number
+  timestamp: string | number
+  exclusiveRelayer?: `0x${string}`
+  exclusivityDeadline?: string | number
+}
+
 export const acrossBridgePlugin: BridgePlugin = {
   id: 'across',
   displayName: 'Across Protocol',
@@ -123,7 +137,7 @@ export const acrossBridgePlugin: BridgePlugin = {
   },
 
   async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
-    const raw = quote.rawQuote as any
+    const raw = quote.rawQuote as AcrossRawQuote
     const inputAmount = BigInt(raw.inputAmount)
     const outputAmount = BigInt(quote.expectedOutputAmount)
     const destinationChainId = BigInt(raw.destinationChainId)
@@ -152,7 +166,7 @@ export const acrossBridgePlugin: BridgePlugin = {
     
     return {
       chainId: raw.originChainId,
-      to: SPOKE_POOL_ADDRESSES[raw.originChainId] || '0x59728544B08AB483533076417FbBB2fD0B17CE3a',
+      to: (SPOKE_POOL_ADDRESSES[raw.originChainId] || '0x59728544B08AB483533076417FbBB2fD0B17CE3a') as `0x${string}`,
       data,
       value: isEth ? inputAmount : BigInt(0),
       description: `Bridge ${formatUnits(inputAmount, raw.decimals)} ${raw.tokenSymbol} via Across`,

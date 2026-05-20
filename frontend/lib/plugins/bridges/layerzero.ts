@@ -33,6 +33,14 @@ const TOKEN_MESSENGER_ABI = [
   },
 ] as const
 
+interface LayerZeroRawQuote {
+  destDomain: number
+  fromChain: ChainId
+  toChain: ChainId
+  amount: string
+  recipientAddress: string
+}
+
 export const layerzeroBridgePlugin: BridgePlugin = {
   id: 'layerzero',
   displayName: 'LayerZero V2 (CCTP)',
@@ -77,13 +85,13 @@ export const layerzeroBridgePlugin: BridgePlugin = {
   },
 
   async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
-    const raw = quote.rawQuote as any
+    const raw = quote.rawQuote as LayerZeroRawQuote
     const { destDomain, fromChain, amount, recipientAddress } = raw
-    const chainId = EVM_CHAIN_ID_MAP[fromChain as ChainId]
+    const chainId = EVM_CHAIN_ID_MAP[fromChain]
     if (!chainId) throw new Error(`Unsupported chain ${fromChain}`)
 
     const tokenConfig = SUPPORTED_TOKENS['USDC']
-    const tokenAddress = tokenConfig?.addresses[fromChain as ChainId]
+    const tokenAddress = tokenConfig?.addresses[fromChain]
     if (!tokenAddress) throw new Error(`USDC not supported on ${fromChain}`)
 
     // Convert address to bytes32
@@ -104,9 +112,8 @@ export const layerzeroBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     // LayerZero Scan API can be used to poll status
-    // For now, return pending with a link in comments or handle it
     return {
       status: 'pending',
     }

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 import { acrossBridgePlugin } from '../across'
-import { BridgeQuoteParams } from '@/types/shared'
+import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
 import { fetchTokenPrices } from '@/lib/data/prices'
 
 vi.mock('@/lib/data/prices', () => ({
@@ -34,12 +34,14 @@ describe('acrossBridgePlugin', () => {
       timestamp: 1700000000,
     }
 
-    ;(global.fetch as any).mockResolvedValueOnce({
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => mockApiResponse,
     })
 
-    ;(fetchTokenPrices as any).mockResolvedValueOnce({
+    // @ts-expect-error - mocking fetchTokenPrices
+    ;(fetchTokenPrices as vi.Mock).mockResolvedValueOnce({
       'coingecko:usd-coin': 1.0,
     })
 
@@ -52,8 +54,8 @@ describe('acrossBridgePlugin', () => {
   })
 
   it('should build a bridge transaction correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'across' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'across',
       feeUsd: 0.16,
       estimatedTimeSeconds: 120,
       expectedOutputAmount: '99840000',
@@ -72,7 +74,7 @@ describe('acrossBridgePlugin', () => {
       },
     }
 
-    const tx = await acrossBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await acrossBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0x59728544B08AB483533076417FbBB2fD0B17CE3a')
@@ -82,8 +84,8 @@ describe('acrossBridgePlugin', () => {
   })
   
   it('should build a native ETH bridge transaction correctly', async () => {
-    const mockQuote = {
-      bridgeId: 'across' as const,
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'across',
       feeUsd: 5.0,
       estimatedTimeSeconds: 120,
       expectedOutputAmount: '990000000000000000',
@@ -102,14 +104,15 @@ describe('acrossBridgePlugin', () => {
       },
     }
 
-    const tx = await acrossBridgePlugin.buildBridgeTx(mockQuote as any)
+    const tx = await acrossBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
     expect(tx.value).toBe(1000000000000000000n)
   })
 
   it('should poll status correctly', async () => {
-    ;(global.fetch as any).mockResolvedValueOnce({
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ status: 'filled', fillTxs: [{ hash: '0xabc' }] }),
     })

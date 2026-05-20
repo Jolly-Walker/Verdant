@@ -2,7 +2,7 @@ import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
-import { encodeFunctionData, formatUnits } from 'viem'
+import { encodeFunctionData, Hex } from 'viem'
 
 const DEFUSE_RPC_URL = 'https://bridge.chaindefuser.com/rpc'
 
@@ -30,6 +30,14 @@ const ERC20_ABI = [
     outputs: [{ name: '', type: 'bool' }],
   },
 ] as const
+
+interface NearIntentsRawQuote {
+  depositAddress: string
+  fromChain: ChainId
+  token: string
+  amount: string
+  recipientAddress: string
+}
 
 export const nearIntentsBridgePlugin: BridgePlugin = {
   id: 'nearIntents',
@@ -91,9 +99,9 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
   },
 
   async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
-    const raw = quote.rawQuote as any
+    const raw = quote.rawQuote as NearIntentsRawQuote
     const { depositAddress, fromChain, token, amount } = raw
-    const chainId = EVM_CHAIN_ID_MAP[fromChain as ChainId]
+    const chainId = EVM_CHAIN_ID_MAP[fromChain]
     if (!chainId) throw new Error(`Unsupported chain ${fromChain}`)
 
     if (token === 'ETH') {
@@ -107,13 +115,13 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     }
 
     const tokenConfig = SUPPORTED_TOKENS[token]
-    const tokenAddress = tokenConfig?.addresses[fromChain as ChainId]
+    const tokenAddress = tokenConfig?.addresses[fromChain]
     if (!tokenAddress) throw new Error(`Unsupported token ${token} on ${fromChain}`)
 
     const data = encodeFunctionData({
       abi: ERC20_ABI,
       functionName: 'transfer',
-      args: [depositAddress, BigInt(amount)],
+      args: [depositAddress as Hex, BigInt(amount)],
     })
 
     return {
@@ -125,7 +133,7 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
+  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     // Note: To fully implement recent_deposits, we need account_id (Solana address).
     // The current BridgePlugin interface only provides txHash and fromChain.
     // In a production environment, we would either:
@@ -134,23 +142,6 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     // 3. Look up the transaction on-chain to find the deposit address and map it back.
     
     // For now, we return pending as we cannot call recent_deposits without account_id.
-    // If we had the account_id, we would do:
-    /*
-    const response = await fetch(DEFUSE_RPC_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'recent_deposits',
-        params: [{ account_id: solanaAddress }]
-      })
-    });
-    const data = await response.json();
-    const deposit = data.result.find((d: any) => d.tx_hash === txHash || d.amount === amount);
-    if (deposit?.status === 'completed') return { status: 'complete', destinationTxHash: deposit.dest_tx_hash };
-    */
-
     return { status: 'pending' }
   },
 }
