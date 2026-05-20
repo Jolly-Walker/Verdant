@@ -2,6 +2,8 @@ import { deduplicatePositions } from '@/lib/data/aggregation'
 import { fetchSolanaTokenBalances } from '@/lib/data/solana'
 import { fetchZerionPositions } from '@/lib/data/zerion'
 import { isValidAddress } from '@/lib/utils/chains'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { RawPosition } from '@/types/shared'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -32,12 +34,30 @@ export async function GET(req: NextRequest) {
   const { address, solana } = result.data
 
   try {
-    const [evmPositions, solanaPositions] = await Promise.all([
+    const protocolPositionsPromises: Promise<RawPosition[]>[] = []
+    if (address) {
+      for (const [pluginId, plugin] of Object.entries(PROTOCOL_REGISTRY)) {
+        for (const chain of plugin.supportedChains) {
+          if (chain === 'solana') continue
+          protocolPositionsPromises.push(
+            plugin.fetcher.fetchPositions(address, chain)
+              .catch((err) => {
+                console.error(`[positions] failed to fetch positions for ${pluginId} on ${chain}:`, err)
+                return []
+              })
+          )
+        }
+      }
+    }
+
+    const [evmPositions, solanaPositions, ...protocolPositionsArrays] = await Promise.all([
       address ? fetchZerionPositions(address) : Promise.resolve([]),
       solana ? fetchSolanaTokenBalances(solana) : Promise.resolve([]),
+      ...protocolPositionsPromises,
     ])
 
-    const allPositions = deduplicatePositions([...evmPositions, ...solanaPositions])
+    const flatProtocolPositions = protocolPositionsArrays.flat()
+    const allPositions = deduplicatePositions([...evmPositions, ...solanaPositions, ...flatProtocolPositions])
 
     return NextResponse.json(
       { positions: allPositions },

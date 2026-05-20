@@ -30,22 +30,27 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     const repayId = `repay-${i}`;
     const withdrawId = `withdraw-${i}`;
     
-    // TODO: Even split is conservative. A proper implementation should compute the maximum
-    // safe withdraw amount per cycle using:
-    // maxWithdraw = collateral - (debt_after_repay * 1.05) / LT
-    // This ensures HF stays above 1.05 while withdrawing the maximum possible each cycle.
-    
-    // Amounts in token units for buildParams
-    const repayAmount = (Number(params.totalDebt) / params.cycles).toString();
-    const withdrawAmount = (Number(params.totalCollateral) / params.cycles).toString();
-
     // Amounts in USD for HF projections
     const repayAmountUsd = totalDebtUsd / params.cycles;
-    const withdrawAmountUsd = totalCollateralUsd / params.cycles;
+    const debtAfterRepayUsd = Math.max(0, currentDebtUsd - repayAmountUsd);
+
+    // Compute maximum safe withdraw USD:
+    // maxWithdraw = collateral - (debt_after_repay * 1.05) / LT
+    let maxWithdrawUsd = 0;
+    if (debtAfterRepayUsd === 0) {
+      maxWithdrawUsd = currentCollateralUsd;
+    } else {
+      maxWithdrawUsd = Math.max(0, currentCollateralUsd - (debtAfterRepayUsd * 1.05) / lt);
+    }
+
+    // Convert to token units
+    const withdrawFraction = totalCollateralUsd > 0 ? maxWithdrawUsd / totalCollateralUsd : 0;
+    const withdrawAmount = (Number(params.totalCollateral) * withdrawFraction).toString();
+    const repayAmount = (Number(params.totalDebt) / params.cycles).toString();
 
     // 1. Repay step (increases HF)
-    const repayProjectedHF = currentDebtUsd - repayAmountUsd > 0 
-      ? (currentCollateralUsd * lt) / (currentDebtUsd - repayAmountUsd) 
+    const repayProjectedHF = debtAfterRepayUsd > 0 
+      ? (currentCollateralUsd * lt) / debtAfterRepayUsd 
       : Infinity;
 
     plan.steps.push({
@@ -66,10 +71,10 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       }
     });
 
-    currentDebtUsd -= repayAmountUsd;
+    currentDebtUsd = debtAfterRepayUsd;
 
     // 2. Health Factor Projection before Withdrawal
-    const projectedCollateralUsd = currentCollateralUsd - withdrawAmountUsd;
+    const projectedCollateralUsd = currentCollateralUsd - maxWithdrawUsd;
     const projectedHF = currentDebtUsd > 0 ? (projectedCollateralUsd * lt) / currentDebtUsd : Infinity;
 
     if (projectedHF < 1.05 && currentDebtUsd > 0) {
@@ -95,7 +100,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       }
     });
 
-    currentCollateralUsd -= withdrawAmountUsd;
+    currentCollateralUsd = projectedCollateralUsd;
     previousStepId = withdrawId;
   }
 

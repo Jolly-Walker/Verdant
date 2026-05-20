@@ -148,9 +148,9 @@ describe('Sequencer Templates', () => {
         totalCollateral: '2.5',
         totalDebtUsd: 3000,
         totalCollateralUsd: 3100, // Very thin collateral margin
-        initialHealthFactor: 1.04, // Low initial HF
+        initialHealthFactor: 1.01, // Low initial HF
         amountUsd: 3000,
-        cycles: 2,
+        cycles: 30,
         protocol: 'aave',
         chain: 'ethereum',
         walletAddress: '0x123'
