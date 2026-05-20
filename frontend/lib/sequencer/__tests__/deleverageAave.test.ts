@@ -41,6 +41,17 @@ describe('deleverageAave template', () => {
       const totalCollateralUsd = 3100;
       const initialHF = 1.03;
       const lt = (initialHF * totalDebtUsd) / totalCollateralUsd;
+      // In this model, 1 cycle is always feasible if you can repay everything.
+      // Larger cycle counts actually make it harder to reach the target HF in the first step.
+      const cycles = computeOptimalCycles(totalDebtUsd, totalCollateralUsd, lt);
+      expect(cycles).toBe(1);
+    });
+
+    it('returns 1 cycle for an already-healthy position', () => {
+      const totalDebtUsd = 1000;
+      const totalCollateralUsd = 2000;
+      const initialHF = 1.8; // Already > 1.05
+      const lt = (initialHF * totalDebtUsd) / totalCollateralUsd;
       const cycles = computeOptimalCycles(totalDebtUsd, totalCollateralUsd, lt);
       expect(cycles).toBe(1);
     });

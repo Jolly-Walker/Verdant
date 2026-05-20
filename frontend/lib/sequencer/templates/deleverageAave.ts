@@ -47,6 +47,10 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
 
   const lt = (params.initialHealthFactor * totalDebtUsd) / totalCollateralUsd;
 
+  // Integrate computeOptimalCycles as a floor
+  const optimalCycles = computeOptimalCycles(totalDebtUsd, totalCollateralUsd, lt);
+  const cycles = Math.max(params.cycles || optimalCycles, optimalCycles);
+
   let currentDebtUsd = totalDebtUsd;
   let currentCollateralUsd = totalCollateralUsd;
   let previousStepId: string | null = null;
@@ -54,12 +58,12 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
   const totalDebtBI = BigInt(params.totalDebt);
   const totalCollateralBI = BigInt(params.totalCollateral);
 
-  for (let i = 0; i < params.cycles; i++) {
+  for (let i = 0; i < cycles; i++) {
     const repayId = `repay-${i}`;
     const withdrawId = `withdraw-${i}`;
     
     // Amounts in USD for HF projections
-    const repayAmountUsd = totalDebtUsd / params.cycles;
+    const repayAmountUsd = totalDebtUsd / cycles;
     const debtAfterRepayUsd = Math.max(0, currentDebtUsd - repayAmountUsd);
 
     // Compute maximum safe withdraw USD:
@@ -79,7 +83,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     const withdrawAmount = ((totalCollateralBI * withdrawFractionBI) / PRECISION).toString();
     
     // Repay amount is even split
-    const repayAmount = (totalDebtBI / BigInt(params.cycles)).toString();
+    const repayAmount = (totalDebtBI / BigInt(cycles)).toString();
 
     // 1. Repay step (increases HF)
     const repayProjectedHF = debtAfterRepayUsd > 0 
