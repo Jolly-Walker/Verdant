@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 import { ALL_CHAINS, BridgeQuote } from '@/types/shared'
 import { getSupabaseAdmin } from '@/lib/data/supabase'
+import { sortBridgeQuotes } from '@/lib/utils/quotes'
 
 const BridgeQuoteQuerySchema = z.object({
   fromChain: z.enum(ALL_CHAINS),
@@ -83,13 +84,11 @@ export async function GET(req: NextRequest) {
 
       clearTimeout(timeoutId)
 
-      const validQuotes = quotesResults
-        .filter((r): r is PromiseFulfilledResult<BridgeQuote> => r.status === 'fulfilled' && r.value !== null)
-        .map(r => r.value)
-        .sort((a, b) => {
-          const diff = BigInt(b.expectedOutputAmount) - BigInt(a.expectedOutputAmount)
-          return diff > 0n ? 1 : diff < 0n ? -1 : 0
-        })
+      const validQuotes = sortBridgeQuotes(
+        quotesResults
+          .filter((r): r is PromiseFulfilledResult<BridgeQuote> => r.status === 'fulfilled' && r.value !== null)
+          .map(r => r.value)
+      )
 
       if (validQuotes.length === 0) {
         return NextResponse.json({ error: 'Failed to fetch quotes from any bridge' }, { status: 502 })

@@ -707,20 +707,6 @@ export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
   layerzero:   layerzeroBridgePlugin,
   nearIntents: nearIntentsBridgePlugin,
 }
-
-export async function getBridgeQuotes(
-  params: BridgeQuoteParams
-): Promise<BridgeQuote[]> {
-  const eligible = Object.values(BRIDGE_REGISTRY).filter(b =>
-    b.supportedTokens.includes(params.token) &&
-    b.supportedRoutes.some(r => r.from === params.fromChain && r.to === params.toChain)
-  )
-  const quotes = await Promise.allSettled(eligible.map(b => b.getQuote(params)))
-  return quotes
-    .filter(r => r.status === 'fulfilled' && r.value !== null)
-    .map(r => (r as PromiseFulfilledResult<BridgeQuote>).value)
-    .sort((a, b) => Number(b.expectedOutputAmount) - Number(a.expectedOutputAmount))
-}
 ```
 
 ### 10.3 LayerZero Integration (new in v3)

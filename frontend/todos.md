@@ -228,7 +228,7 @@ Acceptance criteria
  Total test cases across all four files increases from current 15 to at least 28
 
 
-M7-09 — Remove dead getBridgeQuotes export from bridges/index.ts
+M7-09 — Remove dead getBridgeQuotes export from bridges/index.ts ✅
 File: frontend/lib/plugins/bridges/index.ts
 Priority: 🟡 Medium
 Problem
@@ -236,8 +236,8 @@ getBridgeQuotes() is exported from index.ts but never imported anywhere — the 
 Fix: Either delete getBridgeQuotes from index.ts and have the route be the sole source of bridge quote fetching, or keep it and have the route call it (moving the caching logic into a data layer function). The cleaner option is deletion — the route's inline implementation already handles the timeout, sorting, and caching.
 Acceptance criteria
 
- getBridgeQuotes is either deleted from index.ts or is the function called by the route (not duplicated)
- No callers reference the deleted export
+ [x] getBridgeQuotes is either deleted from index.ts or is the function called by the route (not duplicated)
+ [x] No callers reference the deleted export
 
 
 M7-10 — Validate recipientAddress format in the bridge quote route
