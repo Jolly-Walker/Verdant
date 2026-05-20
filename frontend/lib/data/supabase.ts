@@ -1,21 +1,26 @@
+import 'server-only'
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mock-project.supabase.co';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'mock-anon-key';
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Creating a single supabase client instance
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Server-only admin client for write operations
-export const supabaseAdmin = serviceRoleKey 
-  ? createClient(supabaseUrl, serviceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : supabase;
+let _adminClient: ReturnType<typeof createClient> | null = null
+
+/**
+ * Lazy-initialized admin client for server-side write operations.
+ * Throws if required environment variables are missing.
+ */
+export function getSupabaseAdmin() {
+  if (_adminClient) return _adminClient
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase admin env vars not configured')
+  _adminClient = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } })
+  return _adminClient
+}
 
 export interface ExecutionRecord {
   wallet_address: string;

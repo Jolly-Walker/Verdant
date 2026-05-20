@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 import { ALL_CHAINS, BridgeQuote } from '@/types/shared'
-import { supabaseAdmin } from '@/lib/data/supabase'
+import { getSupabaseAdmin } from '@/lib/data/supabase'
 
 const BridgeQuoteQuerySchema = z.object({
   fromChain: z.enum(ALL_CHAINS),
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Check cache first
-    const { data: cached } = await supabaseAdmin
+    const { data: cached } = await getSupabaseAdmin()
       .from('bridge_quotes_cache')
       .select('quotes')
       .eq('from_chain', fromChain)
@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
       // 3. Store in cache (30s TTL)
       const expiresAt = new Date(Date.now() + 30 * 1000).toISOString()
-      await supabaseAdmin
+      await getSupabaseAdmin()
         .from('bridge_quotes_cache')
         .insert({
           from_chain: fromChain,
