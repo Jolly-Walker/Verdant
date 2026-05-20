@@ -1,11 +1,13 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
 import { layerzeroBridgePlugin } from '../layerzero'
 import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 
 describe('layerzeroBridgePlugin', () => {
+  const mockNow = 1700000000000
   const mockQuoteParams: BridgeQuoteParams = {
     fromChain: 'ethereum',
     toChain: 'arbitrum',
@@ -15,6 +17,15 @@ describe('layerzeroBridgePlugin', () => {
     slippagePercent: 0.1,
   }
 
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(mockNow)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('should return a quote correctly', async () => {
     const quote = await layerzeroBridgePlugin.getQuote(mockQuoteParams)
 
@@ -23,6 +34,8 @@ describe('layerzeroBridgePlugin', () => {
     expect(quote?.feeUsd).toBe(1.50)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.destDomain).toBe(3) // Arbitrum
+
+    expect(quote?.expiresAt.getTime()).toBe(mockNow + BRIDGE_QUOTE_TTL_MS)
   })
 
   it('should build a bridge transaction correctly', async () => {

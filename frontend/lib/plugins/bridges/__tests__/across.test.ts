@@ -1,16 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
 import { acrossBridgePlugin } from '../across'
 import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
 import { fetchTokenPrices } from '@/lib/data/prices'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 
 vi.mock('@/lib/data/prices', () => ({
   fetchTokenPrices: vi.fn(),
 }))
 
 describe('acrossBridgePlugin', () => {
+  const mockNow = 1700000000000
   const mockQuoteParams: BridgeQuoteParams = {
     fromChain: 'ethereum',
     toChain: 'arbitrum',
@@ -22,7 +24,13 @@ describe('acrossBridgePlugin', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(mockNow)
     global.fetch = vi.fn()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('should return a quote correctly', async () => {
@@ -51,6 +59,8 @@ describe('acrossBridgePlugin', () => {
     expect(quote?.bridgeId).toBe('across')
     expect(quote?.expectedOutputAmount).toBe('99840000') // 100000000 - (100000 + 50000 + 10000)
     expect(quote?.feeUsd).toBeCloseTo(0.16, 2) // (160000 / 1e6) * 1.0
+
+    expect(quote?.expiresAt.getTime()).toBe(mockNow + BRIDGE_QUOTE_TTL_MS)
   })
 
   it('should build a bridge transaction correctly', async () => {

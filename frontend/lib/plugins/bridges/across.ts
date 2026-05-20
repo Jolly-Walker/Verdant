@@ -2,6 +2,7 @@ import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { encodeFunctionData, formatUnits } from 'viem'
 
@@ -117,7 +118,7 @@ export const acrossBridgePlugin: BridgePlugin = {
         estimatedTimeSeconds: data.estimatedFillTime || 120,
         expectedOutputAmount,
         slippagePercent: params.slippagePercent,
-        expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        expiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
         rawQuote: {
           ...data,
           inputToken,

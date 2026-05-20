@@ -2,6 +2,7 @@ import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 import { encodeFunctionData, encodeAbiParameters, parseAbiParameters, Hex } from 'viem'
 
 const CCIP_ROUTERS: Partial<Record<ChainId, string>> = {
@@ -82,7 +83,7 @@ export const chainlinkBridgePlugin: BridgePlugin = {
       estimatedTimeSeconds: 900, // CCIP usually ~15 mins
       expectedOutputAmount: amount,
       slippagePercent: params.slippagePercent,
-      expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 mins
+      expiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
       rawQuote: {
         destSelector,
         fromChain,

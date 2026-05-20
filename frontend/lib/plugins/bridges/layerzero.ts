@@ -2,6 +2,7 @@ import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 import { encodeFunctionData, pad, Hex } from 'viem'
 
 const TOKEN_MESSENGER_V2 = '0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d'
@@ -73,7 +74,7 @@ export const layerzeroBridgePlugin: BridgePlugin = {
       estimatedTimeSeconds: 600, // CCTP usually takes ~10-20 mins
       expectedOutputAmount: amount,
       slippagePercent: params.slippagePercent,
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      expiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
       rawQuote: {
         destDomain,
         fromChain,

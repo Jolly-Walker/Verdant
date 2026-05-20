@@ -1,11 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
 import { nearIntentsBridgePlugin } from '../nearIntents'
 import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 
 describe('nearIntentsBridgePlugin', () => {
+  const mockNow = 1700000000000
   const mockQuoteParams: BridgeQuoteParams = {
     fromChain: 'ethereum',
     toChain: 'solana',
@@ -17,7 +19,13 @@ describe('nearIntentsBridgePlugin', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(mockNow)
     global.fetch = vi.fn()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('should return a quote correctly', async () => {
@@ -42,6 +50,8 @@ describe('nearIntentsBridgePlugin', () => {
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.depositAddress).toBe('0x1234567890123456789012345678901234567890')
     
+    expect(quote?.expiresAt.getTime()).toBe(mockNow + BRIDGE_QUOTE_TTL_MS)
+
     expect(global.fetch).toHaveBeenCalledWith(
       'https://bridge.chaindefuser.com/rpc',
       expect.objectContaining({

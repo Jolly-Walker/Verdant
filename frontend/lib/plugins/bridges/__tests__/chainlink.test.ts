@@ -23,6 +23,10 @@ describe('chainlinkBridgePlugin', () => {
     expect(quote?.feeUsd).toBe(2.50)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.destSelector).toBe(4949039107694359620n)
+
+    const now = Date.now()
+    expect(quote?.expiresAt.getTime()).toBeGreaterThanOrEqual(now + 89000)
+    expect(quote?.expiresAt.getTime()).toBeLessThanOrEqual(now + 91000)
   })
 
   it('should build a bridge transaction for ERC20 correctly', async () => {

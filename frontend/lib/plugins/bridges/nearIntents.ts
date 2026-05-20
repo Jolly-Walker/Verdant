@@ -2,6 +2,7 @@ import 'server-only'
 import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
+import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 import { encodeFunctionData, Hex } from 'viem'
 
 const DEFUSE_RPC_URL = 'https://bridge.chaindefuser.com/rpc'
@@ -83,7 +84,7 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
         estimatedTimeSeconds: 60,
         expectedOutputAmount: amount, // Defuse handles exact output, simplified for quote
         slippagePercent: params.slippagePercent,
-        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+        expiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
         rawQuote: {
           depositAddress,
           fromChain,

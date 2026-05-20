@@ -1,0 +1,84 @@
+CRITICAL — 1 issue
+/api/sequencer/plan/[planId]/step/[stepId] PATCH route has no authentication
+frontend/app/api/sequencer/plan/[planId]/step/[stepId]/route.ts
+The PATCH route fetches the plan by planId from the URL, validates the transition, and persists the update — but never checks that the caller owns the plan. Any actor who knows a planId and stepId (both UUIDs, obtainable if they've seen a URL) can POST { status: 'confirmed', acknowledged: true } directly to mark any step as confirmed without signing the actual transaction. The sequencer simulate route and the GET plan route both verify walletAddress against plan.walletAddress. This route is the only one that doesn't.
+Fix: require walletAddress in the request body, add it to UpdateStepSchema, and check it after fetching the plan:
+tswalletAddress: z.string()
+
+// After fetching plan:
+if (plan.walletAddress.toLowerCase() !== result.data.walletAddress.toLowerCase()) {
+  return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+}
+useSequencer already has access to address from useWallet — add it to the PATCH body on all three PATCH calls in executeStep.
+
+HIGH — 2 issues
+simulateWithTenderly has no timeout on the fetch call
+frontend/lib/simulation/simulate.ts line 203
+Every other external HTTP call in the codebase uses fetchWithTimeout or AbortController. The Tenderly fetch is a raw call with no timeout. If Tenderly is slow or unreachable, the Alchemy fallback path hangs indefinitely, blocking the simulate route response. withTimeout is already imported and used in the sequencer simulate route — use it here:
+tsconst controller = new AbortController()
+const timeoutId = setTimeout(() => controller.abort(), 10000)
+const res = await fetch(url, { ..., signal: controller.signal })
+clearTimeout(timeoutId)
+as any cast on alchemy_simulateExecution response
+frontend/lib/simulation/simulate.ts line 115
+ts}) as any
+The // @ts-ignore comment above is the correct way to suppress the unknown Alchemy method error. The as any cast on the result then removes all type safety for the entire response — result.assetChanges, result.approvals, result.gasUsed, and result.error are all untyped. A typo in any of these field names would be invisible to TypeScript and only fail at runtime.
+Define a local interface for the expected Alchemy response shape:
+tsinterface AlchemySimulateResult {
+  gasUsed?: string
+  error?: string
+  assetChanges?: Array<{ from?: string; to?: string; rawAmount: string; symbol?: string; decimals: number; contractAddress?: string }>
+  approvals?: Array<{ owner?: string; rawAmount: string; symbol?: string; decimals: number; contractAddress?: string }>
+}
+Cast to that instead: } as AlchemySimulateResult.
+
+MEDIUM — 3 issues
+detectWarnings is never called in the sequencer flow
+frontend/lib/utils/warnings.ts, frontend/components/sequence/SequenceStepCard.tsx
+detectWarnings correctly implements all mandated warning conditions from the spec — bridge fee >0.5%, slippage >0.5%, break-even >30 days, Pendle maturity <30 days, utilisation >90%. It is only called from lib/costPreview/calculator.ts, which is part of the pre-M5 legacy flow. The sequencer path (app/sequence/, components/sequence/) never calls it. A user using the sequencer sees no warnings at any point regardless of fee or slippage conditions. SequenceStepCard only shows the HF checkbox — all other warning conditions are silently suppressed.
+detectWarnings needs to be called at plan creation time (in the POST plan route or the template itself) and its output attached to the SequencePlan or surfaced via the simulation result.
+Floating point precision in state change amounts
+frontend/lib/simulation/simulate.ts lines 134, 155
+tsconst amount = Number(change.rawAmount) / Math.pow(10, change.decimals)
+rawAmount from Alchemy is a large integer string (e.g. "1000000000000000000" for 1 WETH). Number("1000000000000000000") loses precision for values above 2^53 (~9 quadrillion). For tokens with 18 decimals and values above ~9 ETH equivalent, this produces an imprecise display amount. The approval display on line 155 has the same issue. Use a BigInt division pattern for display:
+tsconst raw = BigInt(change.rawAmount)
+const divisor = BigInt(10 ** change.decimals)
+const whole = raw / divisor
+const frac = raw % divisor
+const amount = Number(whole) + Number(frac) / Number(divisor)
+Or use viem's formatUnits which already handles this correctly:
+tsimport { formatUnits } from 'viem'
+const amount = formatUnits(BigInt(change.rawAmount), change.decimals)
+canExecuteStep does not verify simulation.success === true
+frontend/lib/sequencer/engine.ts
+tsexport function canExecuteStep(plan: SequencePlan, stepId: string): boolean {
+  const step = plan.steps.find(s => s.id === stepId)
+  if (!step) return false
+  return step.status === 'ready'
+}
+The review prompt states: "No step may have status 'ready' without a SimulationResult where success === true." The simulate route correctly only sets ready on a passing simulation. But canExecuteStep doesn't verify this — it trusts the status alone. If a step somehow reaches ready with a failed simulation (e.g. a DB inconsistency or a direct PATCH), the engine won't catch it. Add the explicit check:
+tsreturn step.status === 'ready' && step.simulation?.success === true
+
+LOW — 1 issue
+Chain and Protocol type aliases are unnecessary indirection
+frontend/types/chain.ts, frontend/types/protocol.ts
+ts// chain.ts
+export type Chain = ChainId
+
+// protocol.ts
+export type Protocol = ProtocolId
+The review prompt states: "ChainId, ProtocolId, BridgeId, TokenSymbol must always use the defined union types — never raw strings." These aliases are harmless but invite divergence — a future change to Chain might not update ChainId, or vice versa. simulate.ts imports Chain and Protocol while the rest of the codebase uses ChainId and ProtocolId. Consolidate: remove the alias files and update simulate.ts to import ChainId and ProtocolId from @/types/shared directly.
+
+No issues found
+
+server-only present as first import in simulate.ts ✅
+TENDERLY_ACCESS_KEY, TENDERLY_ACCOUNT_SLUG, TENDERLY_PROJECT_SLUG only accessed in simulate.ts (server-side), never in hooks or components ✅
+No sendTransaction calls outside useSequencer ✅
+No direct lib/plugins/ imports from components (useChainMetadata and useProtocolMetadata correctly wrap metadata access) ✅
+Zod schemas on all /app/api/ routes ✅
+ready → signing acknowledgment enforced server-side in PATCH route ✅
+Simulation gate: simulate route only sets ready when simResult.success === true ✅
+Quote freshness check present in sequencer simulate route ✅
+slippagePercent explicitly set on all bridge template calls ✅
+All other external calls use fetchWithTimeout ✅
+No private keys, seed phrases, or hardcoded secrets ✅
