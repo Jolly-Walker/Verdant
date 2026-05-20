@@ -109,7 +109,7 @@ export async function POST(req: Request) {
 
     // Detect warnings
     let warnings: Warning[] = []
-    const amountUsd = 'amountUsd' in step.buildParams ? (step.buildParams as any).amountUsd : 0
+    const amountUsd = 'amountUsd' in step.buildParams ? (step.buildParams as { amountUsd: number }).amountUsd : 0
     
     if (BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]) {
       const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]

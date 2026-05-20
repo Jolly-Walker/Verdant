@@ -250,7 +250,7 @@ export interface BridgePlugin {
 
 export type ChainId = 'ethereum' | 'arbitrum' | 'base' | 'solana'
 export type ProtocolId = 'aave' | 'morpho' | 'pendle' | 'euler' | string
-export type BridgeId = 'across' | 'layerzero' | 'nearIntents'
+export type BridgeId = 'across' | 'layerzero' | 'nearIntents' | 'chainlink'
 export type TokenSymbol = 'ETH' | 'USDC' | 'USDT' | 'WBTC' | 'wstETH' | 'SOL' | string
 
 export type PositionType =
@@ -680,6 +680,7 @@ GET /api/sequencer/plan/{planId}
 | Across Protocol | ETH, USDC, USDT, WBTC | ETH↔ARB, ETH↔Base, ARB↔Base | Primary EVM bridge |
 | LayerZero (OFT) | USDC (CCTP) | ETH↔ARB, ETH↔Base, ARB↔Base, any→SOL | USDC cross-chain; EVM→Solana |
 | NEAR Intents | ETH, USDC, SOL | ETH↔SOL, ARB↔SOL, Base↔SOL | EVM→Solana primary |
+| Chainlink CCIP | LINK, USDC, ETH | ETH↔ARB, ETH↔Base, ARB↔Base | Secure institutional-grade bridge |
 
 **Token bridge matrix:**
 
@@ -706,20 +707,6 @@ export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
   across:      acrossBridgePlugin,
   layerzero:   layerzeroBridgePlugin,
   nearIntents: nearIntentsBridgePlugin,
-}
-
-export async function getBridgeQuotes(
-  params: BridgeQuoteParams
-): Promise<BridgeQuote[]> {
-  const eligible = Object.values(BRIDGE_REGISTRY).filter(b =>
-    b.supportedTokens.includes(params.token) &&
-    b.supportedRoutes.some(r => r.from === params.fromChain && r.to === params.toChain)
-  )
-  const quotes = await Promise.allSettled(eligible.map(b => b.getQuote(params)))
-  return quotes
-    .filter(r => r.status === 'fulfilled' && r.value !== null)
-    .map(r => (r as PromiseFulfilledResult<BridgeQuote>).value)
-    .sort((a, b) => Number(b.expectedOutputAmount) - Number(a.expectedOutputAmount))
 }
 ```
 

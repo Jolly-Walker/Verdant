@@ -4,10 +4,10 @@ export type ChainId = (typeof ALL_CHAINS)[number]
 export const ALL_PROTOCOLS = ['aave', 'morpho', 'pendle', 'euler'] as const
 export type ProtocolId = (typeof ALL_PROTOCOLS)[number] | string
 
-export const ALL_BRIDGES = ['across', 'layerzero', 'nearIntents'] as const
+export const ALL_BRIDGES = ['across', 'layerzero', 'nearIntents', 'chainlink'] as const
 export type BridgeId = (typeof ALL_BRIDGES)[number]
 
-export const ALL_TOKENS = ['ETH', 'USDC', 'USDT', 'WBTC', 'wstETH', 'SOL'] as const
+export const ALL_TOKENS = ['ETH', 'USDC', 'USDT', 'WBTC', 'wstETH', 'SOL', 'LINK'] as const
 export type TokenSymbol = (typeof ALL_TOKENS)[number] | string
 
 export type PositionType =
@@ -83,4 +83,5 @@ export interface BridgeStatus {
   status: 'pending' | 'complete' | 'failed'
   destinationTxHash?: string
   errorMessage?: string
+  trackingUrl?: string
 }

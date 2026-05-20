@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { ChainId, BridgeId } from '@/types/shared'
+import { ALL_CHAINS, ALL_BRIDGES } from '@/types/shared'
 
 const BridgeStatusQuerySchema = z.object({
   txHash: z.string(),
-  fromChain: z.string() as z.ZodType<ChainId>,
-  bridgeId: z.string() as z.ZodType<BridgeId>,
+  fromChain: z.enum(ALL_CHAINS),
+  bridgeId: z.enum(ALL_BRIDGES),
 })
 
 export async function GET(req: NextRequest) {

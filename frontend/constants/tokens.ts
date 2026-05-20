@@ -76,6 +76,17 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
       base: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22',
     },
   },
+  LINK: {
+    symbol: 'LINK',
+    name: 'Chainlink',
+    decimals: 18,
+    coingeckoId: 'chainlink',
+    addresses: {
+      ethereum: '0x514910771AF9Ca656af840dff83E8264EcF986CA',
+      arbitrum: '0xf97f4df75117a78c1A5a0DBb814Af92458539FB4',
+      base: '0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196',
+    },
+  },
   'PT-eETH': {
     symbol: 'PT-eETH',
     name: 'Pendle PT eETH',

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 import { ALL_CHAINS, BridgeQuote } from '@/types/shared'
+import { getSupabaseAdmin } from '@/lib/data/supabase'
+import { sortBridgeQuotes } from '@/lib/utils/quotes'
+import { isValidAddress } from '@/lib/utils/chains'
 
 const BridgeQuoteQuerySchema = z.object({
   fromChain: z.enum(ALL_CHAINS),
@@ -10,6 +13,14 @@ const BridgeQuoteQuerySchema = z.object({
   amount: z.string(),
   recipientAddress: z.string(),
   slippagePercent: z.string().optional().default('0.5').transform(v => parseFloat(v)),
+}).superRefine((data, ctx) => {
+  if (!isValidAddress(data.recipientAddress, data.toChain)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['recipientAddress'],
+      message: `Invalid recipient address for ${data.toChain}`,
+    })
+  }
 })
 
 export async function GET(req: NextRequest) {
@@ -35,8 +46,26 @@ export async function GET(req: NextRequest) {
   const { fromChain, toChain, token, amount, recipientAddress, slippagePercent } = result.data
 
   try {
-    // For MVP, we're focusing on NEAR Intents and Across
-    // This proxy will try to find the best quote among registered bridges
+    // 1. Check cache first
+    const { data: cached } = await getSupabaseAdmin()
+      .from('bridge_quotes_cache')
+      .select('quotes')
+      .eq('from_chain', fromChain)
+      .eq('to_chain', toChain)
+      .eq('token', token)
+      .eq('amount_wei', amount)
+      .eq('recipient', recipientAddress)
+      .gt('expires_at', new Date().toISOString())
+      .order('fetched_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (cached) {
+      const quotes = cached.quotes as BridgeQuote[]
+      return NextResponse.json({ quotes, recommended: quotes[0] })
+    }
+
+    // 2. Fetch new quotes if no cache hit
     const eligible = Object.values(BRIDGE_REGISTRY).filter(b =>
       b.supportedTokens.includes(token) &&
       b.supportedRoutes.some(r => r.from === fromChain && r.to === toChain)
@@ -51,8 +80,7 @@ export async function GET(req: NextRequest) {
     const timeoutId = setTimeout(() => controller.abort(), 10000)
 
     try {
-      const quotes = await Promise.allSettled(eligible.map(async b => {
-        // Pass signal if the plugin supports it, or just let the outer timeout handle it
+      const quotesResults = await Promise.allSettled(eligible.map(async b => {
         return b.getQuote({
           fromChain,
           toChain,
@@ -65,14 +93,29 @@ export async function GET(req: NextRequest) {
 
       clearTimeout(timeoutId)
 
-      const validQuotes = quotes
-        .filter((r): r is PromiseFulfilledResult<BridgeQuote> => r.status === 'fulfilled' && r.value !== null)
-        .map(r => r.value)
-        .sort((a, b) => Number(b.expectedOutputAmount) - Number(a.expectedOutputAmount))
+      const validQuotes = sortBridgeQuotes(
+        quotesResults
+          .filter((r): r is PromiseFulfilledResult<BridgeQuote> => r.status === 'fulfilled' && r.value !== null)
+          .map(r => r.value)
+      )
 
       if (validQuotes.length === 0) {
         return NextResponse.json({ error: 'Failed to fetch quotes from any bridge' }, { status: 502 })
       }
+
+      // 3. Store in cache (30s TTL)
+      const expiresAt = new Date(Date.now() + 30 * 1000).toISOString()
+      await getSupabaseAdmin()
+        .from('bridge_quotes_cache')
+        .insert({
+          from_chain: fromChain,
+          to_chain: toChain,
+          token,
+          amount_wei: amount,
+          recipient: recipientAddress,
+          quotes: validQuotes,
+          expires_at: expiresAt
+        })
 
       return NextResponse.json({ quotes: validQuotes, recommended: validQuotes[0] })
     } catch (err: unknown) {
