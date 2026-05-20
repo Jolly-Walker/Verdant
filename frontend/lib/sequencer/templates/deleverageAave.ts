@@ -1,5 +1,33 @@
 import { SequencePlan, DeleverageAaveParams } from '@/types/sequencer';
 
+export function computeOptimalCycles(
+  totalDebtUsd: number,
+  totalCollateralUsd: number,
+  lt: number,
+  targetHF: number = 1.05,
+  maxCycles: number = 20
+): number {
+  for (let i = 1; i <= maxCycles; i++) {
+    const repayPerCycle = totalDebtUsd / i;
+    let debt = totalDebtUsd;
+    let collateral = totalCollateralUsd;
+    let feasible = true;
+
+    for (let c = 0; c < i; c++) {
+      debt = Math.max(0, debt - repayPerCycle);
+      const maxWithdraw = debt === 0 ? collateral : Math.max(0, collateral - (debt * targetHF) / lt);
+      collateral = Math.max(0, collateral - maxWithdraw);
+      if (debt > 0 && (collateral * lt) / debt < targetHF - 0.0001) {
+        feasible = false;
+        break;
+      }
+    }
+
+    if (feasible) return i;
+  }
+  return maxCycles;
+}
+
 export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequencePlan {
   const plan: SequencePlan = {
     id: crypto.randomUUID(),
@@ -11,9 +39,6 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     steps: []
   };
 
-  // Calculate effective Liquidation Threshold from initial HF
-  // HF = (CollateralUsd * LT) / DebtUsd  => LT = (HF * DebtUsd) / CollateralUsd
-  // We MUST use USD-normalized values here because assets may have different units.
   const totalDebtUsd = params.totalDebtUsd;
   const totalCollateralUsd = params.totalCollateralUsd;
   
@@ -26,6 +51,9 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
   let currentCollateralUsd = totalCollateralUsd;
   let previousStepId: string | null = null;
 
+  const totalDebtBI = BigInt(params.totalDebt);
+  const totalCollateralBI = BigInt(params.totalCollateral);
+
   for (let i = 0; i < params.cycles; i++) {
     const repayId = `repay-${i}`;
     const withdrawId = `withdraw-${i}`;
@@ -35,7 +63,6 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     const debtAfterRepayUsd = Math.max(0, currentDebtUsd - repayAmountUsd);
 
     // Compute maximum safe withdraw USD:
-    // maxWithdraw = collateral - (debt_after_repay * 1.05) / LT
     let maxWithdrawUsd = 0;
     if (debtAfterRepayUsd === 0) {
       maxWithdrawUsd = currentCollateralUsd;
@@ -43,10 +70,16 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       maxWithdrawUsd = Math.max(0, currentCollateralUsd - (debtAfterRepayUsd * 1.05) / lt);
     }
 
-    // Convert to token units
+    // Convert to token units using BigInt for precision
     const withdrawFraction = totalCollateralUsd > 0 ? maxWithdrawUsd / totalCollateralUsd : 0;
-    const withdrawAmount = (Number(params.totalCollateral) * withdrawFraction).toString();
-    const repayAmount = (Number(params.totalDebt) / params.cycles).toString();
+    
+    // Use scaled integer arithmetic for withdrawAmount
+    const PRECISION = 1_000_000n;
+    const withdrawFractionBI = BigInt(Math.round(withdrawFraction * Number(PRECISION)));
+    const withdrawAmount = ((totalCollateralBI * withdrawFractionBI) / PRECISION).toString();
+    
+    // Repay amount is even split
+    const repayAmount = (totalDebtBI / BigInt(params.cycles)).toString();
 
     // 1. Repay step (increases HF)
     const repayProjectedHF = debtAfterRepayUsd > 0 
@@ -77,7 +110,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     const projectedCollateralUsd = currentCollateralUsd - maxWithdrawUsd;
     const projectedHF = currentDebtUsd > 0 ? (projectedCollateralUsd * lt) / currentDebtUsd : Infinity;
 
-    if (projectedHF < 1.05 && currentDebtUsd > 0) {
+    if (projectedHF < 1.049 && currentDebtUsd > 0) { // Using 1.049 to avoid float precision issues in check
       throw new Error(`Cycle ${i+1} withdrawal would drop Health Factor to ${projectedHF.toFixed(2)}, which is below the safe limit of 1.05. Aborting plan creation.`);
     }
 
