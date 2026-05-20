@@ -29,6 +29,23 @@ describe('chainlinkBridgePlugin', () => {
     expect(quote?.expiresAt.getTime()).toBeLessThanOrEqual(now + 91000)
   })
 
+  it('should return a quote for LINK correctly', async () => {
+    const linkQuoteParams: BridgeQuoteParams = {
+      ...mockQuoteParams,
+      token: 'LINK',
+      amount: '1000000000000000000', // 1 LINK
+    }
+    const quote = await chainlinkBridgePlugin.getQuote(linkQuoteParams)
+
+    expect(quote).not.toBeNull()
+    expect(quote?.bridgeId).toBe('chainlink')
+    expect(quote?.feeUsd).toBe(2.50)
+    // @ts-expect-error - accessing rawQuote
+    expect(quote?.rawQuote.token).toBe('LINK')
+    // @ts-expect-error - accessing rawQuote
+    expect(quote?.rawQuote.amount).toBe('1000000000000000000')
+  })
+
   it('should build a bridge transaction for ERC20 correctly', async () => {
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'chainlink',
@@ -79,5 +96,32 @@ describe('chainlinkBridgePlugin', () => {
     expect(tx.chainId).toBe(1)
     expect(tx.value).toBe(1000000000000000000n)
     expect(tx.description).toContain('Bridge ETH')
+  })
+
+  it('should build a bridge transaction for LINK correctly', async () => {
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'chainlink',
+      feeUsd: 2.50,
+      estimatedTimeSeconds: 900,
+      expectedOutputAmount: '1000000000000000000',
+      slippagePercent: 0.1,
+      expiresAt: new Date(),
+      rawQuote: {
+        destSelector: 4949039107694359620n,
+        fromChain: 'ethereum',
+        toChain: 'arbitrum',
+        token: 'LINK',
+        amount: '1000000000000000000',
+        recipientAddress: '0x1234567890123456789012345678901234567890'
+      },
+    }
+
+    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
+
+    expect(tx.chainId).toBe(1)
+    expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d')
+    expect(tx.data).toBeDefined()
+    expect(tx.value).toBe(0n)
+    expect(tx.description).toContain('Bridge LINK')
   })
 })
