@@ -1,9 +1,11 @@
-import { ProtocolPlugin } from '../types/protocol-plugin'
-import { ChainId, RawPosition, UnsignedTx, TxBuildParams } from '@/types/shared'
+import 'server-only'
+import { ProtocolPlugin, RewardFetcher, ClaimParams } from '../types/protocol-plugin'
+import { ChainId, RawPosition, UnsignedTx, TxBuildParams, Reward } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { encodeFunctionData, parseAbi } from 'viem'
+import { fetchMerklClaims, MERKL_DISTRIBUTOR_ADDRESS, MerklClaim } from '@/lib/data/merkl'
 
 const EULER_VAULT_ABI = parseAbi([
   'function deposit(uint256 assets, address receiver) returns (uint256)',
@@ -29,6 +31,20 @@ export const EULER_CURATED_VAULTS: Record<string, string> = {
   WETH: '0x2b44019e15b5a0047326ec8c68eb8de466336336',
   USDT: '0x3b44019e15b5a0047326ec8c68eb8de466336336',
   WBTC: '0x4b44019e15b5a0047326ec8c68eb8de466336336',
+}
+
+/**
+ * Merkl Distributor ABI for claiming Euler incentive rewards.
+ * Source: https://docs.merkl.xyz/merkl-mechanisms/distributor
+ */
+const MERKL_DISTRIBUTOR_ABI = parseAbi([
+  'function claim(address[] users, address[] tokens, uint256[] amounts, bytes32[][] proofs) external'
+])
+
+const EVM_CHAIN_IDS: Record<string, number> = {
+  ethereum: 1,
+  arbitrum: 42161,
+  base: 8453,
 }
 
 export const eulerPlugin: ProtocolPlugin = {
@@ -272,4 +288,78 @@ export const eulerPlugin: ProtocolPlugin = {
       return `Euler EVault Action`
     },
   },
+  rewards: {
+    fetchRewards: async (address: string, chain: ChainId): Promise<Reward[]> => {
+      // Euler V2 incentive rewards are distributed via Merkl
+      const claims = await fetchMerklClaims(address, chain)
+      if (claims.length === 0) return []
+
+      // Resolve prices via DeFiLlama
+      const chainPrefix = chain === 'ethereum' ? 'ethereum' : chain
+      const coinsParam = claims
+        .map(c => `${chainPrefix}:${c.token.toLowerCase()}`)
+        .join(',')
+
+      let priceMap: Record<string, number> = {}
+      try {
+        const res = await fetch(
+          `https://coins.llama.fi/prices/current/${coinsParam}`,
+          { next: { revalidate: 120 }, signal: AbortSignal.timeout(10_000) }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          for (const [key, val] of Object.entries(data.coins ?? {})) {
+            const addr = key.split(':')[1]
+            if (addr) priceMap[addr.toLowerCase()] = (val as any).price ?? 0
+          }
+        }
+      } catch {
+        // silently fall back to $0 prices
+      }
+
+      return claims.map(claim => {
+        const amount = Number(BigInt(claim.claimableAmount)) / Math.pow(10, claim.decimals)
+        const price = priceMap[claim.token.toLowerCase()] ?? 0
+        return {
+          token: claim.symbol,
+          amount: amount.toFixed(8),
+          amountUsd: amount * price,
+        }
+      })
+    },
+
+    buildClaimTx: async (params: ClaimParams): Promise<UnsignedTx[]> => {
+      const { address, chain } = params
+      const chainId = EVM_CHAIN_IDS[chain]
+      if (!chainId) throw new Error(`Euler rewards not supported on ${chain}`)
+
+      const claims = await fetchMerklClaims(address, chain)
+      if (claims.length === 0) return []
+
+      // Merkl claim(users[], tokens[], amounts[], proofs[][])
+      // proofs[i] = the bytes32[] merkle path proving users[i] can claim tokens[i]
+      // We expand users to match 1-per-token so proofs is N entries, each a bytes32[] path
+      const claimData = encodeFunctionData({
+        abi: MERKL_DISTRIBUTOR_ABI,
+        functionName: 'claim',
+        args: [
+          claims.map(() => address as `0x${string}`),
+          claims.map(c => c.token as `0x${string}`),
+          claims.map(c => BigInt(c.claimableAmount)),
+          claims.map(c => c.proof as `0x${string}`[]),
+        ],
+      })
+
+      return [
+        {
+          chainId,
+          to: MERKL_DISTRIBUTOR_ADDRESS,
+          data: claimData,
+          value: 0n,
+          description: `Claim Euler rewards on ${chain}`,
+        },
+      ]
+    },
+  } satisfies RewardFetcher,
 }
+

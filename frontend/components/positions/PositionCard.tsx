@@ -9,7 +9,7 @@ import { Tooltip } from "../ui/Tooltip"
 export function PositionCard({ position }: { position: Position }) {
   const [isHarvesting, setIsHarvesting] = useState(false)
   const { plan, isSimulating } = useSequencer()
-  const { harvest } = useHarvest()
+  const { harvest, isSimulating: isHarvestSimulating, isSigning } = useHarvest()
 
   if (position.positionType === 'borrow') {
     return <BorrowCard position={position} />
@@ -29,8 +29,7 @@ export function PositionCard({ position }: { position: Position }) {
     
     setIsHarvesting(true)
     try {
-      // Direct harvest until the sequencer-based harvest template is implemented
-      await harvest(position.id)
+      await harvest(position.protocol as string, position.chain)
     } catch (e) {
       console.error(e)
       alert("An error occurred during harvest")
@@ -97,7 +96,7 @@ export function PositionCard({ position }: { position: Position }) {
                 disabled={!canHarvest || isHarvesting || isSimulating}
                 className="text-sm bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow-sm shadow-emerald-900/20"
               >
-                {isSimulating ? "Simulating..." : isReady ? "Sign Harvest" : "Harvest"}
+                {isHarvestSimulating ? "Simulating..." : isSigning ? "Signing..." : isReady ? "Sign Harvest" : "Harvest"}
               </button>
             </Tooltip>
           )}

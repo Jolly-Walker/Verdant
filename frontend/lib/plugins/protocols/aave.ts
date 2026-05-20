@@ -1,5 +1,5 @@
-import { ProtocolPlugin } from '../types/protocol-plugin'
-import { ChainId, RawPosition, UnsignedTx, TxBuildParams } from '@/types/shared'
+import { ProtocolPlugin, RewardFetcher, ClaimParams } from '../types/protocol-plugin'
+import { ChainId, RawPosition, UnsignedTx, TxBuildParams, Reward } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
@@ -19,6 +19,34 @@ const ERC20_ABI = parseAbi([
   'function decimals() view returns (uint8)',
   'function approve(address spender, uint256 amount) returns (bool)'
 ])
+
+/**
+ * Aave V3 RewardsController ABI (subset used for reward fetching and claiming).
+ * Source: https://github.com/bgd-labs/aave-address-book
+ */
+const AAVE_REWARDS_CONTROLLER_ABI = parseAbi([
+  'function getRewardsByAsset(address asset) view returns (address[])',
+  'function getUserRewards(address[] assets, address user, address reward) view returns (uint256)',
+  'function getUserAssetIndex(address user, address asset, address reward) view returns (uint256)',
+  'function claimAllRewards(address[] assets, address to) returns (address[] rewardsList, uint256[] claimedAmounts)',
+  'function getRewardsData(address asset, address reward) view returns (uint256 index, uint256 distributionEnd, uint256 emissionPerSecond, uint256 lastUpdateTimestamp)'
+])
+
+/**
+ * Aave V3 RewardsController proxy addresses per chain.
+ * Source: https://github.com/bgd-labs/aave-address-book
+ */
+const AAVE_REWARDS_CONTROLLER: Partial<Record<ChainId, string>> = {
+  ethereum: '0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb',
+  arbitrum: '0x929EC64c34a17401F460460D4B9390518E5B473e',
+  base: '0x98820eb0f4641958c27B1E76cd4c66FCC6a9B6Ca',
+}
+
+/**
+ * Minimum claimable USD value to surface a reward to the user.
+ * Prevents noisy sub-cent rewards from showing up.
+ */
+const MIN_REWARD_USD = 0.01
 
 export const aavePlugin: ProtocolPlugin = {
   id: 'aave',
@@ -268,4 +296,178 @@ export const aavePlugin: ProtocolPlugin = {
       return `Aave V3 Action`
     },
   },
+  rewards: {
+    fetchRewards: async (address: string, chain: ChainId): Promise<Reward[]> => {
+      const rewardsController = AAVE_REWARDS_CONTROLLER[chain]
+      const poolAddress = aavePlugin.addresses[chain]?.poolAddress
+      if (!rewardsController || !poolAddress) return []
+
+      const client = getPublicClient(chain)
+      const rewards: Reward[] = []
+
+      try {
+        // Collect all aToken addresses the user might hold
+        const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
+        const aTokenAddresses: string[] = []
+
+        await Promise.all(
+          tokensToQuery.map(async (token) => {
+            try {
+              const result = await client.readContract({
+                address: poolAddress as `0x${string}`,
+                abi: AAVE_POOL_ABI,
+                functionName: 'getReserveData',
+                args: [token.addresses[chain] as `0x${string}`],
+              }) as any
+              const aTokenAddress = result[9] as string
+              if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
+                // Check user has a balance on this aToken
+                const bal = await client.readContract({
+                  address: aTokenAddress as `0x${string}`,
+                  abi: ERC20_ABI,
+                  functionName: 'balanceOf',
+                  args: [address as `0x${string}`],
+                }) as bigint
+                if (bal > 0n) aTokenAddresses.push(aTokenAddress)
+              }
+            } catch {
+              // Ignore tokens with no reserve on this chain
+            }
+          })
+        )
+
+        if (aTokenAddresses.length === 0) return []
+
+        // For each aToken, get its reward list and query claimable amounts
+        const rewardTokenSet = new Set<string>()
+        await Promise.all(
+          aTokenAddresses.map(async (aToken) => {
+            try {
+              const rewardTokens = await client.readContract({
+                address: rewardsController as `0x${string}`,
+                abi: AAVE_REWARDS_CONTROLLER_ABI,
+                functionName: 'getRewardsByAsset',
+                args: [aToken as `0x${string}`],
+              }) as string[]
+              rewardTokens.forEach(r => rewardTokenSet.add(r))
+            } catch {
+              // No rewards configured for this aToken
+            }
+          })
+        )
+
+        if (rewardTokenSet.size === 0) return []
+
+        // Fetch prices for reward tokens
+        // We use a best-effort approach — unknown tokens default to $0 price
+        const priceIds = Array.from(rewardTokenSet).map(r => `token:${r}`)
+        const priceMap = await fetchTokenPrices(priceIds).catch(() => ({} as Record<string, number>))
+
+        // Query claimable amounts per reward token
+        await Promise.all(
+          Array.from(rewardTokenSet).map(async (rewardToken) => {
+            try {
+              const claimable = await client.readContract({
+                address: rewardsController as `0x${string}`,
+                abi: AAVE_REWARDS_CONTROLLER_ABI,
+                functionName: 'getUserRewards',
+                args: [aTokenAddresses as `0x${string}`[], address as `0x${string}`, rewardToken as `0x${string}`],
+              }) as bigint
+
+              if (claimable <= 0n) return
+
+              // Resolve reward token symbol and decimals from our known tokens or fall back
+              const knownToken = Object.values(SUPPORTED_TOKENS).find(
+                t => Object.values(t.addresses).some(a => a?.toLowerCase() === rewardToken.toLowerCase())
+              )
+              const decimals = knownToken?.decimals ?? 18
+              const symbol = knownToken?.symbol ?? rewardToken.slice(0, 6)
+              const amount = Number(claimable) / Math.pow(10, decimals)
+
+              // Attempt price lookup with multiple key formats
+              const priceKey = knownToken
+                ? `coingecko:${knownToken.coingeckoId}`
+                : `token:${rewardToken}`
+              const price = priceMap[priceKey] ?? 0
+              const amountUsd = amount * price
+
+              if (amountUsd >= MIN_REWARD_USD || amount > 0) {
+                rewards.push({ token: symbol, amount: amount.toFixed(8), amountUsd })
+              }
+            } catch (e) {
+              console.error(`[aave] Failed to get rewards for token ${rewardToken}:`, e)
+            }
+          })
+        )
+      } catch (e) {
+        console.error('[aave] fetchRewards error:', e)
+      }
+
+      return rewards
+    },
+
+    buildClaimTx: async (params: ClaimParams): Promise<UnsignedTx[]> => {
+      const { address, chain } = params
+      const rewardsController = AAVE_REWARDS_CONTROLLER[chain]
+      const poolAddress = aavePlugin.addresses[chain]?.poolAddress
+      if (!rewardsController || !poolAddress) {
+        throw new Error(`Aave RewardsController not available on ${chain}`)
+      }
+
+      const client = getPublicClient(chain)
+
+      // Collect aToken addresses with positive balances
+      const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
+      const aTokenAddresses: string[] = []
+
+      await Promise.all(
+        tokensToQuery.map(async (token) => {
+          try {
+            const result = await client.readContract({
+              address: poolAddress as `0x${string}`,
+              abi: AAVE_POOL_ABI,
+              functionName: 'getReserveData',
+              args: [token.addresses[chain] as `0x${string}`],
+            }) as any
+            const aTokenAddress = result[9] as string
+            if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
+              const bal = await client.readContract({
+                address: aTokenAddress as `0x${string}`,
+                abi: ERC20_ABI,
+                functionName: 'balanceOf',
+                args: [address as `0x${string}`],
+              }) as bigint
+              if (bal > 0n) aTokenAddresses.push(aTokenAddress)
+            }
+          } catch {
+            // skip
+          }
+        })
+      )
+
+      const chainMap: Record<ChainId, number> = {
+        ethereum: 1,
+        arbitrum: 42161,
+        base: 8453,
+        solana: 0,
+      }
+      const chainId = chainMap[chain]
+
+      const claimData = encodeFunctionData({
+        abi: AAVE_REWARDS_CONTROLLER_ABI,
+        functionName: 'claimAllRewards',
+        args: [aTokenAddresses as `0x${string}`[], address as `0x${string}`],
+      })
+
+      return [
+        {
+          chainId,
+          to: rewardsController,
+          data: claimData,
+          value: 0n,
+          description: `Claim all Aave V3 rewards on ${chain}`,
+        },
+      ]
+    },
+  } satisfies RewardFetcher,
 }
