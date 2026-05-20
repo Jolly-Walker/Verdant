@@ -1365,36 +1365,36 @@ templates. Replace existing execute flow with sequencer.
 
 ---
 
-### 📋 Milestone 8 — Protocol Integrations: Borrow Actions
+### Milestone 8 — Protocol Integrations: Borrow Actions
 
 **Goal:** Support repay and withdraw actions on Aave and Euler. Enable de-leverage sequences.
 
 **Tasks:**
-- [ ] `lib/plugins/protocols/aave.ts` — add `buildRepayTx()`, `buildWithdrawTx()` to `TxBuilder`
-- [ ] `lib/plugins/protocols/aave.ts` — `fetchPositions()` to include borrow positions with health factor
-- [ ] `lib/plugins/protocols/euler.ts` — add `buildRepayTx()`, `buildWithdrawTx()`
-- [ ] Aave subgraph integration — fetch health factor and debt data server-side
-- [ ] `lib/sequencer/templates/deleverageAave.ts` — compute optimal unwind cycle count
+- [x] `lib/plugins/protocols/aave.ts` — add `buildRepayTx()`, `buildWithdrawTx()` to `TxBuilder`
+- [x] `lib/plugins/protocols/aave.ts` — `fetchPositions()` to include borrow positions with health factor
+- [x] `lib/plugins/protocols/euler.ts` — add `buildRepayTx()`, `buildWithdrawTx()`
+- [x] Aave subgraph integration — fetch health factor and debt data server-side
+- [x] `lib/sequencer/templates/deleverageAave.ts` — compute optimal unwind cycle count
 - [ ] Warning: health factor guard — refuse to build step if resulting HF < 1.05
 - [ ] `components/positions/BorrowCard.tsx` — "De-leverage" button → opens sequence planner
 - [ ] End-to-end test: de-leverage sequence plan creation with mock positions
 
 ---
 
-### 📋 Milestone 9 — Harvest Flow & Rewards (Enhance Existing)
+### Milestone 9 — Harvest Flow & Rewards (Enhance Existing)
 
 **Goal:** Extend harvest to cover all supported protocols and both EVM + Solana.
 
 **Tasks:**
-- [ ] `lib/plugins/protocols/aave.ts` — add `RewardFetcher` (Aave safety module rewards)
-- [ ] `lib/plugins/protocols/morpho.ts` — add `RewardFetcher`
-- [ ] `lib/plugins/protocols/pendle.ts` — add `RewardFetcher` (SY rewards)
-- [ ] `lib/plugins/protocols/euler.ts` — add `RewardFetcher`
-- [ ] Update `/api/rewards` — use plugin registry to fetch across all protocols
-- [ ] Update harvest UI to show per-protocol rewards grouped by chain
-- [ ] Per-step simulation for harvest transactions
-- [ ] Harvest history display in dashboard
-- [ ] Auto-compound settings persist in Supabase (existing schema)
+- [x] `lib/plugins/protocols/aave.ts` — add `RewardFetcher` (Aave safety module rewards)
+- [x] `lib/plugins/protocols/morpho.ts` — add `RewardFetcher`
+- [x] `lib/plugins/protocols/pendle.ts` — add `RewardFetcher` (SY rewards)
+- [x] `lib/plugins/protocols/euler.ts` — add `RewardFetcher`
+- [x] Update `/api/rewards` — use plugin registry to fetch across all protocols
+- [x] Update harvest UI to show per-protocol rewards grouped by chain
+- [x] Per-step simulation for harvest transactions
+- [x] Harvest history display in dashboard
+- [x] Auto-compound settings persist in Supabase (existing schema)
 
 ---
 
@@ -1403,10 +1403,10 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Cost preview handles N-step sequences, not just bridge + deposit.
 
 **Tasks:**
-- [ ] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
-- [ ] Gas estimation for every step via plugin's `estimateGasCostUsd()`
+- [x] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
+- [x] Gas estimation for every step via plugin's `estimateGasCostUsd()`
 - [ ] Bridge fee pulled from winning `BridgeQuote` in plan
-- [ ] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
+- [x] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
 - [ ] Quote staleness tracking per bridge step (60s expiry, orange at 30s)
 - [ ] Disable "Begin Sequence" if any bridge quote is stale
 - [ ] Break-even calculation: accounts for position being partially unwound during de-leverage
