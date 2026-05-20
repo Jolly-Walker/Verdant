@@ -26,5 +26,8 @@ export async function getBridgeQuotes(
   return quotes
     .filter((r): r is PromiseFulfilledResult<BridgeQuote> => r.status === 'fulfilled' && r.value !== null)
     .map(r => r.value)
-    .sort((a, b) => Number(b.expectedOutputAmount) - Number(a.expectedOutputAmount))
+    .sort((a, b) => {
+      const diff = BigInt(b.expectedOutputAmount) - BigInt(a.expectedOutputAmount)
+      return diff > 0n ? 1 : diff < 0n ? -1 : 0
+    })
 }
