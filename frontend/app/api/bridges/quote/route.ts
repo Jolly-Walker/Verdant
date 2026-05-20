@@ -4,6 +4,7 @@ import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 import { ALL_CHAINS, BridgeQuote } from '@/types/shared'
 import { getSupabaseAdmin } from '@/lib/data/supabase'
 import { sortBridgeQuotes } from '@/lib/utils/quotes'
+import { isValidAddress } from '@/lib/utils/chains'
 
 const BridgeQuoteQuerySchema = z.object({
   fromChain: z.enum(ALL_CHAINS),
@@ -12,6 +13,14 @@ const BridgeQuoteQuerySchema = z.object({
   amount: z.string(),
   recipientAddress: z.string(),
   slippagePercent: z.string().optional().default('0.5').transform(v => parseFloat(v)),
+}).superRefine((data, ctx) => {
+  if (!isValidAddress(data.recipientAddress, data.toChain)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['recipientAddress'],
+      message: `Invalid recipient address for ${data.toChain}`,
+    })
+  }
 })
 
 export async function GET(req: NextRequest) {
