@@ -28,12 +28,14 @@ interface BridgeQuoteSelectorProps {
   quotes: BridgeQuote[];
   selectedId: BridgeId | null;
   onSelect: (quote: BridgeQuote) => void;
+  amountUsd: number;
 }
 
 export function BridgeQuoteSelector({
   quotes,
   selectedId,
   onSelect,
+  amountUsd,
 }: BridgeQuoteSelectorProps) {
   if (quotes.length === 0) {
     return (
@@ -51,6 +53,8 @@ export function BridgeQuoteSelector({
       {quotes.map((quote) => {
         const metadata = BRIDGE_METADATA[quote.bridgeId];
         const isSelected = selectedId === quote.bridgeId;
+        const feePercent = (quote.feeUsd / amountUsd) * 100;
+        const isHighFee = feePercent > 0.5;
 
         return (
           <button
@@ -67,9 +71,16 @@ export function BridgeQuoteSelector({
             >
               <div className="flex justify-between items-start mb-1">
                 <span className="font-semibold text-white">{metadata.name}</span>
-                <span className="font-bold text-emerald-400">
-                  {formatUsd(quote.feeUsd)}
-                </span>
+                <div className="text-right">
+                  <div className="font-bold text-emerald-400">
+                    {formatUsd(quote.feeUsd)}
+                  </div>
+                  {isHighFee && (
+                    <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">
+                      HIGH FEE: {feePercent.toFixed(2)}%
+                    </span>
+                  )}
+                </div>
               </div>
               <p className="text-xs text-zinc-400 mb-2">{metadata.description}</p>
               <div className="flex justify-between items-center text-[10px] text-zinc-500 uppercase">

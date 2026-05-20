@@ -250,7 +250,7 @@ export interface BridgePlugin {
 
 export type ChainId = 'ethereum' | 'arbitrum' | 'base' | 'solana'
 export type ProtocolId = 'aave' | 'morpho' | 'pendle' | 'euler' | string
-export type BridgeId = 'across' | 'layerzero' | 'nearIntents'
+export type BridgeId = 'across' | 'layerzero' | 'nearIntents' | 'chainlink'
 export type TokenSymbol = 'ETH' | 'USDC' | 'USDT' | 'WBTC' | 'wstETH' | 'SOL' | string
 
 export type PositionType =
@@ -680,6 +680,7 @@ GET /api/sequencer/plan/{planId}
 | Across Protocol | ETH, USDC, USDT, WBTC | ETH↔ARB, ETH↔Base, ARB↔Base | Primary EVM bridge |
 | LayerZero (OFT) | USDC (CCTP) | ETH↔ARB, ETH↔Base, ARB↔Base, any→SOL | USDC cross-chain; EVM→Solana |
 | NEAR Intents | ETH, USDC, SOL | ETH↔SOL, ARB↔SOL, Base↔SOL | EVM→Solana primary |
+| Chainlink CCIP | LINK, USDC, ETH | ETH↔ARB, ETH↔Base, ARB↔Base | Secure institutional-grade bridge |
 
 **Token bridge matrix:**
 

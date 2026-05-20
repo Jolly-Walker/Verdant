@@ -110,7 +110,7 @@ export async function simulateTransaction(params: {
     
     // 1. Use alchemy_simulateExecution to get detailed trace and asset changes
     const result = await client.request({
-      // @ts-ignore - alchemy_simulateExecution is an Alchemy extension
+      // @ts-expect-error - alchemy_simulateExecution is an Alchemy extension
       method: 'alchemy_simulateExecution',
       params: [{
         from: params.from as `0x${string}`,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSignTypedData, useAccount } from 'wagmi';
+import { useSendTransaction, useAccount } from 'wagmi';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
 import { useBridges } from '@/hooks/useBridges';
 import { BridgeQuote, ChainId } from '@/types/shared';
@@ -13,6 +13,7 @@ interface StepOneBridgeProps {
   toChain: ChainId;
   token: string;
   amount: string;
+  amountUsd: number;
   onComplete: (txHash: string) => void;
 }
 
@@ -21,10 +22,11 @@ export function StepOneBridge({
   toChain,
   token,
   amount,
+  amountUsd,
   onComplete,
 }: StepOneBridgeProps) {
   const { address } = useAccount();
-  const { getQuotes, pollStatus } = useBridges();
+  const { getQuotes, pollStatus, buildTransaction } = useBridges();
   const [quotes, setQuotes] = useState<BridgeQuote[]>([]);
   const [selectedQuote, setSelectedQuote] = useState<BridgeQuote | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -32,17 +34,9 @@ export function StepOneBridge({
   const [txHash, setTxHash] = useState<string | null>(null);
   const [bridgeStatus, setBridgeStatus] = useState<'pending' | 'complete' | 'failed'>('pending');
   const [trackingUrl, setTrackingUrl] = useState<string | null>(null);
+  const [isBuildingTx, setIsBuildingTx] = useState(false);
 
-  const { signTypedData, isLoading: isSigning } = useSignTypedData({
-    mutation: {
-      onSuccess: (hash) => {
-        setTxHash(hash);
-      },
-      onError: (err) => {
-        setError(err.message);
-      },
-    }
-  });
+  const { sendTransactionAsync, isLoading: isPending } = useSendTransaction();
 
   useEffect(() => {
     async function fetchQuotes() {
@@ -102,18 +96,28 @@ export function StepOneBridge({
     return () => clearInterval(interval);
   }, [txHash, fromChain, pollStatus, onComplete, bridgeStatus, selectedQuote]);
 
-  const handleBridge = () => {
+  const handleBridge = async () => {
     if (!selectedQuote) return;
     
-    // In a real implementation, we'd use buildBridgeTx from the plugin
-    // and then send the transaction. For now, we simulate signing.
-    // @ts-expect-error - mock signing
-    signTypedData({
-      domain: {},
-      types: {},
-      primaryType: 'Deposit',
-      message: {},
-    });
+    setIsBuildingTx(true);
+    setError(null);
+    try {
+      const serializedTx = await buildTransaction(selectedQuote.bridgeId, selectedQuote);
+      
+      const hash = await sendTransactionAsync({
+        to: serializedTx.to as `0x${string}`,
+        data: serializedTx.data as `0x${string}`,
+        value: BigInt(serializedTx.value),
+        chainId: Number(serializedTx.chainId),
+      });
+
+      setTxHash(hash);
+    } catch (err: unknown) {
+      console.error('[StepOneBridge] Bridge failed:', err);
+      setError(err instanceof Error ? err.message : 'Bridge transaction failed');
+    } finally {
+      setIsBuildingTx(false);
+    }
   };
 
   if (isLoading) {
@@ -133,6 +137,8 @@ export function StepOneBridge({
     );
   }
 
+  const isSigning = isBuildingTx || isPending;
+
   return (
     <div className="space-y-6 mt-4">
       {!txHash ? (
@@ -141,6 +147,7 @@ export function StepOneBridge({
             quotes={quotes}
             selectedId={selectedQuote?.bridgeId || null}
             onSelect={setSelectedQuote}
+            amountUsd={amountUsd}
           />
 
           <button

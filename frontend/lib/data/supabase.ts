@@ -1,11 +1,19 @@
 import 'server-only'
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://mock-project.supabase.co';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'mock-anon-key';
+let _client: ReturnType<typeof createClient> | null = null
 
-// Creating a single supabase client instance
-export const supabase = createClient(supabaseUrl, supabaseKey);
+/**
+ * Lazy-initialized public client.
+ */
+export function getSupabase() {
+  if (_client) return _client
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) throw new Error('Supabase env vars not configured')
+  _client = createClient(url, key)
+  return _client
+}
 
 let _adminClient: ReturnType<typeof createClient> | null = null
 
@@ -39,7 +47,7 @@ export interface ExecutionRecord {
  * Creates a new execution history row in pending state.
  */
 export async function createExecutionHistory(record: ExecutionRecord) {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('execution_history')
     .insert([{ ...record, status: 'pending' }])
     .select()
@@ -57,7 +65,7 @@ export async function createExecutionHistory(record: ExecutionRecord) {
  * Updates the execution history row after step 1 (Bridge) is signed.
  */
 export async function updateExecutionStep1(id: string, txHash: string) {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('execution_history')
     .update({ tx_hash_step1: txHash, status: 'step1_complete' })
     .eq('id', id);
@@ -71,7 +79,7 @@ export async function updateExecutionStep1(id: string, txHash: string) {
  * Updates the execution history row after step 2 (Deposit) is complete.
  */
 export async function updateExecutionStep2(id: string, txHash: string) {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('execution_history')
     .update({ 
       tx_hash_step2: txHash, 
@@ -89,7 +97,7 @@ export async function updateExecutionStep2(id: string, txHash: string) {
  * Marks the execution as failed.
  */
 export async function markExecutionFailed(id: string) {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('execution_history')
     .update({ status: 'failed' })
     .eq('id', id);

@@ -24,6 +24,9 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+output.json
+get-aave-whale.ts
+*.txt
 
 # local env files
 .env*.local

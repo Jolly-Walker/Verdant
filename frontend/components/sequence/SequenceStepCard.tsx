@@ -43,13 +43,14 @@ export function SequenceStepCard({
   const renderStepContent = () => {
     if (step.id === 'bridge' && isCurrent && step.status === 'ready') {
       // @ts-expect-error - bridge params structure
-      const { fromChain, toChain, token, amount } = step.buildParams;
+      const { fromChain, toChain, token, amount, amountUsd } = step.buildParams;
       return (
         <StepOneBridge
           fromChain={fromChain as ChainId}
           toChain={toChain as ChainId}
           token={token as string}
           amount={amount as string}
+          amountUsd={amountUsd as number}
           onComplete={(hash) => signStep(step.id, hash)}
         />
       );
