@@ -1,11 +1,25 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
 import { chainlinkBridgePlugin } from '../chainlink'
 import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
+import { getPublicClient } from '@/lib/server/rpc'
+
+vi.mock('@/lib/server/rpc', () => ({
+  getPublicClient: vi.fn(),
+}))
 
 describe('chainlinkBridgePlugin', () => {
+  const mockPublicClient = {
+    readContract: vi.fn(),
+  }
+
+  beforeEach(() => {
+    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as any)
+    mockPublicClient.readContract.mockResolvedValue(1000000000000000n) // 0.001 ETH fee
+  })
+
   const mockQuoteParams: BridgeQuoteParams = {
     fromChain: 'ethereum',
     toChain: 'arbitrum',
@@ -20,7 +34,7 @@ describe('chainlinkBridgePlugin', () => {
 
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('chainlink')
-    expect(quote?.feeUsd).toBe(2.50)
+    expect(quote?.feeUsd).toBe(2.5)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.destSelector).toBe(4949039107694359620n)
 
@@ -39,7 +53,7 @@ describe('chainlinkBridgePlugin', () => {
 
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('chainlink')
-    expect(quote?.feeUsd).toBe(2.50)
+    expect(quote?.feeUsd).toBe(2.5)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.token).toBe('LINK')
     // @ts-expect-error - accessing rawQuote
@@ -49,7 +63,7 @@ describe('chainlinkBridgePlugin', () => {
   it('should build a bridge transaction for ERC20 correctly', async () => {
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'chainlink',
-      feeUsd: 2.50,
+      feeUsd: 2.5,
       estimatedTimeSeconds: 900,
       expectedOutputAmount: '100000000',
       slippagePercent: 0.1,
@@ -60,7 +74,7 @@ describe('chainlinkBridgePlugin', () => {
         toChain: 'arbitrum',
         token: 'USDC',
         amount: '100000000',
-        recipientAddress: '0x1234567890123456789012345678901234567890'
+        recipientAddress: '0x1234567890123456789012345678901234567890',
       },
     }
 
@@ -69,16 +83,23 @@ describe('chainlinkBridgePlugin', () => {
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d')
     expect(tx.data).toBeDefined()
-    expect(tx.value).toBe(0n)
+    expect(tx.value).toBe(1000000000000000n) // Just the fee
     expect(tx.description).toContain('Bridge USDC')
+    expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: 'getFee',
+      })
+    )
   })
 
   it('should build a bridge transaction for ETH correctly', async () => {
+    const amount = 1000000000000000000n
+    const fee = 1000000000000000n
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'chainlink',
-      feeUsd: 2.50,
+      feeUsd: 2.5,
       estimatedTimeSeconds: 900,
-      expectedOutputAmount: '1000000000000000000',
+      expectedOutputAmount: amount.toString(),
       slippagePercent: 0.1,
       expiresAt: new Date(),
       rawQuote: {
@@ -86,22 +107,22 @@ describe('chainlinkBridgePlugin', () => {
         fromChain: 'ethereum',
         toChain: 'arbitrum',
         token: 'ETH',
-        amount: '1000000000000000000',
-        recipientAddress: '0x1234567890123456789012345678901234567890'
+        amount: amount.toString(),
+        recipientAddress: '0x1234567890123456789012345678901234567890',
       },
     }
 
     const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
 
     expect(tx.chainId).toBe(1)
-    expect(tx.value).toBe(1000000000000000000n)
+    expect(tx.value).toBe(amount + fee) // Amount + fee
     expect(tx.description).toContain('Bridge ETH')
   })
 
   it('should build a bridge transaction for LINK correctly', async () => {
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'chainlink',
-      feeUsd: 2.50,
+      feeUsd: 2.5,
       estimatedTimeSeconds: 900,
       expectedOutputAmount: '1000000000000000000',
       slippagePercent: 0.1,
@@ -112,7 +133,7 @@ describe('chainlinkBridgePlugin', () => {
         toChain: 'arbitrum',
         token: 'LINK',
         amount: '1000000000000000000',
-        recipientAddress: '0x1234567890123456789012345678901234567890'
+        recipientAddress: '0x1234567890123456789012345678901234567890',
       },
     }
 
@@ -121,7 +142,7 @@ describe('chainlinkBridgePlugin', () => {
     expect(tx.chainId).toBe(1)
     expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d')
     expect(tx.data).toBeDefined()
-    expect(tx.value).toBe(0n)
+    expect(tx.value).toBe(1000000000000000n) // Just the fee
     expect(tx.description).toContain('Bridge LINK')
   })
 })

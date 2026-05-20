@@ -3,7 +3,9 @@ import { BridgePlugin } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
-import { encodeFunctionData, encodeAbiParameters, parseAbiParameters, Hex } from 'viem'
+import { encodeFunctionData, encodeAbiParameters, parseAbiParameters, Hex, concat } from 'viem'
+import { getPublicClient } from '@/lib/server/rpc'
+import { getChainId } from '@/lib/utils/chains'
 
 const CCIP_ROUTERS: Partial<Record<ChainId, string>> = {
   ethereum: '0x80226fc079A2dea56C78548F56E2e88ba1146f7d',
@@ -47,6 +49,36 @@ const ROUTER_ABI = [
   },
 ] as const
 
+const GET_FEE_ABI = [
+  {
+    name: 'getFee',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'destinationChainSelector', type: 'uint64' },
+      {
+        name: 'message',
+        type: 'tuple',
+        components: [
+          { name: 'receiver', type: 'bytes' },
+          { name: 'data', type: 'bytes' },
+          {
+            name: 'tokenAmounts',
+            type: 'tuple[]',
+            components: [
+              { name: 'token', type: 'address' },
+              { name: 'amount', type: 'uint256' },
+            ],
+          },
+          { name: 'feeToken', type: 'address' },
+          { name: 'extraArgs', type: 'bytes' },
+        ],
+      },
+    ],
+    outputs: [{ name: 'fee', type: 'uint256' }],
+  },
+] as const
+
 interface ChainlinkRawQuote {
   destSelector: bigint
   fromChain: ChainId
@@ -75,7 +107,7 @@ export const chainlinkBridgePlugin: BridgePlugin = {
     if (!destSelector) return null
 
     // Placeholder fee for CCIP. Real fee depends on destination gas and token prices.
-    const feeUsd = 2.50
+    const feeUsd = 2.5
 
     return {
       bridgeId: 'chainlink',
@@ -109,37 +141,48 @@ export const chainlinkBridgePlugin: BridgePlugin = {
     const receiver = encodeAbiParameters(parseAbiParameters('address'), [recipientAddress as Hex])
 
     // CCIP token amounts
-    const tokenAmounts = token === 'ETH' ? [] : [
-      {
-        token: tokenAddress as Hex,
-        amount: BigInt(amount),
-      }
-    ]
+    const tokenAmounts =
+      token === 'ETH'
+        ? []
+        : [
+            {
+              token: tokenAddress as Hex,
+              amount: BigInt(amount),
+            },
+          ]
 
     // Default extra args for EVM (gas limit 200k)
     // 0x97a65719 = EVM extra args v1 tag
-    const extraArgs = encodeAbiParameters(parseAbiParameters('bytes4, uint256'), ['0x97a65719', 200000n])
+    const extraArgs = concat(['0x97a65719', encodeAbiParameters(parseAbiParameters('uint256'), [200000n])])
+
+    const message = {
+      receiver,
+      data: '0x' as Hex,
+      tokenAmounts,
+      feeToken: '0x0000000000000000000000000000000000000000' as Hex, // pay in native
+      extraArgs,
+    }
+
+    // Fetch the required native fee from the router
+    const client = getPublicClient(fromChain)
+    const fee = await client.readContract({
+      address: routerAddress as Hex,
+      abi: GET_FEE_ABI,
+      functionName: 'getFee',
+      args: [destSelector, message],
+    })
 
     const data = encodeFunctionData({
       abi: ROUTER_ABI,
       functionName: 'ccipSend',
-      args: [
-        destSelector,
-        {
-          receiver,
-          data: '0x',
-          tokenAmounts,
-          feeToken: '0x0000000000000000000000000000000000000000', // pay in native
-          extraArgs,
-        },
-      ],
+      args: [destSelector, message],
     })
 
     return {
-      chainId: fromChain === 'ethereum' ? 1 : fromChain === 'arbitrum' ? 42161 : 8453,
+      chainId: getChainId(fromChain),
       to: routerAddress,
       data,
-      value: token === 'ETH' ? BigInt(amount) : BigInt(0), // Value also needs to cover the fee! 
+      value: token === 'ETH' ? BigInt(amount) + fee : fee,
       description: `Bridge ${token} via Chainlink CCIP`,
     }
   },
