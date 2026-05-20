@@ -132,4 +132,46 @@ describe('acrossBridgePlugin', () => {
     expect(status.status).toBe('complete')
     expect(status.destinationTxHash).toBe('0xabc')
   })
+
+  it('should return null if getQuote times out', async () => {
+    // Mock fetch to hang and handle abort signal
+    ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener('abort', () => {
+            reject(new Error('The user aborted a request.'))
+          })
+        }
+      })
+    })
+
+    const quotePromise = acrossBridgePlugin.getQuote(mockQuoteParams)
+    
+    // Advance timers by 8001ms to trigger timeout
+    await vi.advanceTimersByTimeAsync(8001)
+    
+    const quote = await quotePromise
+    expect(quote).toBeNull()
+  }, 15000)
+
+  it('should return pending if pollStatus times out', async () => {
+    // Mock fetch to hang and handle abort signal
+    ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener('abort', () => {
+            reject(new Error('The user aborted a request.'))
+          })
+        }
+      })
+    })
+
+    const statusPromise = acrossBridgePlugin.pollStatus('0x123', 'ethereum')
+
+    // Advance timers by 8001ms to trigger timeout
+    await vi.advanceTimersByTimeAsync(8001)
+
+    const status = await statusPromise
+    expect(status.status).toBe('pending')
+  }, 15000)
 })

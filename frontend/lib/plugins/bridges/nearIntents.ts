@@ -4,6 +4,7 @@ import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } fro
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 import { encodeFunctionData, Hex } from 'viem'
+import { fetchWithTimeout } from '@/lib/utils/fetch'
 
 const DEFUSE_RPC_URL = 'https://bridge.chaindefuser.com/rpc'
 
@@ -58,7 +59,7 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     if (!defuseChain) return null
 
     try {
-      const response = await fetch(DEFUSE_RPC_URL, {
+      const response = await fetchWithTimeout(DEFUSE_RPC_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,6 +68,7 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
           method: 'deposit_address',
           params: [{ account_id: recipientAddress, chain: defuseChain }],
         }),
+        timeout: 8000,
       })
 
       if (!response.ok) return null

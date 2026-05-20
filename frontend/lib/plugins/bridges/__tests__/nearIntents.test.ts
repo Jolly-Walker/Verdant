@@ -140,4 +140,25 @@ describe('nearIntentsBridgePlugin', () => {
     const status = await nearIntentsBridgePlugin.pollStatus('0x123', 'ethereum')
     expect(status.status).toBe('pending')
   })
+
+  it('should return null if getQuote times out', async () => {
+    // Mock fetch to hang and handle abort signal
+    ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {
+      return new Promise((_resolve, reject) => {
+        if (options?.signal) {
+          options.signal.addEventListener('abort', () => {
+            reject(new Error('The user aborted a request.'))
+          })
+        }
+      })
+    })
+
+    const quotePromise = nearIntentsBridgePlugin.getQuote(mockQuoteParams)
+    
+    // Advance timers by 8001ms to trigger timeout
+    await vi.advanceTimersByTimeAsync(8001)
+    
+    const quote = await quotePromise
+    expect(quote).toBeNull()
+  }, 15000)
 })

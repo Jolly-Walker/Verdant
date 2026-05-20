@@ -5,6 +5,7 @@ import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { encodeFunctionData, formatUnits } from 'viem'
+import { fetchWithTimeout } from '@/lib/utils/fetch'
 
 const CHAIN_ID_MAP: Record<ChainId, number> = {
   ethereum: 1,
@@ -87,7 +88,7 @@ export const acrossBridgePlugin: BridgePlugin = {
     try {
       const url = `https://app.across.to/api/suggested-fees?inputToken=${inputToken}&outputToken=${outputToken}&originChainId=${originChainId}&destinationChainId=${destinationChainId}&amount=${amount}&recipient=${recipientAddress}`
       
-      const response = await fetch(url)
+      const response = await fetchWithTimeout(url, { timeout: 8000 })
       if (!response.ok) return null
 
       const data = await response.json()
@@ -176,7 +177,8 @@ export const acrossBridgePlugin: BridgePlugin = {
 
   async pollStatus(txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
     try {
-      const response = await fetch(`https://across.to/api/deposit/status?originTransactionHash=${txHash}`, {
+      const response = await fetchWithTimeout(`https://across.to/api/deposit/status?originTransactionHash=${txHash}`, {
+        timeout: 8000,
         cache: 'no-store'
       })
 
