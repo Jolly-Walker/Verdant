@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 import { chainlinkBridgePlugin } from '../chainlink'
-import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
+import { BridgeQuoteParams, BridgeQuote, ChainId } from '@/types/shared'
 import { getPublicClient } from '@/lib/server/rpc'
 
 vi.mock('@/lib/server/rpc', () => ({
@@ -16,7 +16,7 @@ describe('chainlinkBridgePlugin', () => {
   }
 
   beforeEach(() => {
-    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as any)
+    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as unknown as ReturnType<typeof getPublicClient>)
     mockPublicClient.readContract.mockResolvedValue(1000000000000000n) // 0.001 ETH fee
   })
 
@@ -164,7 +164,7 @@ describe('chainlinkBridgePlugin', () => {
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'chainlink',
       rawQuote: {
-        fromChain: 'solana' as any,
+        fromChain: 'solana' as unknown as ChainId,
         token: 'USDC',
         amount: '1000000',
         destSelector: 4949039107694359620n

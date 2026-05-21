@@ -1,9 +1,7 @@
 import 'server-only'
-import { parseAbi, parseUnits, formatUnits } from 'viem'
+import { formatUnits } from 'viem'
 import { ChainId, ProtocolId } from '@/types/shared'
-import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { SimulationResult, StateChange } from '@/types/sequencer'
 import { decodeRevertReason } from './errors'
 import { VersionedTransaction } from '@solana/web3.js'
@@ -21,7 +19,7 @@ interface AlchemySimulateResult {
  * Estimates the gas required to bridge an asset.
  * Refactored to use ChainPlugin's estimation logic.
  */
-export async function estimateBridgeGas(sourceChain: ChainId, asset: string): Promise<number> {
+export async function estimateBridgeGas(sourceChain: ChainId, _asset: string): Promise<number> {
   const plugin = CHAIN_REGISTRY[sourceChain]
   if (!plugin) return 65_000
 
@@ -33,7 +31,7 @@ export async function estimateBridgeGas(sourceChain: ChainId, asset: string): Pr
 /**
  * Estimates the gas required to deposit into a protocol.
  */
-export async function estimateDepositGas(destChain: ChainId, protocol: ProtocolId, asset: string): Promise<number> {
+export async function estimateDepositGas(destChain: ChainId, _protocol: ProtocolId, _asset: string): Promise<number> {
   const plugin = CHAIN_REGISTRY[destChain]
   if (!plugin) return 250_000
 

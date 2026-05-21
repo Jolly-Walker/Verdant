@@ -42,7 +42,7 @@ describe('Aave V3 Protocol Plugin', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as any)
+    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as unknown as ReturnType<typeof getPublicClient>)
   })
 
   describe('fetchPositions', () => {
@@ -76,7 +76,7 @@ describe('Aave V3 Protocol Plugin', () => {
         }
       })
 
-      mockPublicClient.readContract.mockResolvedValue([
+      mockPublicClient.readContract.mockResolvedValue(Object.assign([
         0n, 0n, 0n, 0n,
         50000000000000000000000000n,
         60000000000000000000000000n,
@@ -85,7 +85,12 @@ describe('Aave V3 Protocol Plugin', () => {
         '0xStableDebtTokenAddress',
         '0xVariableDebtTokenAddress',
         '0xStrategyAddress'
-      ])
+      ], {
+        currentLiquidityRate: 50000000000000000000000000n,
+        currentVariableBorrowRate: 60000000000000000000000000n,
+        aTokenAddress: '0xATokenAddress',
+        variableDebtTokenAddress: '0xVariableDebtTokenAddress'
+      }))
 
       const positions = await aavePlugin.fetcher.fetchPositions('0x1234567890123456789012345678901234567890', 'arbitrum')
 
@@ -96,11 +101,15 @@ describe('Aave V3 Protocol Plugin', () => {
     })
 
     it('should return positions when balances exist', async () => {
-      mockPublicClient.readContract.mockResolvedValueOnce([1000000n, 500000n, 0n, 0n, 0n, 0n])
+      mockPublicClient.readContract.mockResolvedValueOnce(Object.assign([1000000n, 500000n, 0n, 0n, 0n, 0n], {
+        totalCollateralBase: 1000000n,
+        totalDebtBase: 500000n,
+        healthFactor: 0n
+      }))
 
-      mockPublicClient.readContract.mockImplementation(async ({ functionName, args, address }: any) => {
+      mockPublicClient.readContract.mockImplementation(async ({ functionName, address }: { functionName: string, address?: string }) => {
         if (functionName === 'getReserveData') {
-          return [
+          return Object.assign([
             0n, 0n, 0n, 0n,
             50000000000000000000000000n,
             60000000000000000000000000n,
@@ -109,7 +118,12 @@ describe('Aave V3 Protocol Plugin', () => {
             '0xStableDebtTokenAddress',
             '0xVariableDebtTokenAddress',
             '0xStrategyAddress'
-          ]
+          ], {
+            currentLiquidityRate: 50000000000000000000000000n,
+            currentVariableBorrowRate: 60000000000000000000000000n,
+            aTokenAddress: '0xATokenAddress',
+            variableDebtTokenAddress: '0xVariableDebtTokenAddress'
+          })
         }
         if (functionName === 'balanceOf') {
           if (address === '0xATokenAddress') return 1000000000n
@@ -170,9 +184,11 @@ describe('Aave V3 Protocol Plugin', () => {
   describe('rewards.fetchRewards', () => {
     it('should return empty array when user holds no aTokens', async () => {
       // getUserAccountData → no positions
-      mockPublicClient.readContract.mockImplementation(async ({ functionName }: any) => {
+      mockPublicClient.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
         if (functionName === 'getReserveData') {
-          return [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, '0xAToken', '0x', '0x', '0x']
+          return Object.assign([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, '0xAToken', '0x', '0x', '0x'], {
+            aTokenAddress: '0xAToken'
+          })
         }
         if (functionName === 'balanceOf') return 0n
         return []
@@ -190,9 +206,11 @@ describe('Aave V3 Protocol Plugin', () => {
       const ATOKEN = '0x1111111111111111111111111111111111111111'
       const REWARD_TOKEN = '0x2222222222222222222222222222222222222222'
 
-      mockPublicClient.readContract.mockImplementation(async ({ functionName, address, args }: any) => {
+      mockPublicClient.readContract.mockImplementation(async ({ functionName, address }: { functionName: string, address: string }) => {
         if (functionName === 'getReserveData') {
-          return [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, ATOKEN, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000']
+          return Object.assign([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, ATOKEN, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000'], {
+            aTokenAddress: ATOKEN
+          })
         }
         if (functionName === 'balanceOf') {
           if (address === ATOKEN) return 1000000000n // user holds aTokens
@@ -216,9 +234,11 @@ describe('Aave V3 Protocol Plugin', () => {
       const USER = '0x1234567890123456789012345678901234567890'
       const ATOKEN = '0x1111111111111111111111111111111111111111'
 
-      mockPublicClient.readContract.mockImplementation(async ({ functionName, address }: any) => {
+      mockPublicClient.readContract.mockImplementation(async ({ functionName, address }: { functionName: string, address: string }) => {
         if (functionName === 'getReserveData') {
-          return [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, ATOKEN, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000']
+          return Object.assign([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, ATOKEN, '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000'], {
+            aTokenAddress: ATOKEN
+          })
         }
         if (functionName === 'balanceOf') {
           return address === ATOKEN ? 1000000n : 0n
@@ -233,9 +253,11 @@ describe('Aave V3 Protocol Plugin', () => {
     })
 
     it('should return empty array when user holds no aTokens (nothing to claim)', async () => {
-      mockPublicClient.readContract.mockImplementation(async ({ functionName }: any) => {
+      mockPublicClient.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
         if (functionName === 'getReserveData') {
-          return [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, '0x1111111111111111111111111111111111111111', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000']
+          return Object.assign([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, '0x1111111111111111111111111111111111111111', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000'], {
+            aTokenAddress: '0x1111111111111111111111111111111111111111'
+          })
         }
         return 0n
       })
@@ -265,9 +287,9 @@ describe('Euler V2 Protocol Plugin', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as any)
+    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as unknown as ReturnType<typeof getPublicClient>)
     vi.mocked(fetchMerklClaims).mockResolvedValue([])
-    ;(global.fetch as any).mockResolvedValue({
+    vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ coins: {} }),
     })
@@ -275,7 +297,7 @@ describe('Euler V2 Protocol Plugin', () => {
 
   describe('fetchPositions', () => {
     it('should fetch supply and borrow positions correctly', async () => {
-      mockPublicClient.readContract.mockImplementation(async ({ functionName, address }: any) => {
+      mockPublicClient.readContract.mockImplementation(async ({ functionName, address }: { functionName: string, address: string }) => {
         if (functionName === 'balanceOf' && address === EULER_CURATED_VAULTS.USDC) return 1000000000n
         if (functionName === 'convertToAssets') return 1000000000n
         if (functionName === 'debtOf' && address === EULER_CURATED_VAULTS.USDC) return 500000000n
@@ -357,7 +379,7 @@ describe('Euler V2 Protocol Plugin', () => {
           proof: ['0xabcd000000000000000000000000000000000000000000000000000000000000'],
         },
       ])
-      ;(global.fetch as any).mockResolvedValue({
+      vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         json: async () => ({
           coins: { 'ethereum:0x3333333333333333333333333333333333333333': { price: 5.0 } },
@@ -417,7 +439,7 @@ describe('Morpho Protocol Plugin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(fetchMerklClaims).mockResolvedValue([])
-    ;(global.fetch as any).mockResolvedValue({
+    vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ coins: {} }),
     })
@@ -443,7 +465,7 @@ describe('Morpho Protocol Plugin', () => {
           proof: ['0xaabb000000000000000000000000000000000000000000000000000000000000'],
         },
       ])
-      ;(global.fetch as any).mockResolvedValue({
+      vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         json: async () => ({
           coins: { 'ethereum:0x5555555555555555555555555555555555555555': { price: 1.5 } },
@@ -508,7 +530,7 @@ describe('Pendle Protocol Plugin', () => {
     })
 
     it('should return empty when Pendle API returns no positions with pending yield', async () => {
-      ;(global.fetch as any).mockResolvedValue({
+      vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         json: async () => ({ balances: [] }),
       })
@@ -520,7 +542,7 @@ describe('Pendle Protocol Plugin', () => {
     })
 
     it('should return rewards when Pendle API reports pending yields', async () => {
-      ;(global.fetch as any).mockResolvedValue({
+      vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         json: async () => ({
           balances: [
@@ -555,7 +577,7 @@ describe('Pendle Protocol Plugin', () => {
     })
 
     it('should build redeemDueInterestAndRewards transactions for each YT market', async () => {
-      ;(global.fetch as any).mockResolvedValue({
+      vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         json: async () => ({
           balances: [

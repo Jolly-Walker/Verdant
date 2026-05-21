@@ -1395,6 +1395,7 @@ templates. Replace existing execute flow with sequencer.
 - [x] Per-step simulation for harvest transactions
 - [x] Harvest history display in dashboard
 - [x] Auto-compound settings persist in Supabase (existing schema)
+  - *Note: Auto-compound is currently a preference store only. No background executor exists to perform the harvests automatically. This is a known limitation.*
 
 ---
 

@@ -2,12 +2,11 @@ import 'server-only'
 import { CostPreviewInput, CostPreviewResult, StepCost } from '@/types/quote'
 import { SequencePlan, SequenceStep } from '@/types/sequencer'
 import { findPoolApy } from '@/lib/data/defillama'
-import { getEthPrice, fetchTokenPrices } from '@/lib/data/prices'
+import { getEthPrice } from '@/lib/data/prices'
 import { detectWarnings } from '@/lib/utils/warnings'
 import { fetchGasPrice } from '@/lib/server/rpc'
 import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
 
 /**
  * Calculate gas cost in USD for a given number of gas units on a chain.
@@ -36,7 +35,8 @@ async function getBridgeFee(step: SequenceStep, amountUsd: number): Promise<numb
   if (!bridgePlugin) return 0
 
   // Fallback estimate for now
-  const asset = (step.buildParams as any).token || 'USDC'
+  const buildParams = step.buildParams
+  const asset = 'token' in buildParams ? buildParams.token : ('asset' in buildParams ? buildParams.asset : 'USDC')
   const isStable = ['USDC', 'USDT'].includes(asset.toUpperCase())
   const rate = isStable ? 0.0006 : 0.0012
   return amountUsd * rate

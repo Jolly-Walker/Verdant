@@ -32,34 +32,23 @@ const EVM_CHAIN_IDS: Record<string, number> = {
   base: 8453,
 }
 
-interface PendleMarket {
-  address: string
-  yt: { address: string }
-  sy: { address: string }
-  underlyingAsset: { symbol: string; decimals: number; price?: { usd: number } }
-}
-
 interface PendleUserPosition {
   marketAddress: string
   ytAddress: string
   pendingYield?: { token: string; amount: number; amountUsd: number }
 }
 
-/**
- * Fetches Pendle markets for a chain.
- */
-async function fetchPendleMarkets(chainId: number): Promise<PendleMarket[]> {
-  try {
-    const url = `${PENDLE_API_BASE}/${chainId}/markets?limit=100`
-    const res = await fetch(url, {
-      next: { revalidate: 300 },
-      signal: AbortSignal.timeout(15_000),
-    })
-    if (!res.ok) return []
-    const data = await res.json()
-    return data.results ?? []
-  } catch {
-    return []
+interface PendleBalance {
+  ytBalance?: string | number
+  market?: { address: string }
+  marketAddress?: string
+  yt?: { address: string }
+  ytAddress?: string
+  underlyingAsset?: string
+  pendingYield?: {
+    token?: { symbol: string }
+    amount?: string | number
+    amountUsd?: string | number
   }
 }
 
@@ -80,12 +69,12 @@ async function fetchPendleUserRewards(
     const data = await res.json()
 
     // Pendle API response structure: { balances: [{ market, ytBalance, pendingYields }] }
-    const balances = data.balances ?? data.results ?? []
+    const balances: PendleBalance[] = data.balances ?? data.results ?? []
     return balances
-      .filter((b: any) => Number(b.ytBalance ?? 0) > 0 || Number(b.pendingYield?.amount ?? 0) > 0)
-      .map((b: any) => ({
-        marketAddress: b.market?.address ?? b.marketAddress,
-        ytAddress: b.yt?.address ?? b.ytAddress,
+      .filter((b) => Number(b.ytBalance ?? 0) > 0 || Number(b.pendingYield?.amount ?? 0) > 0)
+      .map((b) => ({
+        marketAddress: b.market?.address ?? b.marketAddress ?? '',
+        ytAddress: b.yt?.address ?? b.ytAddress ?? '',
         pendingYield: b.pendingYield
           ? {
               token: b.pendingYield.token?.symbol ?? b.underlyingAsset ?? 'SY',

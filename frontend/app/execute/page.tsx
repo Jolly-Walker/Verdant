@@ -17,10 +17,10 @@ export default function ExecutePage() {
   const [amount, setAmount] = useState('1000')
   
   // These should ideally be selected by the user or derived from the template
-  const [sourceProtocol, setSourceProtocol] = useState<ProtocolId>('aave')
-  const [sourceChain, setSourceChain] = useState<ChainId>('ethereum')
-  const [destProtocol, setDestProtocol] = useState<ProtocolId>('morpho')
-  const [destChain, setDestChain] = useState<ChainId>('base')
+  const sourceProtocol: ProtocolId = 'aave'
+  const sourceChain: ChainId = 'ethereum'
+  const destProtocol: ProtocolId = 'morpho'
+  const destChain: ChainId = 'base'
 
   const handleCreatePlan = async (templateId: string) => {
     if (!evmAddress) return

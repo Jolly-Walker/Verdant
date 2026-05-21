@@ -27,7 +27,7 @@ vi.mock('@/lib/plugins/protocols', () => ({
   },
 }))
 
-import { GET } from '../route'
+import { GET, AggregatedReward } from '../route'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 
 const WALLET = '0xabcdef1234567890abcdef1234567890abcdef12'
@@ -87,11 +87,11 @@ describe('GET /api/rewards', () => {
     expect(body.rewards.length).toBeGreaterThanOrEqual(2)
     expect(body.totalUsd).toBeGreaterThan(0)
 
-    const aaveEntry = body.rewards.find((r: any) => r.token === 'AAVE')
+    const aaveEntry = body.rewards.find((r: AggregatedReward) => r.token === 'AAVE')
     expect(aaveEntry).toBeDefined()
     expect(aaveEntry.protocol).toBe('aave')
 
-    const morphoEntry = body.rewards.find((r: any) => r.token === 'MORPHO')
+    const morphoEntry = body.rewards.find((r: AggregatedReward) => r.token === 'MORPHO')
     expect(morphoEntry).toBeDefined()
     expect(morphoEntry.protocol).toBe('morpho')
   })
@@ -137,7 +137,7 @@ describe('GET /api/rewards', () => {
     const body = await res.json()
 
     // pendle has no rewards, so its fetchRewards should never be called
-    const pendlePlugin = (PROTOCOL_REGISTRY as any).pendle
+    const pendlePlugin = (PROTOCOL_REGISTRY as unknown as Record<string, { rewards?: unknown }>).pendle
     expect(pendlePlugin.rewards).toBeUndefined()
     // None of the results should be from pendle
     for (const r of body.rewards) {
@@ -158,6 +158,6 @@ describe('GET /api/rewards', () => {
     // Should still succeed despite aave throwing
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.rewards.some((r: any) => r.token === 'MORPHO')).toBe(true)
+    expect(body.rewards.some((r: AggregatedReward) => r.token === 'MORPHO')).toBe(true)
   })
 })

@@ -26,6 +26,11 @@ interface UseHarvestReturn extends HarvestState {
 
 export function useHarvest(): UseHarvestReturn {
   const { evmAddress } = useWallet()
+
+  // NOTE: This uses sendTransactionAsync directly outside of useSequencer.ts.
+  // This is a known exception for the pre-M10 legacy harvest flow
+  // that exists alongside the sequencer.
+  // TODO: Consolidate by routing all harvest flows through the sequencer as a single-step plan.
   const { sendTransactionAsync } = useSendTransaction()
 
   const [state, setState] = useState<HarvestState>({

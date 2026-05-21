@@ -47,7 +47,7 @@ async function fetchRewardPricesFromDefillama(
     const priceMap: Record<string, number> = {}
     for (const [key, val] of Object.entries(data.coins ?? {})) {
       const addr = key.split(':')[1]
-      if (addr) priceMap[addr.toLowerCase()] = (val as any).price ?? 0
+      if (addr) priceMap[addr.toLowerCase()] = (val as { price: number }).price ?? 0
     }
     return priceMap
   } catch {

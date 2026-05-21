@@ -4,34 +4,184 @@ import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { fetchAaveUserData } from '@/lib/data/aaveSubgraph'
-import { encodeFunctionData, parseAbi } from 'viem'
+import { encodeFunctionData } from 'viem'
 
-const AAVE_POOL_ABI = parseAbi([
-  'function getUserAccountData(address user) view returns (uint256 totalCollateralBase, uint256 totalDebtBase, uint256 availableBorrowsBase, uint256 currentLiquidationThreshold, uint256 ltv, uint256 healthFactor)',
-  'function getReserveData(address asset) view returns (uint256 configuration, uint128 liquidityIndex, uint128 currentLiquidationThreshold, uint128 variableBorrowIndex, uint128 currentLiquidityRate, uint128 currentVariableBorrowRate, uint128 currentStableBorrowRate, uint40 lastUpdateTimestamp, uint16 id, address aTokenAddress, address stableDebtTokenAddress, address variableDebtTokenAddress, address interestRateStrategyAddress)',
-  'function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode)',
-  'function withdraw(address asset, uint256 amount, address to) returns (uint256)',
-  'function borrow(address asset, uint256 amount, uint256 interestRateMode, uint16 referralCode, address onBehalfOf)',
-  'function repay(address asset, uint256 amount, uint256 interestRateMode, address onBehalfOf) returns (uint256)'
-])
+const AAVE_POOL_ABI = [
+  {
+    name: 'getUserAccountData',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'user', type: 'address' }],
+    outputs: [
+      { name: 'totalCollateralBase', type: 'uint256' },
+      { name: 'totalDebtBase', type: 'uint256' },
+      { name: 'availableBorrowsBase', type: 'uint256' },
+      { name: 'currentLiquidationThreshold', type: 'uint256' },
+      { name: 'ltv', type: 'uint256' },
+      { name: 'healthFactor', type: 'uint256' },
+    ],
+  },
+  {
+    name: 'getReserveData',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'asset', type: 'address' }],
+    outputs: [
+      { name: 'configuration', type: 'uint256' },
+      { name: 'liquidityIndex', type: 'uint128' },
+      { name: 'currentLiquidationThreshold', type: 'uint128' },
+      { name: 'variableBorrowIndex', type: 'uint128' },
+      { name: 'currentLiquidityRate', type: 'uint128' },
+      { name: 'currentVariableBorrowRate', type: 'uint128' },
+      { name: 'currentStableBorrowRate', type: 'uint128' },
+      { name: 'lastUpdateTimestamp', type: 'uint40' },
+      { name: 'id', type: 'uint16' },
+      { name: 'aTokenAddress', type: 'address' },
+      { name: 'stableDebtTokenAddress', type: 'address' },
+      { name: 'variableDebtTokenAddress', type: 'address' },
+      { name: 'interestRateStrategyAddress', type: 'address' },
+    ],
+  },
+  {
+    name: 'supply',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'onBehalfOf', type: 'address' },
+      { name: 'referralCode', type: 'uint16' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'withdraw',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'to', type: 'address' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'borrow',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'interestRateMode', type: 'uint256' },
+      { name: 'referralCode', type: 'uint16' },
+      { name: 'onBehalfOf', type: 'address' },
+    ],
+    outputs: [],
+  },
+  {
+    name: 'repay',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+      { name: 'interestRateMode', type: 'uint256' },
+      { name: 'onBehalfOf', type: 'address' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+] as const
 
-const ERC20_ABI = parseAbi([
-  'function balanceOf(address owner) view returns (uint256)',
-  'function decimals() view returns (uint8)',
-  'function approve(address spender, uint256 amount) returns (bool)'
-])
+const ERC20_ABI = [
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'decimals',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ type: 'uint8' }],
+  },
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ type: 'bool' }],
+  },
+] as const
 
 /**
  * Aave V3 RewardsController ABI (subset used for reward fetching and claiming).
  * Source: https://github.com/bgd-labs/aave-address-book
  */
-const AAVE_REWARDS_CONTROLLER_ABI = parseAbi([
-  'function getRewardsByAsset(address asset) view returns (address[])',
-  'function getUserRewards(address[] assets, address user, address reward) view returns (uint256)',
-  'function getUserAssetIndex(address user, address asset, address reward) view returns (uint256)',
-  'function claimAllRewards(address[] assets, address to) returns (address[] rewardsList, uint256[] claimedAmounts)',
-  'function getRewardsData(address asset, address reward) view returns (uint256 index, uint256 distributionEnd, uint256 emissionPerSecond, uint256 lastUpdateTimestamp)'
-])
+const AAVE_REWARDS_CONTROLLER_ABI = [
+  {
+    name: 'getRewardsByAsset',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'asset', type: 'address' }],
+    outputs: [{ type: 'address[]' }],
+  },
+  {
+    name: 'getUserRewards',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'assets', type: 'address[]' },
+      { name: 'user', type: 'address' },
+      { name: 'reward', type: 'address' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'getUserAssetIndex',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'user', type: 'address' },
+      { name: 'asset', type: 'address' },
+      { name: 'reward', type: 'address' },
+    ],
+    outputs: [{ type: 'uint256' }],
+  },
+  {
+    name: 'claimAllRewards',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'assets', type: 'address[]' },
+      { name: 'to', type: 'address' },
+    ],
+    outputs: [
+      { name: 'rewardsList', type: 'address[]' },
+      { name: 'claimedAmounts', type: 'uint256[]' },
+    ],
+  },
+  {
+    name: 'getRewardsData',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'asset', type: 'address' },
+      { name: 'reward', type: 'address' },
+    ],
+    outputs: [
+      { name: 'index', type: 'uint256' },
+      { name: 'distributionEnd', type: 'uint256' },
+      { name: 'emissionPerSecond', type: 'uint256' },
+      { name: 'lastUpdateTimestamp', type: 'uint256' },
+    ],
+  },
+] as const
 
 /**
  * Aave V3 RewardsController proxy addresses per chain.
@@ -105,11 +255,11 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_POOL_ABI,
                 functionName: 'getReserveData',
                 args: [assetAddress as `0x${string}`],
-              }) as any
-              supplyApy = Number(result[4]) / 1e27
-              borrowApy = Number(result[5]) / 1e27
-              aTokenAddress = result[9] as string
-              variableDebtTokenAddress = result[11] as string
+              })
+              supplyApy = Number(result.currentLiquidityRate) / 1e27
+              borrowApy = Number(result.currentVariableBorrowRate) / 1e27
+              aTokenAddress = result.aTokenAddress
+              variableDebtTokenAddress = result.variableDebtTokenAddress
             } catch (e) {
               console.error(`Failed to get Aave rates for ${token.symbol} on ${chain}:`, e)
             }
@@ -165,10 +315,10 @@ export const aavePlugin: ProtocolPlugin = {
           abi: AAVE_POOL_ABI,
           functionName: 'getUserAccountData',
           args: [address as `0x${string}`],
-        }) as [bigint, bigint, bigint, bigint, bigint, bigint]
+        })
 
-        const [totalCollateralBase, totalDebtBase] = accountData
-        const healthFactor = Number(accountData[5]) / 1e18
+        const { totalCollateralBase, totalDebtBase, healthFactor: hfBigInt } = accountData
+        const healthFactor = Number(hfBigInt) / 1e18
 
         // If both are zero, the user has no positions on this Aave market.
         if (totalCollateralBase === 0n && totalDebtBase === 0n) {
@@ -190,13 +340,12 @@ export const aavePlugin: ProtocolPlugin = {
               abi: AAVE_POOL_ABI,
               functionName: 'getReserveData',
               args: [token.addresses[chain] as `0x${string}`],
-            }) as any
+            })
 
-            const aTokenAddress = result[9] as string
-            const variableDebtTokenAddress = result[11] as string
+            const { aTokenAddress, variableDebtTokenAddress, currentLiquidityRate, currentVariableBorrowRate } = result
 
-            const supplyApy = Number(result[4]) / 1e27
-            const borrowApy = Number(result[5]) / 1e27
+            const supplyApy = Number(currentLiquidityRate) / 1e27
+            const borrowApy = Number(currentVariableBorrowRate) / 1e27
             const price = priceMap[`coingecko:${token.coingeckoId}`] || 0
 
             // Check supply balance
@@ -205,7 +354,7 @@ export const aavePlugin: ProtocolPlugin = {
               abi: ERC20_ABI,
               functionName: 'balanceOf',
               args: [address as `0x${string}`],
-            }) as bigint
+            })
 
             if (aTokenBalance > 0n) {
               const amount = Number(aTokenBalance) / Math.pow(10, token.decimals)
@@ -230,7 +379,7 @@ export const aavePlugin: ProtocolPlugin = {
               abi: ERC20_ABI,
               functionName: 'balanceOf',
               args: [address as `0x${string}`],
-            }) as bigint
+            })
 
             if (debtBalance > 0n) {
               const amount = Number(debtBalance) / Math.pow(10, token.decimals)
@@ -415,8 +564,8 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_POOL_ABI,
                 functionName: 'getReserveData',
                 args: [token.addresses[chain] as `0x${string}`],
-              }) as any
-              const aTokenAddress = result[9] as string
+              })
+              const aTokenAddress = result.aTokenAddress
               if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
                 // Check user has a balance on this aToken
                 const bal = await client.readContract({
@@ -424,7 +573,7 @@ export const aavePlugin: ProtocolPlugin = {
                   abi: ERC20_ABI,
                   functionName: 'balanceOf',
                   args: [address as `0x${string}`],
-                }) as bigint
+                })
                 if (bal > 0n) aTokenAddresses.push(aTokenAddress)
               }
             } catch {
@@ -445,7 +594,7 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_REWARDS_CONTROLLER_ABI,
                 functionName: 'getRewardsByAsset',
                 args: [aToken as `0x${string}`],
-              }) as string[]
+              })
               rewardTokens.forEach(r => rewardTokenSet.add(r))
             } catch {
               // No rewards configured for this aToken
@@ -469,7 +618,7 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_REWARDS_CONTROLLER_ABI,
                 functionName: 'getUserRewards',
                 args: [aTokenAddresses as `0x${string}`[], address as `0x${string}`, rewardToken as `0x${string}`],
-              }) as bigint
+              })
 
               if (claimable <= 0n) return
 
@@ -525,15 +674,15 @@ export const aavePlugin: ProtocolPlugin = {
               abi: AAVE_POOL_ABI,
               functionName: 'getReserveData',
               args: [token.addresses[chain] as `0x${string}`],
-            }) as any
-            const aTokenAddress = result[9] as string
+            })
+            const aTokenAddress = result.aTokenAddress
             if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
               const bal = await client.readContract({
                 address: aTokenAddress as `0x${string}`,
                 abi: ERC20_ABI,
                 functionName: 'balanceOf',
                 args: [address as `0x${string}`],
-              }) as bigint
+              })
               if (bal > 0n) aTokenAddresses.push(aTokenAddress)
             }
           } catch {

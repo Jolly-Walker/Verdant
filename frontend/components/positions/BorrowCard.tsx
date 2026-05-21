@@ -9,6 +9,10 @@ export function BorrowCard({ position }: { position: Position }) {
   const { positions } = usePositions()
   const borrowApyPercent = (position.currentApy * 100).toFixed(2)
 
+  // NOTE: This always picks the first supply position found as the collateral.
+  // For users with multiple collateral types (e.g. WETH + wstETH on Aave),
+  // this may pre-fill the "wrong" asset.
+  // TODO: Let user select collateral if multiple options exist.
   const collateralPosition = positions.find(
     p => p.chain === position.chain &&
          p.protocol === position.protocol &&

@@ -21,7 +21,7 @@ describe('Simulation Integration', () => {
   }
 
   beforeEach(() => {
-    vi.mocked(getPublicClient).mockReturnValue(mockClient as any)
+    vi.mocked(getPublicClient).mockReturnValue(mockClient as unknown as ReturnType<typeof getPublicClient>)
     vi.clearAllMocks()
   })
 
@@ -143,7 +143,7 @@ describe('Simulation Integration', () => {
         value: { err: { InstructionError: [0, 'InvalidArgument'] } }
       })
     }
-    vi.mocked(getSolanaConnection).mockReturnValue(mockConn as any)
+    vi.mocked(getSolanaConnection).mockReturnValue(mockConn as unknown as ReturnType<typeof getSolanaConnection>)
 
     const result = await simulateTransaction({
       chain: 'solana',
@@ -167,7 +167,7 @@ describe('Simulation Integration', () => {
       json: () => Promise.resolve({
         transaction: { status: true, gas_used: 50000 }
       })
-    }) as any
+    } as Response)
 
     const result = await simulateTransaction({
       chain: 'ethereum',

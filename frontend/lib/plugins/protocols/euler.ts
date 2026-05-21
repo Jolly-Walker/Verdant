@@ -5,7 +5,7 @@ import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { encodeFunctionData, parseAbi } from 'viem'
-import { fetchMerklClaims, MERKL_DISTRIBUTOR_ADDRESS, MerklClaim } from '@/lib/data/merkl'
+import { fetchMerklClaims, MERKL_DISTRIBUTOR_ADDRESS } from '@/lib/data/merkl'
 
 const EULER_VAULT_ABI = parseAbi([
   'function deposit(uint256 assets, address receiver) returns (uint256)',
@@ -303,7 +303,7 @@ export const eulerPlugin: ProtocolPlugin = {
         .map(c => `${chainPrefix}:${c.token.toLowerCase()}`)
         .join(',')
 
-      let priceMap: Record<string, number> = {}
+      const priceMap: Record<string, number> = {}
       try {
         const res = await fetch(
           `https://coins.llama.fi/prices/current/${coinsParam}`,
@@ -313,7 +313,7 @@ export const eulerPlugin: ProtocolPlugin = {
           const data = await res.json()
           for (const [key, val] of Object.entries(data.coins ?? {})) {
             const addr = key.split(':')[1]
-            if (addr) priceMap[addr.toLowerCase()] = (val as any).price ?? 0
+            if (addr) priceMap[addr.toLowerCase()] = (val as { price: number }).price ?? 0
           }
         }
       } catch {

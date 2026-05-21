@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PATCH } from '../route'
 import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
+import { SequencePlan } from '@/types/sequencer'
 
 vi.mock('@/lib/data/sequencePlans', () => ({
   getSequencePlan: vi.fn(),
@@ -13,7 +14,7 @@ describe('PATCH /api/sequencer/plan/[planId]/step/[stepId]', () => {
       id: 'plan-1',
       walletAddress: '0x123',
       steps: [{ id: 'step-1', status: 'ready' }]
-    } as any)
+    } as unknown as SequencePlan)
 
     const req = new Request('http://localhost/api/sequencer/plan/plan-1/step/step-1', {
       method: 'PATCH',
@@ -32,7 +33,7 @@ describe('PATCH /api/sequencer/plan/[planId]/step/[stepId]', () => {
       walletAddress: '0x123',
       createdAt: new Date(),
       steps: [{ id: 'step-1', status: 'ready' }]
-    } as any)
+    } as unknown as SequencePlan)
     vi.mocked(updateSequencePlanStep).mockResolvedValue(true)
 
     const req = new Request('http://localhost/api/sequencer/plan/plan-1/step/step-1', {

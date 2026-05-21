@@ -38,6 +38,13 @@ export interface MerklResponse {
   claims: MerklClaim[]
 }
 
+interface MerklEntry {
+  accumulated?: string
+  claimed?: string
+  token?: { symbol: string; decimals: number }
+  proof?: string[]
+}
+
 /**
  * Fetches claimable reward data from the Merkl API for a given user address and chain.
  *
@@ -70,7 +77,7 @@ export async function fetchMerklClaims(
     // Merkl v4 response: { [tokenAddress]: { token, proof, accumulated, claimed } }
     const claims: MerklClaim[] = []
     if (data && typeof data === 'object') {
-      for (const [tokenAddress, entry] of Object.entries(data as Record<string, any>)) {
+      for (const [tokenAddress, entry] of Object.entries(data as Record<string, MerklEntry>)) {
         const accumulated = BigInt(entry.accumulated ?? '0')
         const claimed = BigInt(entry.claimed ?? '0')
         const claimable = accumulated - claimed
