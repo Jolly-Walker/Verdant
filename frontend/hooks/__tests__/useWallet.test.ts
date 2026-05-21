@@ -38,12 +38,12 @@ describe('useWallet', () => {
     vi.mocked(useAccount).mockReturnValue({
       address: undefined,
       isConnected: false,
-    } as any)
+    } as unknown as ReturnType<typeof useAccount>)
     vi.mocked(useSolanaWallet).mockReturnValue({
       publicKey: null,
       connected: false,
       disconnect: vi.fn(),
-    } as any)
+    } as unknown as ReturnType<typeof useSolanaWallet>)
   })
 
   it('returns EVM address when connected to EVM', () => {
@@ -51,7 +51,7 @@ describe('useWallet', () => {
     vi.mocked(useAccount).mockReturnValue({
       address: mockEvmAddress as `0x${string}`,
       isConnected: true,
-    } as any)
+    } as unknown as ReturnType<typeof useAccount>)
 
     const { result } = renderHook(() => useWallet())
 
@@ -66,7 +66,7 @@ describe('useWallet', () => {
       publicKey: { toBase58: () => mockSolanaAddress },
       connected: true,
       disconnect: vi.fn(),
-    } as any)
+    } as unknown as ReturnType<typeof useSolanaWallet>)
 
     const { result } = renderHook(() => useWallet())
 
@@ -82,12 +82,12 @@ describe('useWallet', () => {
     vi.mocked(useAccount).mockReturnValue({
       address: mockEvmAddress as `0x${string}`,
       isConnected: true,
-    } as any)
+    } as unknown as ReturnType<typeof useAccount>)
     vi.mocked(useSolanaWallet).mockReturnValue({
       publicKey: { toBase58: () => mockSolanaAddress },
       connected: true,
       disconnect: vi.fn(),
-    } as any)
+    } as unknown as ReturnType<typeof useSolanaWallet>)
 
     const { result } = renderHook(() => useWallet())
 

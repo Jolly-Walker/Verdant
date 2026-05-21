@@ -93,8 +93,9 @@ export function useHarvest(): UseHarvestReturn {
             throw new Error(`Simulation failed: ${simData.revertReason ?? 'unknown error'}`)
           }
         }
-      } catch (err: any) {
-        setState(s => ({ ...s, error: err.message || 'Simulation failed' }))
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Simulation failed'
+        setState(s => ({ ...s, error: message }))
         throw err
       } finally {
         setState(s => ({ ...s, isSimulating: false }))

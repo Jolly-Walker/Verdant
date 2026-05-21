@@ -9,15 +9,21 @@ export function BorrowCard({ position }: { position: Position }) {
   const { positions } = usePositions()
   const borrowApyPercent = (position.currentApy * 100).toFixed(2)
 
-  // NOTE: This always picks the first supply position found as the collateral.
-  // For users with multiple collateral types (e.g. WETH + wstETH on Aave),
-  // this may pre-fill the "wrong" asset.
-  // TODO: Let user select collateral if multiple options exist.
-  const collateralPosition = positions.find(
+  // Identify all possible collateral positions (supply) on the same protocol/chain
+  const potentialCollaterals = positions.filter(
     p => p.chain === position.chain &&
          p.protocol === position.protocol &&
          p.positionType === 'supply'
   )
+
+  // NOTE: This currently defaults to the collateral position with the largest balance.
+  // For users with multiple collateral types, they may need to select which one to use.
+  // TODO: Implement a selector for multi-collateral scenarios.
+  const collateralPosition = potentialCollaterals.length > 0
+    ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
+    : undefined
+
+  const hasMultipleCollaterals = potentialCollaterals.length > 1
 
   const handleDeleverage = () => {
     const query = new URLSearchParams({
@@ -77,6 +83,13 @@ export function BorrowCard({ position }: { position: Position }) {
           <HealthFactor value={position.healthFactor} />
         )}
       </div>
+
+      {hasMultipleCollaterals && (
+        <div className="text-[11px] text-zinc-500 bg-zinc-800/40 px-2 py-1.5 rounded border border-zinc-700/50 flex gap-1.5 items-start">
+          <span>⚠️</span>
+          <span>Multiple collateral assets found. De-leverage pre-filled with <strong>{collateralPosition?.asset}</strong> (largest position).</span>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2 mt-auto pt-2">
         {position.healthFactor !== undefined ? (
