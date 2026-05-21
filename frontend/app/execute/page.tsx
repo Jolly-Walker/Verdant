@@ -3,18 +3,18 @@
 import { useState } from 'react'
 import { useWallet } from '@/hooks/useWallet'
 import { useSequencer } from '@/hooks/useSequencer'
-import { AssetSelector } from '@/components/execute/AssetSelector'
 import { TemplateSelector } from '@/components/sequence/TemplateSelector'
 import { CostPreview } from '@/components/execute/CostPreview'
 import { SequencePlanView } from '@/components/sequence/SequencePlanView'
 import { Card } from '@/components/ui/Card'
 import { ProtocolId, ChainId } from '@/types/shared'
+import { TemplateId } from '@/types/sequencer'
 
 export default function ExecutePage() {
   const { evmAddress } = useWallet()
-  const { plan, createPlan, reset } = useSequencer()
-  const [selectedAsset, setSelectedAsset] = useState('USDC')
-  const [amount, setAmount] = useState('1')
+  const { plan, currentStep, createPlan, simulateStep, executeStep, reset } = useSequencer()
+  const [selectedAsset] = useState('USDC')
+  const [amount] = useState('1')
   
   // These should ideally be selected by the user or derived from the template
   const sourceProtocol: ProtocolId = 'aave'
@@ -22,7 +22,7 @@ export default function ExecutePage() {
   const destProtocol: ProtocolId = 'morpho'
   const destChain: ChainId = 'base'
 
-  const handleCreatePlan = async (templateId: string) => {
+  const handleCreatePlan = async (templateId: TemplateId) => {
     if (!evmAddress) return
     
     // For now, we use the default params for the template
@@ -43,7 +43,13 @@ export default function ExecutePage() {
   if (plan) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-4xl">
-        <SequencePlanView plan={plan} onBack={reset} />
+        <SequencePlanView
+          plan={plan}
+          currentStepId={currentStep?.id || null}
+          onSimulate={simulateStep}
+          onSign={executeStep}
+          onEdit={reset}
+        />
       </div>
     )
   }
@@ -64,23 +70,14 @@ export default function ExecutePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <Card className="p-6 bg-zinc-900 border-zinc-800">
-            <h2 className="text-xl font-semibold text-white mb-4">1. Asset & Amount</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <AssetSelector 
-                selectedAsset={selectedAsset} 
-                onSelect={setSelectedAsset} 
-              />
-              <div>
-                <label className="block text-sm font-medium text-zinc-400 mb-1">Amount</label>
-                <input
-                  type="text"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-zinc-800 border-zinc-700 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
+            <h2 className="text-xl font-semibold text-white mb-4">1. Select Asset & Amount</h2>
+            <p className="text-zinc-500 text-sm">
+              Asset: <span className="text-white font-medium">{selectedAsset}</span> — 
+              Amount: <span className="text-white font-medium">{amount}</span>
+            </p>
+            <p className="text-zinc-600 text-xs mt-2">
+              Use the dashboard sequence modal to configure asset and amount.
+            </p>
           </Card>
 
           <section>

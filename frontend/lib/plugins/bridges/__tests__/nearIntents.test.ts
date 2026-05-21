@@ -152,7 +152,8 @@ describe('nearIntentsBridgePlugin', () => {
 
   it('should return null for unsupported token', async () => {
     // Mock fetch to return a result, to ensure it returns null due to validation
-    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ jsonrpc: '2.0', result: '0x123' }),
     })
