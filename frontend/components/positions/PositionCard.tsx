@@ -5,6 +5,7 @@ import { PendleCard } from "./PendleCard"
 import { useHarvest } from "@/hooks/useHarvest"
 import { useSequencer } from "@/hooks/useSequencer"
 import { Tooltip } from "../ui/Tooltip"
+import { DEFAULT_MIN_USD_THRESHOLD } from "@/constants/settings"
 
 export function PositionCard({ position }: { position: Position }) {
   const [isHarvesting, setIsHarvesting] = useState(false)
@@ -22,7 +23,7 @@ export function PositionCard({ position }: { position: Position }) {
   const currentApyPercent = (position.currentApy * 100).toFixed(2)
   const hasRewards = position.claimableRewards.length > 0
   const rewardsUsd = position.claimableRewards.reduce((sum, r) => sum + r.amountUsd, 0)
-  const canHarvest = rewardsUsd >= 1000
+  const canHarvest = rewardsUsd >= DEFAULT_MIN_USD_THRESHOLD
 
   const handleHarvest = async () => {
     if (!canHarvest) return
@@ -90,7 +91,7 @@ export function PositionCard({ position }: { position: Position }) {
       {!isWallet && (
         <div className="flex justify-end gap-2 mt-auto pt-2">
           {hasRewards && (
-            <Tooltip content={!canHarvest ? "Minimum harvest is $1,000" : ""}>
+            <Tooltip content={!canHarvest ? `Minimum harvest is $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()}` : ""}>
               <button 
                 onClick={handleHarvest}
                 disabled={!canHarvest || isHarvesting || isSimulating}

@@ -14,7 +14,7 @@ export default function ExecutePage() {
   const { evmAddress } = useWallet()
   const { plan, createPlan, reset } = useSequencer()
   const [selectedAsset, setSelectedAsset] = useState('USDC')
-  const [amount, setAmount] = useState('1000')
+  const [amount, setAmount] = useState('1')
   
   // These should ideally be selected by the user or derived from the template
   const sourceProtocol: ProtocolId = 'aave'

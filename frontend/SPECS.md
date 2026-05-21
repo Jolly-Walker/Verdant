@@ -919,7 +919,7 @@ All Supabase migrations in `supabase/migrations/`. New migrations use sequential
 
 ### 14.1 Existing Tables (unchanged)
 
-- `user_settings` — wallet → preferences
+- `user_settings` — wallet → preferences (including `min_usd_threshold`)
 - `auto_compound_settings` — per-position compound settings
 - `execution_history` — history of executed sequences
 - `harvest_history` — history of harvested rewards
@@ -1149,7 +1149,7 @@ Every error must be specific, actionable, and non-blocking.
 | Pendle maturity warning | "This PT matures in {X} days. Ensure you can exit before maturity." | Require checkbox |
 | Solana wallet not connected | "Connect a Solana wallet to see Solana positions." | Connect button |
 | Unsupported chain | "Switch to Ethereum, Arbitrum, or Base to continue." | Switch network button |
-| Amount below minimum | "Minimum transaction is $1,000 to cover fees." | Inline validation |
+| Amount below minimum | "Minimum transaction is $1 to cover fees." | Inline validation |
 | Quote expired | "Quotes have expired. Please refresh before signing." | Disable sign; refresh button |
 | Bridge quote: no route | "No bridge supports this route for {token}. Try USDC instead." | Suggest alternative |
 

@@ -1,4 +1,5 @@
 import { Warning, CostPreviewResult } from '@/types/quote'
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 
 /**
  * Detect warning conditions per SPECS.md §5.
@@ -62,11 +63,11 @@ export function detectWarnings(
     }
   }
 
-  // Amount below $1,000 minimum
-  if (amountUsd > 0 && amountUsd < 1000) {
+  // Amount below minimum
+  if (amountUsd > 0 && amountUsd < DEFAULT_MIN_USD_THRESHOLD) {
     warnings.push({
       type: 'below_minimum',
-      message: 'Minimum transaction is $1,000 to cover fees',
+      message: `Minimum transaction is $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} to cover fees`,
     })
   }
 
