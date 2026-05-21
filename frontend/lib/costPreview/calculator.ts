@@ -105,6 +105,7 @@ export interface SequencePlanCostInput {
   // De-leverage specific APY info
   borrowApy?: number
   supplyApy?: number
+  totalCollateralUsd?: number
 }
 
 /**
@@ -133,7 +134,7 @@ export async function calculateCostPreview(
     const plan = input.plan
 
     // Estimate overall position size for proportional bridge fee fallback
-    const amountUsd = plan.totalCostUsd > 0 ? plan.totalCostUsd : 10_000
+    const amountUsd = plan.positionSizeUsd ?? (plan.totalCostUsd > 0 ? plan.totalCostUsd : 10_000)
 
     for (const step of plan.steps) {
       const chainPlugin = CHAIN_REGISTRY[step.chain]
@@ -184,11 +185,23 @@ export async function calculateCostPreview(
       deleverageBreakEven = computeDeleverageBreakEven({
         totalCostUsd,
         debtUnwoundUsd: amountUsd,
-        collateralUnwoundUsd: amountUsd * 1.3, // conservative 130% collateral ratio estimate
+        collateralUnwoundUsd: input.totalCollateralUsd ?? amountUsd * 1.3,
         borrowApy: input.borrowApy,
         supplyApy: input.supplyApy,
       })
     }
+
+    const warnings = detectWarnings(
+      {
+        steps,
+        totalCostUsd,
+        dailyYieldGainUsd,
+        breakEvenDays,
+        currentApyDecimal,
+        targetApyDecimal,
+      },
+      amountUsd
+    )
 
     return {
       steps,
@@ -203,7 +216,7 @@ export async function calculateCostPreview(
       breakEvenDays,
       targetUtilisationDecimal: null,
       quoteFetchedAt: new Date(),
-      warnings: [],
+      warnings,
       deleverageBreakEven,
     }
   } else {

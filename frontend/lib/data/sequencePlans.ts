@@ -1,6 +1,6 @@
 import 'server-only'
 import { getSupabaseAdmin } from '@/lib/data/supabase'
-import { SequencePlan, SerializedSequenceStep } from '@/types/sequencer'
+import { SequencePlan, SerializedSequenceStep, TemplateId } from '@/types/sequencer'
 import { serializeSequenceStep, deserializeSequenceStep } from '@/lib/sequencer/engine'
 
 export async function createSequencePlan(plan: SequencePlan, templateId: string): Promise<SequencePlan | null> {
@@ -15,6 +15,7 @@ export async function createSequencePlan(plan: SequencePlan, templateId: string)
         description: plan.description,
         status: plan.status,
         total_cost_usd: plan.totalCostUsd,
+        position_size_usd: plan.positionSizeUsd ?? null,
         steps: serializedSteps
       })
       .select()
@@ -27,7 +28,8 @@ export async function createSequencePlan(plan: SequencePlan, templateId: string)
       id: data.id,
       createdAt: new Date(data.created_at),
       steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
-      templateId: data.template_id as any
+      positionSizeUsd: data.position_size_usd ? Number(data.position_size_usd) : undefined,
+      templateId: data.template_id as TemplateId
     }
   } catch (error) {
     console.error('Error creating sequence plan:', error)
@@ -53,8 +55,9 @@ export async function getSequencePlan(id: string): Promise<SequencePlan | null> 
       steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
       status: data.status,
       totalCostUsd: Number(data.total_cost_usd || 0),
+      positionSizeUsd: data.position_size_usd ? Number(data.position_size_usd) : undefined,
       description: data.description,
-      templateId: data.template_id as any
+      templateId: data.template_id as TemplateId
     } as SequencePlan
   } catch (error) {
     console.error('Error getting sequence plan:', error)

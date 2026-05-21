@@ -62,6 +62,7 @@ export interface SequencePlan {
   steps: SequenceStep[]
   status: 'draft' | 'in-progress' | 'complete' | 'failed'
   totalCostUsd: number
+  positionSizeUsd?: number
   description: string
   templateId?: TemplateId
 }

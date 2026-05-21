@@ -7,17 +7,25 @@ import { useSequencer } from "@/hooks/useSequencer"
 import { Tooltip } from "../ui/Tooltip"
 import { DEFAULT_MIN_USD_THRESHOLD } from "@/constants/settings"
 
-export function PositionCard({ position }: { position: Position }) {
+import { TemplateId } from "@/types/sequencer"
+
+export function PositionCard({ 
+  position,
+  onSequence
+}: { 
+  position: Position
+  onSequence?: (template: TemplateId, params: Record<string, string>) => void
+}) {
   const [isHarvesting, setIsHarvesting] = useState(false)
   const { plan, isSimulating } = useSequencer()
   const { harvest, isSimulating: isHarvestSimulating, isSigning } = useHarvest()
 
   if (position.positionType === 'borrow') {
-    return <BorrowCard position={position} />
+    return <BorrowCard position={position} onSequence={onSequence} />
   }
 
   if (position.positionType === 'pendle-pt' || position.positionType === 'pendle-yt') {
-    return <PendleCard position={position} />
+    return <PendleCard position={position} onSequence={onSequence} />
   }
 
   const currentApyPercent = (position.currentApy * 100).toFixed(2)

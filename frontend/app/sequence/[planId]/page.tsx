@@ -7,6 +7,7 @@ import { SequenceComplete } from '@/components/sequence/SequenceComplete';
 import { useRouter } from 'next/navigation';
 import { useWallet } from '@/hooks/useWallet';
 import { fetchWithTimeout } from '@/lib/utils/fetch';
+import { useSequenceCost } from '@/hooks/useSequenceCost';
 
 export default function SequenceExecutionPage({ params }: { params: { planId: string } }) {
   const router = useRouter();
@@ -16,6 +17,18 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
   const [error, setError] = useState('');
   
   const simulatingStepId = useRef<string | null>(null);
+
+  const {
+    result: costResult,
+    isLoading: costLoading,
+    staleStepIds,
+    expiredStepIds,
+    hasExpiredQuotes,
+    refetch: refetchCost,
+  } = useSequenceCost({
+    plan,
+    walletAddress: address || undefined,
+  });
 
   useEffect(() => {
     if (!address) return;
@@ -69,6 +82,12 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
       onSimulate={simulateStep}
       onSign={executeStep}
       onEdit={() => router.back()}
+      costResult={costResult}
+      costLoading={costLoading}
+      staleStepIds={staleStepIds}
+      expiredStepIds={expiredStepIds}
+      hasExpiredQuotes={hasExpiredQuotes}
+      onRefetchCost={refetchCost}
     />
   );
 }

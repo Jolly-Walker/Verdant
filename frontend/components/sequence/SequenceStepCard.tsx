@@ -15,6 +15,7 @@ interface SequenceStepCardProps {
   index: number;
   isCurrent: boolean;
   onAction: (params?: Record<string, unknown>) => Promise<void>;
+  isQuoteExpired?: boolean;
 }
 
 export function SequenceStepCard({
@@ -22,6 +23,7 @@ export function SequenceStepCard({
   index,
   isCurrent,
   onAction,
+  isQuoteExpired,
 }: SequenceStepCardProps) {
   const { signStep } = useSequencer();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -84,7 +86,8 @@ export function SequenceStepCard({
           ) : step.status === 'ready' && isCurrent ? (
             <button
               onClick={handleAction}
-              disabled={isSimulating}
+              disabled={isSimulating || isQuoteExpired}
+              title={isQuoteExpired ? 'Bridge quote expired — refresh cost preview' : undefined}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
             >
               {isSimulating ? (
@@ -92,6 +95,8 @@ export function SequenceStepCard({
                   <Spinner size="sm" className="mr-2" />
                   <span>Simulating...</span>
                 </div>
+              ) : isQuoteExpired ? (
+                'Quote Expired'
               ) : (
                 'Sign Transaction'
               )}

@@ -35,6 +35,7 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     createdAt: new Date(),
     status: 'draft',
     totalCostUsd: 0,
+    positionSizeUsd: params.totalDebtUsd,
     description: `De-leverage ${params.collateralAsset}/${params.borrowAsset} loop on ${params.protocol}`,
     steps: []
   };

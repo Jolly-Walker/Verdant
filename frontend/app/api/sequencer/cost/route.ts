@@ -10,6 +10,7 @@ const CostRequestSchema = z.object({
   targetApy: z.number().optional(),
   borrowApy: z.number().optional(),
   supplyApy: z.number().optional(),
+  totalCollateralUsd: z.number().optional(),
 })
 
 export async function POST(req: Request) {
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const { planId, walletAddress, currentApy, targetApy, borrowApy, supplyApy } = result.data
+    const { planId, walletAddress, currentApy, targetApy, borrowApy, supplyApy, totalCollateralUsd } = result.data
 
     const plan = await getSequencePlan(planId)
     if (!plan) {
@@ -42,6 +43,7 @@ export async function POST(req: Request) {
       targetApy,
       borrowApy,
       supplyApy,
+      totalCollateralUsd,
     })
 
     return NextResponse.json({

@@ -7,6 +7,7 @@ export function buildRepayAndWithdrawPlan(params: RepayAndWithdrawParams): Seque
     createdAt: new Date(),
     status: 'draft',
     totalCostUsd: 0,
+    positionSizeUsd: params.amountUsd,
     description: `Repay ${params.borrowAsset} and withdraw ${params.collateralAsset} on ${params.protocol}`,
     steps: [
       {
