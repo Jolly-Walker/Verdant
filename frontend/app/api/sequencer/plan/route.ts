@@ -10,6 +10,7 @@ import { serializeSequencePlan } from '@/lib/sequencer/engine'
 import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { fetchTokenPrices } from '@/lib/data/prices'
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 
 import { isValidAddress } from '@/lib/utils/chains'
 
@@ -93,7 +94,7 @@ async function validateMinimumSize(asset: string, amount: string): Promise<{ ok:
   const amountUsd = normalizedAmount * price;
   
   // Handle NaN and minimum size check
-  const ok = !isNaN(amountUsd) && amountUsd >= 1000;
+  const ok = !isNaN(amountUsd) && amountUsd >= DEFAULT_MIN_USD_THRESHOLD;
   return { ok, amountUsd: isNaN(amountUsd) ? 0 : amountUsd };
 }
 
@@ -143,9 +144,9 @@ export async function POST(req: Request) {
       const totalCollateralUsd = (Number(parsedParams.totalCollateral) / Math.pow(10, collateralToken.decimals)) * collateralPrice;
       amountUsd = totalDebtUsd; // for minimum size check
 
-      if (isNaN(amountUsd) || amountUsd < 1000) {
+      if (isNaN(amountUsd) || amountUsd < DEFAULT_MIN_USD_THRESHOLD) {
         return NextResponse.json({ 
-          error: `Minimum transaction size of $1,000 USD required. Current: $${(isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}` 
+          error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} USD required. Current: $${(isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}` 
         }, { status: 400 });
       }
 

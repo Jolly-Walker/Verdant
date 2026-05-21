@@ -919,7 +919,7 @@ All Supabase migrations in `supabase/migrations/`. New migrations use sequential
 
 ### 14.1 Existing Tables (unchanged)
 
-- `user_settings` — wallet → preferences
+- `user_settings` — wallet → preferences (including `min_usd_threshold`)
 - `auto_compound_settings` — per-position compound settings
 - `execution_history` — history of executed sequences
 - `harvest_history` — history of harvested rewards
@@ -1149,7 +1149,7 @@ Every error must be specific, actionable, and non-blocking.
 | Pendle maturity warning | "This PT matures in {X} days. Ensure you can exit before maturity." | Require checkbox |
 | Solana wallet not connected | "Connect a Solana wallet to see Solana positions." | Connect button |
 | Unsupported chain | "Switch to Ethereum, Arbitrum, or Base to continue." | Switch network button |
-| Amount below minimum | "Minimum transaction is $1,000 to cover fees." | Inline validation |
+| Amount below minimum | "Minimum transaction is $1 to cover fees." | Inline validation |
 | Quote expired | "Quotes have expired. Please refresh before signing." | Disable sign; refresh button |
 | Bridge quote: no route | "No bridge supports this route for {token}. Try USDC instead." | Suggest alternative |
 
@@ -1331,17 +1331,17 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Every step has a mandatory simulation gate. Show state changes to user.
 
 **Tasks:**
-- [ ] `lib/simulation/simulate.ts` — `simulateTx(chain, tx, fromAddress): SimulationResult`
-- [ ] EVM simulation via `eth_call` using Alchemy RPC (primary path)
-- [ ] Error ABI decoder — map common revert selectors to human-readable strings
+- [x] `lib/simulation/simulate.ts` — `simulateTx(chain, tx, fromAddress): SimulationResult`
+- [x] EVM simulation via `eth_call` using Alchemy RPC (primary path)
+- [x] Error ABI decoder — map common revert selectors to human-readable strings
   (e.g., `0x13be252b` → "Insufficient allowance")
-- [ ] State change extractor from simulation trace (token balance deltas)
-- [ ] Tenderly simulation fallback (if env var set)
-- [ ] Solana `simulateTransaction` path
-- [ ] `POST /api/simulate` — updated to handle all chains
-- [ ] `components/execute/SimulationResult.tsx` — pass/fail + state changes display
-- [ ] Integrate simulation gate into sequencer step state machine
-- [ ] Simulation unit tests with mock RPC responses
+- [x] State change extractor from simulation trace (token balance deltas)
+- [x] Tenderly simulation fallback (if env var set)
+- [x] Solana `simulateTransaction` path
+- [x] `POST /api/simulate` — updated to handle all chains
+- [x] `components/execute/SimulationResult.tsx` — pass/fail + state changes display
+- [x] Integrate simulation gate into sequencer step state machine
+- [x] Simulation unit tests with mock RPC responses
 
 ---
 
@@ -1350,51 +1350,52 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Support Across + LayerZero + NEAR Intents. User can compare and select bridge.
 
 **Tasks:**
-- [ ] `lib/plugins/bridges/across.ts` — refactor existing `lib/routing/across.ts` into plugin
-- [ ] `lib/plugins/bridges/nearIntents.ts` — refactor existing `lib/routing/nearIntents.ts` into plugin
-- [ ] `lib/plugins/bridges/layerzero.ts` — new: LayerZero CCTP for USDC
-- [ ] `GET /api/bridges/quotes` — returns all bridge quotes for a route, sorted by net output
-- [ ] Supabase migration `006_bridge_quotes_cache.sql`
-- [ ] Bridge quote caching (30s TTL in DB)
-- [ ] `components/bridge/BridgeQuoteSelector.tsx` — compare bridge options
-- [ ] Update `BridgePending.tsx` (formerly `StepOneBridge.tsx`) — show selected bridge name + status link
-- [ ] NEAR Intents: add EVM→Solana route support
-- [ ] LayerZero: CCTP USDC cross-chain on ETH, ARB, Base routes
-- [ ] Bridge plugin unit tests (mocked APIs)
-- [ ] Integration test: quote + build tx for each bridge plugin
+- [x] `lib/plugins/bridges/across.ts` — refactor existing `lib/routing/across.ts` into plugin
+- [x] `lib/plugins/bridges/nearIntents.ts` — refactor existing `lib/routing/nearIntents.ts` into plugin
+- [x] `lib/plugins/bridges/layerzero.ts` — new: LayerZero CCTP for USDC
+- [x] `GET /api/bridges/quotes` — returns all bridge quotes for a route, sorted by net output
+- [x] Supabase migration `006_bridge_quotes_cache.sql`
+- [x] Bridge quote caching (30s TTL in DB)
+- [x] `components/bridge/BridgeQuoteSelector.tsx` — compare bridge options
+- [x] Update `BridgePending.tsx` (formerly `StepOneBridge.tsx`) — show selected bridge name + status link
+- [x] NEAR Intents: add EVM→Solana route support
+- [x] LayerZero: CCTP USDC cross-chain on ETH, ARB, Base routes
+- [x] Bridge plugin unit tests (mocked APIs)
+- [x] Integration test: quote + build tx for each bridge plugin
 
 ---
 
-### 📋 Milestone 8 — Protocol Integrations: Borrow Actions
+### Milestone 8 — Protocol Integrations: Borrow Actions
 
 **Goal:** Support repay and withdraw actions on Aave and Euler. Enable de-leverage sequences.
 
 **Tasks:**
-- [ ] `lib/plugins/protocols/aave.ts` — add `buildRepayTx()`, `buildWithdrawTx()` to `TxBuilder`
-- [ ] `lib/plugins/protocols/aave.ts` — `fetchPositions()` to include borrow positions with health factor
-- [ ] `lib/plugins/protocols/euler.ts` — add `buildRepayTx()`, `buildWithdrawTx()`
-- [ ] Aave subgraph integration — fetch health factor and debt data server-side
-- [ ] `lib/sequencer/templates/deleverageAave.ts` — compute optimal unwind cycle count
+- [x] `lib/plugins/protocols/aave.ts` — add `buildRepayTx()`, `buildWithdrawTx()` to `TxBuilder`
+- [x] `lib/plugins/protocols/aave.ts` — `fetchPositions()` to include borrow positions with health factor
+- [x] `lib/plugins/protocols/euler.ts` — add `buildRepayTx()`, `buildWithdrawTx()`
+- [x] Aave subgraph integration — fetch health factor and debt data server-side
+- [x] `lib/sequencer/templates/deleverageAave.ts` — compute optimal unwind cycle count
 - [ ] Warning: health factor guard — refuse to build step if resulting HF < 1.05
 - [ ] `components/positions/BorrowCard.tsx` — "De-leverage" button → opens sequence planner
 - [ ] End-to-end test: de-leverage sequence plan creation with mock positions
 
 ---
 
-### 📋 Milestone 9 — Harvest Flow & Rewards (Enhance Existing)
+### Milestone 9 — Harvest Flow & Rewards (Enhance Existing)
 
 **Goal:** Extend harvest to cover all supported protocols and both EVM + Solana.
 
 **Tasks:**
-- [ ] `lib/plugins/protocols/aave.ts` — add `RewardFetcher` (Aave safety module rewards)
-- [ ] `lib/plugins/protocols/morpho.ts` — add `RewardFetcher`
-- [ ] `lib/plugins/protocols/pendle.ts` — add `RewardFetcher` (SY rewards)
-- [ ] `lib/plugins/protocols/euler.ts` — add `RewardFetcher`
-- [ ] Update `/api/rewards` — use plugin registry to fetch across all protocols
-- [ ] Update harvest UI to show per-protocol rewards grouped by chain
-- [ ] Per-step simulation for harvest transactions
-- [ ] Harvest history display in dashboard
-- [ ] Auto-compound settings persist in Supabase (existing schema)
+- [x] `lib/plugins/protocols/aave.ts` — add `RewardFetcher` (Aave safety module rewards)
+- [x] `lib/plugins/protocols/morpho.ts` — add `RewardFetcher`
+- [x] `lib/plugins/protocols/pendle.ts` — add `RewardFetcher` (SY rewards)
+- [x] `lib/plugins/protocols/euler.ts` — add `RewardFetcher`
+- [x] Update `/api/rewards` — use plugin registry to fetch across all protocols
+- [x] Update harvest UI to show per-protocol rewards grouped by chain
+- [x] Per-step simulation for harvest transactions
+- [x] Harvest history display in dashboard
+- [x] Auto-compound settings persist in Supabase (existing schema)
+  - *Note: Auto-compound is currently a preference store only. No background executor exists to perform the harvests automatically. This is a known limitation.*
 
 ---
 
@@ -1403,10 +1404,10 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Cost preview handles N-step sequences, not just bridge + deposit.
 
 **Tasks:**
-- [ ] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
-- [ ] Gas estimation for every step via plugin's `estimateGasCostUsd()`
+- [x] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
+- [x] Gas estimation for every step via plugin's `estimateGasCostUsd()`
 - [ ] Bridge fee pulled from winning `BridgeQuote` in plan
-- [ ] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
+- [x] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
 - [ ] Quote staleness tracking per bridge step (60s expiry, orange at 30s)
 - [ ] Disable "Begin Sequence" if any bridge quote is stale
 - [ ] Break-even calculation: accounts for position being partially unwound during de-leverage

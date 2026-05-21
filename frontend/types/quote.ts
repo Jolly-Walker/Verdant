@@ -1,4 +1,4 @@
-import { ProtocolId, ChainId } from "./shared"
+import { ProtocolId, ChainId, BridgeQuote } from "./shared"
 
 export interface CostPreviewInput {
   asset: string
@@ -16,19 +16,25 @@ export interface Warning {
   message: string
 }
 
+export interface StepCost {
+  stepLabel: string
+  chain: ChainId
+  gasCostUsd: number
+  bridgeFeeUsd?: number
+  slippageUsd?: number
+}
+
 export interface CostPreviewResult {
-  bridgeFeeUsd: number          // from Across API quote
-  slippageUsd: number           // from NEAR Intents quote (amountIn - amountOut in USD)
-  gasStep1Usd: number           // eth_estimateGas × gasPrice × ETH price
-  gasStep2Usd: number           // eth_estimateGas on dest × dest gas price × ETH price
-  totalSwitchingCostUsd: number
-  currentApyDecimal: number     // from Defillama
-  targetApyDecimal: number      // from Defillama
-  netUpliftDecimal: number
-  dailyYieldGainUsd: number
-  breakEvenDays: number
+  steps: StepCost[]
+  totalCostUsd: number
+  currentApyDecimal: number
+  targetApyDecimal: number
+  netUpliftDecimal: number | null
+  dailyYieldGainUsd: number | null
+  breakEvenDays: number | null
   /** Target pool utilisation as decimal (e.g. 0.95 = 95%). Null if unavailable. */
   targetUtilisationDecimal: number | null
   quoteFetchedAt: Date
   warnings: Warning[]
+  bridgeOptions?: BridgeQuote[]
 }

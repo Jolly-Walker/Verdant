@@ -5,11 +5,12 @@ import { PendleCard } from "./PendleCard"
 import { useHarvest } from "@/hooks/useHarvest"
 import { useSequencer } from "@/hooks/useSequencer"
 import { Tooltip } from "../ui/Tooltip"
+import { DEFAULT_MIN_USD_THRESHOLD } from "@/constants/settings"
 
 export function PositionCard({ position }: { position: Position }) {
   const [isHarvesting, setIsHarvesting] = useState(false)
   const { plan, isSimulating } = useSequencer()
-  const { harvest } = useHarvest()
+  const { harvest, isSimulating: isHarvestSimulating, isSigning } = useHarvest()
 
   if (position.positionType === 'borrow') {
     return <BorrowCard position={position} />
@@ -22,15 +23,14 @@ export function PositionCard({ position }: { position: Position }) {
   const currentApyPercent = (position.currentApy * 100).toFixed(2)
   const hasRewards = position.claimableRewards.length > 0
   const rewardsUsd = position.claimableRewards.reduce((sum, r) => sum + r.amountUsd, 0)
-  const canHarvest = rewardsUsd >= 1000
+  const canHarvest = rewardsUsd >= DEFAULT_MIN_USD_THRESHOLD
 
   const handleHarvest = async () => {
     if (!canHarvest) return
     
     setIsHarvesting(true)
     try {
-      // Direct harvest until the sequencer-based harvest template is implemented
-      await harvest(position.id)
+      await harvest(position.protocol as string, position.chain)
     } catch (e) {
       console.error(e)
       alert("An error occurred during harvest")
@@ -91,13 +91,13 @@ export function PositionCard({ position }: { position: Position }) {
       {!isWallet && (
         <div className="flex justify-end gap-2 mt-auto pt-2">
           {hasRewards && (
-            <Tooltip content={!canHarvest ? "Minimum harvest is $1,000" : ""}>
+            <Tooltip content={!canHarvest ? `Minimum harvest is $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()}` : ""}>
               <button 
                 onClick={handleHarvest}
                 disabled={!canHarvest || isHarvesting || isSimulating}
                 className="text-sm bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow-sm shadow-emerald-900/20"
               >
-                {isSimulating ? "Simulating..." : isReady ? "Sign Harvest" : "Harvest"}
+                {isHarvestSimulating ? "Simulating..." : isSigning ? "Signing..." : isReady ? "Sign Harvest" : "Harvest"}
               </button>
             </Tooltip>
           )}

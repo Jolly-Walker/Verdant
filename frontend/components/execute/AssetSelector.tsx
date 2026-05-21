@@ -4,6 +4,7 @@ import React from 'react'
 import { Position } from '@/types/position'
 import { Card } from '@/components/ui/Card'
 import { formatUsd, formatToken } from '@/lib/utils/formatting'
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 
 interface AssetSelectorProps {
   positions: Position[]
@@ -27,7 +28,7 @@ export function AssetSelector({
   const amountUsd = selectedPosition
     ? (amountNum / selectedPosition.amount) * selectedPosition.amountUsd
     : 0
-  const isBelowMinimum = amountUsd > 0 && amountUsd < 1000
+  const isBelowMinimum = amountUsd > 0 && amountUsd < DEFAULT_MIN_USD_THRESHOLD
 
   return (
     <div className="space-y-4">
@@ -92,7 +93,7 @@ export function AssetSelector({
           </div>
           {isBelowMinimum && (
             <p className="text-xs text-amber-400">
-              ⚠️ Minimum transaction is $1,000 to cover fees
+              ⚠️ Minimum transaction is ${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} to cover fees
             </p>
           )}
         </div>

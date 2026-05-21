@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('server-only', () => ({}))
 
 import { layerzeroBridgePlugin } from '../layerzero'
-import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
+import { BridgeQuoteParams, BridgeQuote, ChainId } from '@/types/shared'
 import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
 
 describe('layerzeroBridgePlugin', () => {
@@ -90,7 +90,7 @@ describe('layerzeroBridgePlugin', () => {
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'layerzero',
       rawQuote: {
-        fromChain: 'solana' as any,
+        fromChain: 'solana' as unknown as ChainId,
         amount: '1000000',
         destDomain: 3
       }

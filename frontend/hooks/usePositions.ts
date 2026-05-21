@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@/hooks/useWallet'
 import { Position } from '@/types/position'
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 
 
 interface UsePositionsReturn {
@@ -37,7 +38,12 @@ export function usePositions(): UsePositionsReturn {
       const res = await fetch(url.toString())
       if (!res.ok) throw new Error(`API error: ${res.status}`)
       const data = await res.json()
-      setPositions(data.positions || [])
+      const allPositions = (data.positions || []) as Position[]
+      
+      // Filter out small balances based on threshold
+      // This is currently hardcoded to a default constant but will eventually be a user setting
+      const filteredPositions = allPositions.filter(p => p.amountUsd >= DEFAULT_MIN_USD_THRESHOLD)
+      setPositions(filteredPositions)
     } catch (err) {
       setError('Could not load positions. Using cached data.')
       console.error(err)

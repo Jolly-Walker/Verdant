@@ -28,7 +28,7 @@ describe('Bridge Build API Route', () => {
     vi.clearAllMocks();
   });
 
-  const createMockRequest = (body: any) => {
+  const createMockRequest = (body: Record<string, unknown>) => {
     return new NextRequest('http://localhost/api/bridges/build', {
       method: 'POST',
       body: JSON.stringify(body)

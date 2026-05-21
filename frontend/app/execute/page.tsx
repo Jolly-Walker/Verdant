@@ -8,20 +8,35 @@ import { TemplateSelector } from '@/components/sequence/TemplateSelector'
 import { CostPreview } from '@/components/execute/CostPreview'
 import { SequencePlanView } from '@/components/sequence/SequencePlanView'
 import { Card } from '@/components/ui/Card'
+import { ProtocolId, ChainId } from '@/types/shared'
 
 export default function ExecutePage() {
   const { evmAddress } = useWallet()
   const { plan, createPlan, reset } = useSequencer()
   const [selectedAsset, setSelectedAsset] = useState('USDC')
-  const [amount, setAmount] = useState('1000')
+  const [amount, setAmount] = useState('1')
+  
+  // These should ideally be selected by the user or derived from the template
+  const sourceProtocol: ProtocolId = 'aave'
+  const sourceChain: ChainId = 'ethereum'
+  const destProtocol: ProtocolId = 'morpho'
+  const destChain: ChainId = 'base'
 
-  const handleCreatePlan = async (templateId: string, params: Record<string, unknown>) => {
+  const handleCreatePlan = async (templateId: string) => {
     if (!evmAddress) return
+    
+    // For now, we use the default params for the template
+    // In a real app, clicking a template might open a configuration form
     await createPlan(templateId, {
-      ...params,
       asset: selectedAsset,
       amount,
+      amountUsd: Number(amount), // Simplified for MVP
+      fromChain: sourceChain,
+      toChain: destChain,
+      fromProtocol: sourceProtocol,
+      toProtocol: destProtocol,
       walletAddress: evmAddress,
+      slippagePercent: 0.005,
     })
   }
 
@@ -33,15 +48,24 @@ export default function ExecutePage() {
     )
   }
 
+  const previewInput = {
+    asset: selectedAsset,
+    amountUsd: Number(amount) || 0,
+    sourceProtocol,
+    sourceChain,
+    destProtocol,
+    destChain,
+  }
+
   return (
-    <div className="container mx-auto py-8 px-4 max-w-4xl">
+    <div className="container mx-auto py-8 px-4 max-w-6xl">
       <h1 className="text-3xl font-bold text-white mb-8">Execute Sequence</h1>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
           <Card className="p-6 bg-zinc-900 border-zinc-800">
-            <h2 className="text-xl font-semibold text-white mb-4">1. Select Asset & Amount</h2>
-            <div className="space-y-4">
+            <h2 className="text-xl font-semibold text-white mb-4">1. Asset & Amount</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <AssetSelector 
                 selectedAsset={selectedAsset} 
                 onSelect={setSelectedAsset} 
@@ -59,14 +83,16 @@ export default function ExecutePage() {
             </div>
           </Card>
 
-          <TemplateSelector onSelect={handleCreatePlan} />
+          <section>
+            <h2 className="text-xl font-semibold text-white mb-4">2. Select Action</h2>
+            <TemplateSelector selectedTemplate={null} onSelect={handleCreatePlan} />
+          </section>
         </div>
 
-        <div>
-          <CostPreview 
-            asset={selectedAsset}
-            amount={amount}
-          />
+        <div className="lg:col-span-1">
+          <div className="sticky top-8">
+            <CostPreview input={previewInput} />
+          </div>
         </div>
       </div>
     </div>

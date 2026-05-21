@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { ALL_BRIDGES, ALL_CHAINS, ChainId } from '@/types/shared'
+import { ALL_BRIDGES, ALL_CHAINS, ChainId, BridgeQuote } from '@/types/shared'
 import { SerializedUnsignedTx } from '@/types/sequencer'
 import { simulateTransaction } from '@/lib/simulation/simulate'
 
 const BuildBridgeTxSchema = z.object({
   bridgeId: z.enum(ALL_BRIDGES),
-  quote: z.any(),
+  quote: z.record(z.unknown()),
   walletAddress: z.string(),
 })
 
-function getChainIdFromRawQuote(bridgeId: string, rawQuote: any): string {
+function getChainIdFromRawQuote(bridgeId: string, rawQuote: Record<string, unknown>): string {
   if (bridgeId === 'across') {
-    const originChainId = rawQuote?.originChainId
+    const originChainId = rawQuote.originChainId
     if (originChainId === 1) return 'ethereum'
     if (originChainId === 42161) return 'arbitrum'
     if (originChainId === 8453) return 'base'
     return `unknown-chain-id-${originChainId}`
   }
-  return rawQuote?.fromChain || ''
+  return (rawQuote.fromChain as string) || ''
 }
 
 export async function POST(req: NextRequest) {
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const { bridgeId, quote, walletAddress } = result.data
 
-    const rawQuote = quote?.rawQuote
+    const rawQuote = quote.rawQuote as Record<string, unknown>
     if (!rawQuote) {
       return NextResponse.json({ error: 'Missing rawQuote in quote payload' }, { status: 400 })
     }
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
     const fromChain = getChainIdFromRawQuote(bridgeId, rawQuote)
-    if (!fromChain || !ALL_CHAINS.includes(fromChain as any)) {
+    if (!fromChain || !ALL_CHAINS.includes(fromChain as ChainId)) {
       return NextResponse.json({ error: `Unsupported origin chain: ${fromChain}` }, { status: 400 })
     }
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid bridge ID' }, { status: 400 })
     }
 
-    const unsignedTx = await bridge.buildBridgeTx(quote)
+    const unsignedTx = await bridge.buildBridgeTx(quote as unknown as BridgeQuote) // BridgeQuote cast needed because of Date type mismatch in JSON
 
     // Simulate transaction
     const simResult = await simulateTransaction({

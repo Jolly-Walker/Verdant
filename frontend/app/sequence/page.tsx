@@ -7,6 +7,7 @@ import { TemplateParams, TemplateId } from '@/types/sequencer';
 import { ChainId, ProtocolId } from '@/types/shared';
 import { TemplateSelector } from '@/components/sequence/TemplateSelector';
 import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import { computeOptimalCycles } from '@/lib/sequencer/templates/deleverageAave';
 
 export default function SequenceTemplateSelector() {
   const router = useRouter();
@@ -36,12 +37,44 @@ export default function SequenceTemplateSelector() {
     const amountParam = searchParams.get('amount');
     const ptAddressParam = searchParams.get('ptAddress');
     const chainParam = searchParams.get('chain') as ChainId;
+    const protocolParam = searchParams.get('protocol') as ProtocolId;
+    const borrowAssetParam = searchParams.get('borrowAsset');
+    const collateralAssetParam = searchParams.get('collateralAsset');
+    const collateralAmountParam = searchParams.get('collateralAmount');
+    const healthFactorParam = searchParams.get('healthFactor');
+    const cyclesParam = searchParams.get('cycles');
 
     if (template) setSelectedTemplate(template);
     if (assetParam) setAsset(assetParam);
     if (amountParam) setAmount(amountParam);
     if (ptAddressParam) setPtAddress(ptAddressParam);
     if (chainParam) setFromChain(chainParam);
+    if (protocolParam) setFromProtocol(protocolParam);
+    if (borrowAssetParam) setBorrowAsset(borrowAssetParam);
+    if (collateralAssetParam) setCollateralAsset(collateralAssetParam);
+    if (collateralAmountParam) setCollateralAmount(collateralAmountParam);
+    
+    let hfVal = 2.5;
+    if (healthFactorParam) {
+      hfVal = parseFloat(healthFactorParam) || 2.5;
+      setHealthFactor(hfVal);
+    }
+    
+    if (cyclesParam) {
+      setCycles(parseInt(cyclesParam) || 2);
+    } else if (template === 'deleverageAave') {
+      const debtUsdParam = searchParams.get('totalDebtUsd');
+      const collUsdParam = searchParams.get('totalCollateralUsd');
+      if (debtUsdParam && collUsdParam) {
+        const debtUsd = parseFloat(debtUsdParam);
+        const collUsd = parseFloat(collUsdParam);
+        if (debtUsd > 0 && collUsd > 0) {
+          const lt = (hfVal * debtUsd) / collUsd;
+          const optCycles = computeOptimalCycles(debtUsd, collUsd, lt);
+          setCycles(optCycles);
+        }
+      }
+    }
   }, [searchParams]);
 
   const handleSubmit = async () => {

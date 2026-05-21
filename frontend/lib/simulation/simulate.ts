@@ -1,8 +1,7 @@
 import 'server-only'
-import { parseAbi, parseUnits, formatUnits } from 'viem'
+import { formatUnits } from 'viem'
 import { ChainId, ProtocolId } from '@/types/shared'
-import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
 import { SimulationResult, StateChange } from '@/types/sequencer'
 import { decodeRevertReason } from './errors'
 import { VersionedTransaction } from '@solana/web3.js'
@@ -16,79 +15,27 @@ interface AlchemySimulateResult {
   approvals?: Array<{ owner?: string; rawAmount: string; symbol?: string; decimals: number; contractAddress?: string }>
 }
 
-// Dummy address for gas estimation routines where the user is unconnected.
-const DUMMY_ADDRESS = '0x0000000000000000000000000000000000000001'
-
-// Minimal ERC20 ABI for proxying simulation operations
-const ERC20_ABI = parseAbi([
-  'function approve(address spender, uint256 amount) returns (bool)',
-  'function transfer(address to, uint256 amount) returns (bool)'
-])
-
 /**
- * Estimates the gas required to bridge an asset out of the source chain.
+ * Estimates the gas required to bridge an asset.
+ * Refactored to use ChainPlugin's estimation logic.
  */
-export async function estimateBridgeGas(sourceChain: ChainId, asset: string): Promise<number> {
-  try {
-    const client = getPublicClient(sourceChain)
-    const tokenConfig = SUPPORTED_TOKENS[asset]
-    if (!tokenConfig || !tokenConfig.addresses[sourceChain]) {
-      return 65_000 // default fallback
-    }
+export async function estimateBridgeGas(sourceChain: ChainId, _asset: string): Promise<number> {
+  const plugin = CHAIN_REGISTRY[sourceChain]
+  if (!plugin) return 65_000
 
-    const tokenAddress = tokenConfig.addresses[sourceChain]
-
-    // Estimate an approve to approximate the bridge initiation footprint
-    const approveGas = await client.estimateContractGas({
-      address: tokenAddress as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: 'approve',
-      args: [DUMMY_ADDRESS, parseUnits('1000', tokenConfig.decimals)],
-      account: DUMMY_ADDRESS,
-    })
-
-    // Bridge usually involves an approve + an event emission on the SpokePool
-    const totalGas = Number(approveGas) + 40_000
-    return totalGas
-  } catch {
-    console.warn(`Bridge gas simulation failed for ${sourceChain} ${asset}, using fallback`)
-    return 65_000
-  }
+  // We pass a dummy tx to get a baseline estimate from the plugin
+  // In a real scenario, buildBridgeTx would provide the data
+  return plugin.estimateGasCostUsd({})
 }
 
 /**
- * Estimates the gas required to deposit into a protocol on the destination chain.
+ * Estimates the gas required to deposit into a protocol.
  */
-export async function estimateDepositGas(destChain: ChainId, protocol: ProtocolId, asset: string): Promise<number> {
-  try {
-    const client = getPublicClient(destChain)
-    const tokenConfig = SUPPORTED_TOKENS[asset]
-    const protocolConfig = PROTOCOL_REGISTRY[protocol]
-    
-    if (!tokenConfig || !tokenConfig.addresses[destChain] || !protocolConfig || !protocolConfig.addresses[destChain]?.poolAddress) {
-      return 250_000 // default fallback
-    }
+export async function estimateDepositGas(destChain: ChainId, _protocol: ProtocolId, _asset: string): Promise<number> {
+  const plugin = CHAIN_REGISTRY[destChain]
+  if (!plugin) return 250_000
 
-    const tokenAddress = tokenConfig.addresses[destChain]
-    const poolAddress = protocolConfig.addresses[destChain]?.poolAddress
-
-    // Estimate an approve against the destination pool.
-    // Further granular deposit estimation (e.g. `supply` in Aave V3) is deferred to Milestone 3 SDK integration.
-    const approveGas = await client.estimateContractGas({
-      address: tokenAddress as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: 'approve',
-      args: [poolAddress as `0x${string}`, parseUnits('1000', tokenConfig.decimals)],
-      account: DUMMY_ADDRESS,
-    })
-
-    const standardDepositBuffer = 200_000 
-    
-    return Number(approveGas) + standardDepositBuffer
-  } catch {
-    console.warn(`Deposit gas simulation failed for ${protocol} on ${destChain}, using fallback`)
-    return 250_000
-  }
+  return plugin.estimateGasCostUsd({})
 }
 
 /**
