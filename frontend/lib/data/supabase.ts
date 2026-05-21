@@ -1,12 +1,12 @@
 import 'server-only'
 import { createClient } from '@supabase/supabase-js';
 
-let _client: ReturnType<typeof createClient> | null = null
+let _client: any = null
 
 /**
  * Lazy-initialized public client.
  */
-export function getSupabase() {
+export function getSupabase(): any {
   if (_client) return _client
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -15,13 +15,13 @@ export function getSupabase() {
   return _client
 }
 
-let _adminClient: ReturnType<typeof createClient> | null = null
+let _adminClient: any = null
 
 /**
  * Lazy-initialized admin client for server-side write operations.
  * Throws if required environment variables are missing.
  */
-export function getSupabaseAdmin() {
+export function getSupabaseAdmin(): any {
   if (_adminClient) return _adminClient
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY

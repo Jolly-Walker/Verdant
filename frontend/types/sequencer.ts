@@ -63,11 +63,13 @@ export interface SequencePlan {
   status: 'draft' | 'in-progress' | 'complete' | 'failed'
   totalCostUsd: number
   description: string
+  templateId?: TemplateId
 }
 
-export interface SerializedSequencePlan extends Omit<SequencePlan, 'steps' | 'createdAt'> {
+export interface SerializedSequencePlan extends Omit<SequencePlan, "steps" | "createdAt" | "templateId"> {
   createdAt: string
   steps: SerializedSequenceStep[]
+  templateId?: TemplateId
 }
 
 export interface BridgeAndDepositParams {
@@ -116,7 +118,7 @@ export interface DeleverageAaveParams {
   totalCollateralUsd: number;
   initialHealthFactor: number;
   amountUsd: number;
-  cycles: number;
+  cycles?: number;
   protocol: ProtocolId;
   chain: ChainId;
   walletAddress: string;

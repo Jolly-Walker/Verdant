@@ -195,7 +195,7 @@ describe('nearIntentsBridgePlugin', () => {
 
   it('should return null if getQuote times out', async () => {
     // Mock fetch to hang and handle abort signal
-    ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((_url: unknown, options: { signal?: AbortSignal }) => {
       return new Promise((_resolve, reject) => {
         if (options?.signal) {
           options.signal.addEventListener('abort', () => {

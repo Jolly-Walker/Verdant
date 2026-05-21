@@ -148,7 +148,8 @@ export async function calculateCostPreview(
 
     const warnings = detectWarnings(
       {
-        totalSwitchingCostUsd: totalCostUsd,
+        steps,
+        totalCostUsd,
         dailyYieldGainUsd,
         breakEvenDays,
         currentApyDecimal,

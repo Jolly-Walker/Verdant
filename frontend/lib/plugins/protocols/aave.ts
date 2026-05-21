@@ -256,10 +256,10 @@ export const aavePlugin: ProtocolPlugin = {
                 functionName: 'getReserveData',
                 args: [assetAddress as `0x${string}`],
               })
-              supplyApy = Number(result.currentLiquidityRate) / 1e27
-              borrowApy = Number(result.currentVariableBorrowRate) / 1e27
-              aTokenAddress = result.aTokenAddress
-              variableDebtTokenAddress = result.variableDebtTokenAddress
+              supplyApy = Number(result[4]) / 1e27
+              borrowApy = Number(result[5]) / 1e27
+              aTokenAddress = result[9]
+              variableDebtTokenAddress = result[11]
             } catch (e) {
               console.error(`Failed to get Aave rates for ${token.symbol} on ${chain}:`, e)
             }
@@ -317,7 +317,9 @@ export const aavePlugin: ProtocolPlugin = {
           args: [address as `0x${string}`],
         })
 
-        const { totalCollateralBase, totalDebtBase, healthFactor: hfBigInt } = accountData
+        const totalCollateralBase = accountData[0]
+        const totalDebtBase = accountData[1]
+        const hfBigInt = accountData[5]
         const healthFactor = Number(hfBigInt) / 1e18
 
         // If both are zero, the user has no positions on this Aave market.
@@ -342,7 +344,10 @@ export const aavePlugin: ProtocolPlugin = {
               args: [token.addresses[chain] as `0x${string}`],
             })
 
-            const { aTokenAddress, variableDebtTokenAddress, currentLiquidityRate, currentVariableBorrowRate } = result
+            const aTokenAddress = result[9]
+            const variableDebtTokenAddress = result[11]
+            const currentLiquidityRate = result[4]
+            const currentVariableBorrowRate = result[5]
 
             const supplyApy = Number(currentLiquidityRate) / 1e27
             const borrowApy = Number(currentVariableBorrowRate) / 1e27
@@ -565,7 +570,7 @@ export const aavePlugin: ProtocolPlugin = {
                 functionName: 'getReserveData',
                 args: [token.addresses[chain] as `0x${string}`],
               })
-              const aTokenAddress = result.aTokenAddress
+              const aTokenAddress = result[9]
               if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
                 // Check user has a balance on this aToken
                 const bal = await client.readContract({
@@ -675,7 +680,7 @@ export const aavePlugin: ProtocolPlugin = {
               functionName: 'getReserveData',
               args: [token.addresses[chain] as `0x${string}`],
             })
-            const aTokenAddress = result.aTokenAddress
+            const aTokenAddress = result[9]
             if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
               const bal = await client.readContract({
                 address: aTokenAddress as `0x${string}`,

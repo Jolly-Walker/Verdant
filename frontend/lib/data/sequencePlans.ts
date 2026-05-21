@@ -26,7 +26,8 @@ export async function createSequencePlan(plan: SequencePlan, templateId: string)
       ...plan,
       id: data.id,
       createdAt: new Date(data.created_at),
-      steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep)
+      steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
+      templateId: data.template_id as any
     }
   } catch (error) {
     console.error('Error creating sequence plan:', error)
@@ -52,7 +53,8 @@ export async function getSequencePlan(id: string): Promise<SequencePlan | null> 
       steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
       status: data.status,
       totalCostUsd: Number(data.total_cost_usd || 0),
-      description: data.description
+      description: data.description,
+      templateId: data.template_id as any
     } as SequencePlan
   } catch (error) {
     console.error('Error getting sequence plan:', error)

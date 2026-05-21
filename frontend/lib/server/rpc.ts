@@ -22,14 +22,14 @@ const ALCHEMY_RPC_URLS: Record<ChainId, string> = {
  * Get the Alchemy RPC URL for a given chain.
  * Server-side only — will return a URL with an empty key if env vars are missing.
  */
-export function getRpcUrl(chain: Chain): string {
+export function getRpcUrl(chain: ChainId): string {
   return ALCHEMY_RPC_URLS[chain]
 }
 
 /**
  * Get a viem PublicClient for a given EVM chain.
  */
-export function getPublicClient(chain: Chain): PublicClient {
+export function getPublicClient(chain: ChainId): PublicClient {
   const rpcUrl = getRpcUrl(chain)
   
   const chainMap: Record<string, ViemChain> = {
@@ -53,8 +53,8 @@ export function getPublicClient(chain: Chain): PublicClient {
  * Fetch the current gas price from Alchemy for a given chain.
  * Returns gas price in Gwei. Falls back to hardcoded estimates on failure.
  */
-export async function fetchGasPrice(chain: Chain): Promise<number> {
-  const FALLBACK_GWEI: Record<Chain, number> = {
+export async function fetchGasPrice(chain: ChainId): Promise<number> {
+  const FALLBACK_GWEI: Record<ChainId, number> = {
     ethereum: 25,
     arbitrum: 0.1,
     base: 0.1,

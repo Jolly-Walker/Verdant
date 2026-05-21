@@ -292,7 +292,7 @@ describe('Euler V2 Protocol Plugin', () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ coins: {} }),
-    })
+    } as any)
   })
 
   describe('fetchPositions', () => {
@@ -384,7 +384,7 @@ describe('Euler V2 Protocol Plugin', () => {
         json: async () => ({
           coins: { 'ethereum:0x3333333333333333333333333333333333333333': { price: 5.0 } },
         }),
-      })
+      } as any)
 
       const rewards = await eulerPlugin.rewards!.fetchRewards(
         '0x1234567890123456789012345678901234567890', 'ethereum'
@@ -442,7 +442,7 @@ describe('Morpho Protocol Plugin', () => {
     vi.mocked(global.fetch).mockResolvedValue({
       ok: true,
       json: async () => ({ coins: {} }),
-    })
+    } as any)
   })
 
   describe('rewards.fetchRewards', () => {
@@ -470,7 +470,7 @@ describe('Morpho Protocol Plugin', () => {
         json: async () => ({
           coins: { 'ethereum:0x5555555555555555555555555555555555555555': { price: 1.5 } },
         }),
-      })
+      } as any)
 
       const rewards = await morphoPlugin.rewards!.fetchRewards(
         '0x1234567890123456789012345678901234567890', 'ethereum'
@@ -533,7 +533,7 @@ describe('Pendle Protocol Plugin', () => {
       vi.mocked(global.fetch).mockResolvedValue({
         ok: true,
         json: async () => ({ balances: [] }),
-      })
+      } as any)
 
       const rewards = await pendlePlugin.rewards!.fetchRewards(
         '0x1234567890123456789012345678901234567890', 'ethereum'
@@ -558,7 +558,7 @@ describe('Pendle Protocol Plugin', () => {
             },
           ],
         }),
-      })
+      } as any)
 
       const rewards = await pendlePlugin.rewards!.fetchRewards(
         '0x1234567890123456789012345678901234567890', 'ethereum'
@@ -589,7 +589,7 @@ describe('Pendle Protocol Plugin', () => {
             },
           ],
         }),
-      })
+      } as any)
 
       const txs = await pendlePlugin.rewards!.buildClaimTx({
         address: '0x1234567890123456789012345678901234567890', chain: 'ethereum',

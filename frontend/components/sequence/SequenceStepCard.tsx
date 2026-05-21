@@ -60,7 +60,7 @@ export function SequenceStepCard({
       <div className="flex justify-between items-center">
         <div>
           <p className="text-zinc-400 text-sm">
-            {step.description || `Step ${index + 1}: ${step.label}`}
+            {step.unsignedTx?.description || `Step ${index + 1}: ${step.label}`}
           </p>
           {step.txHash && (
             <a
@@ -98,7 +98,7 @@ export function SequenceStepCard({
             </button>
           ) : step.status === 'pending' ? (
             <span className="text-zinc-500 text-sm">Waiting...</span>
-          ) : step.status === 'simulated' ? (
+          ) : step.status === 'ready' ? (
             <span className="text-emerald-400 text-sm">Verified</span>
           ) : null}
         </div>

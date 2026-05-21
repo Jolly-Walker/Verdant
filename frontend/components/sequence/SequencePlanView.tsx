@@ -33,14 +33,13 @@ export function SequencePlanView({
       <SequenceProgress plan={plan} currentStepId={currentStepId} />
 
       <div className="space-y-4">
-        {plan.steps.map((step) => (
+        {plan.steps.map((step, index) => (
           <SequenceStepCard
             key={step.id}
             step={step}
-            isActive={step.id === currentStepId}
-            onSimulate={() => onSimulate(step.id)}
-            onSign={() => onSign(step.id)}
-            onEdit={onEdit}
+            index={index}
+            isCurrent={step.id === currentStepId}
+            onAction={async () => onSign(step.id)}
           />
         ))}
       </div>

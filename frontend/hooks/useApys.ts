@@ -11,8 +11,8 @@ interface UseApysReturn {
 }
 
 export function useApys(
-  protocol: Protocol | null,
-  chain: Chain | null,
+  protocol: ProtocolId | null,
+  chain: ChainId | null,
   asset: string | null
 ): UseApysReturn {
   const [apy, setApy] = useState<number | null>(null)
