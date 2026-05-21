@@ -252,6 +252,27 @@ export function useSequencer() {
     }
   }, [address, sendTransactionAsync, signSolanaTransaction])
 
+  const signStep = useCallback(async (stepId: string, txHash: string): Promise<void> => {
+    const currentPlan = planRef.current
+    if (!currentPlan) throw new Error('No active plan')
+    
+    // Update DB to confirmed
+    const confirmRes = await fetchWithTimeout(`/api/sequencer/plan/${currentPlan.id}/step/${stepId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'confirmed', txHash, walletAddress: address })
+    })
+
+    if (!confirmRes.ok) {
+      console.error('CRITICAL: Transaction complete but database update failed')
+    }
+
+    setPlan(prev => prev ? { 
+      ...prev, 
+      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'confirmed', txHash } : s) 
+    } : null)
+  }, [address])
+
   const reset = useCallback(() => {
     setPlan(null)
   }, [])
@@ -273,6 +294,7 @@ export function useSequencer() {
     createPlan,
     simulateStep,
     executeStep,
+    signStep,
     reset,
     setPlan: stableSetPlan
   }

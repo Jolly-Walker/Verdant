@@ -152,7 +152,8 @@ describe('nearIntentsBridgePlugin', () => {
 
   it('should return null for unsupported token', async () => {
     // Mock fetch to return a result, to ensure it returns null due to validation
-    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ jsonrpc: '2.0', result: '0x123' }),
     })
@@ -195,7 +196,7 @@ describe('nearIntentsBridgePlugin', () => {
 
   it('should return null if getQuote times out', async () => {
     // Mock fetch to hang and handle abort signal
-    ;(global.fetch as vi.Mock).mockImplementation((_url, options) => {
+    ;(global.fetch as ReturnType<typeof vi.fn>).mockImplementation((_url: unknown, options: { signal?: AbortSignal }) => {
       return new Promise((_resolve, reject) => {
         if (options?.signal) {
           options.signal.addEventListener('abort', () => {

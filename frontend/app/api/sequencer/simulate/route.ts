@@ -116,8 +116,13 @@ export async function POST(req: Request) {
       const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams)
       if (quote) {
         warnings = detectWarnings({
-          bridgeFeeUsd: quote.feeUsd,
-          slippageUsd: amountUsd * (quote.slippagePercent / 100)
+          steps: [{
+            stepLabel: step.label,
+            chain: step.chain,
+            gasCostUsd: 0,
+            bridgeFeeUsd: quote.feeUsd,
+            slippageUsd: amountUsd * (quote.slippagePercent / 100)
+          }]
         }, amountUsd)
       }
     } else {

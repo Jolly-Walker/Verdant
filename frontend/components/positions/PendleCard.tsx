@@ -2,8 +2,15 @@ import React from 'react'
 import { Position } from '@/types/position'
 import { WarningBanner } from '@/components/ui/WarningBanner'
 import Link from 'next/link'
+import { TemplateId } from '@/types/sequencer'
 
-export function PendleCard({ position }: { position: Position }) {
+export function PendleCard({ 
+  position,
+  onSequence
+}: { 
+  position: Position
+  onSequence?: (template: TemplateId, params: Record<string, string>) => void
+}) {
   const apyPercent = (position.currentApy * 100).toFixed(2)
   const isPT = position.positionType === 'pendle-pt'
   
@@ -60,12 +67,27 @@ export function PendleCard({ position }: { position: Position }) {
       </div>
 
       <div className="flex justify-end gap-2 mt-auto pt-2">
-        <Link 
-          href={`/sequence?template=exitPendle&asset=${position.asset}&amount=${position.amount}&ptAddress=${position.assetAddress}&chain=${position.chain}`}
-          className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center"
-        >
-          Exit
-        </Link>
+        {onSequence ? (
+          <button 
+            onClick={() => onSequence('exitPendle', {
+              template: 'exitPendle',
+              asset: position.asset,
+              amount: position.amount.toString(),
+              ptAddress: position.assetAddress || '',
+              chain: position.chain,
+            })}
+            className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center cursor-pointer"
+          >
+            Exit
+          </button>
+        ) : (
+          <Link 
+            href={`/sequence?template=exitPendle&asset=${position.asset}&amount=${position.amount}&ptAddress=${position.assetAddress}&chain=${position.chain}`}
+            className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center"
+          >
+            Exit
+          </Link>
+        )}
       </div>
     </div>
   )

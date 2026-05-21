@@ -1,13 +1,13 @@
 import 'server-only'
-import { Position } from '@/types/position'
+import { RawPosition } from '@/types/shared'
 
 /**
  * Deduplicates positions, preferring those from protocol-specific SDKs over Zerion.
  * Currently, positions from Zerion have protocol IDs like 'aave', 'morpho', etc.
  * Positions from Solana token balances have protocol ID 'wallet'.
  */
-export function deduplicatePositions(positions: Position[]): Position[] {
-  const seen = new Map<string, Position>()
+export function deduplicatePositions<T extends RawPosition>(positions: T[]): T[] {
+  const seen = new Map<string, T>()
 
   for (const pos of positions) {
     // Construct a unique key for the position
@@ -35,3 +35,4 @@ export function deduplicatePositions(positions: Position[]): Position[] {
 
   return Array.from(seen.values())
 }
+

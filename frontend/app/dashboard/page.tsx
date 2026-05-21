@@ -7,11 +7,14 @@ import { ConnectButton } from '@/components/wallet/ConnectButton'
 import { PositionList } from '@/components/positions/PositionList'
 import { usePositions } from '@/hooks/usePositions'
 import { formatUsd } from '@/lib/utils/formatting'
+import { useSequenceModal } from '@/hooks/useSequenceModal'
+import { SequenceModal } from '@/components/sequence/SequenceModal'
 
 export default function Dashboard() {
   const { isConnected, disconnect, isMounted } = useWallet()
   const router = useRouter()
   const { positions, isLoading, error, refetch, totalValueUsd, totalRewardsUsd } = usePositions()
+  const { isOpen, options, openModal, closeModal } = useSequenceModal()
 
   useEffect(() => {
     if (isMounted && !isConnected) {
@@ -46,8 +49,8 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.push('/sequence')}
-              className="text-sm bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+              onClick={() => openModal()}
+              className="text-sm bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors font-medium cursor-pointer"
             >
               Sequence
             </button>
@@ -80,8 +83,19 @@ export default function Dashboard() {
           </div>
         )}
 
-        <PositionList positions={positions} isLoading={isLoading} />
+        <PositionList 
+          positions={positions} 
+          isLoading={isLoading} 
+          onSequence={(template, params) => openModal({ template, params })}
+        />
       </main>
+
+      <SequenceModal
+        isOpen={isOpen}
+        onClose={closeModal}
+        initialTemplate={options.template}
+        initialParams={options.params}
+      />
     </div>
   )
 }

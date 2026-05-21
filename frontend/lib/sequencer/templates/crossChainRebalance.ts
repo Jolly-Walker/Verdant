@@ -7,6 +7,7 @@ export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams):
     createdAt: new Date(),
     status: 'draft',
     totalCostUsd: 0,
+    positionSizeUsd: params.amountUsd,
     description: `Rebalance ${params.asset} from ${params.fromProtocol} on ${params.fromChain} to ${params.toProtocol} on ${params.toChain}`,
     steps: [
       {

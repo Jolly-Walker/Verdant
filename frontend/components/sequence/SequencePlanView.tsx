@@ -3,19 +3,33 @@ import { SequencePlan } from '@/types/sequencer';
 import { SequenceProgress } from './SequenceProgress';
 import { SequenceStepCard } from './SequenceStepCard';
 import { formatUsd } from '@/lib/utils/formatting';
+import { CostPreview } from '@/components/execute/CostPreview';
+import { CostPreviewResult } from '@/types/quote';
 
 export function SequencePlanView({ 
   plan, 
   currentStepId, 
-  onSimulate, 
+  onSimulate: _onSimulate, 
   onSign, 
-  onEdit 
+  onEdit,
+  costResult = null,
+  costLoading = false,
+  staleStepIds,
+  expiredStepIds,
+  hasExpiredQuotes = false,
+  onRefetchCost
 }: { 
   plan: SequencePlan, 
   currentStepId: string | null,
   onSimulate: (stepId: string) => void, 
   onSign: (stepId: string) => void, 
-  onEdit: () => void 
+  onEdit: () => void,
+  costResult?: CostPreviewResult | null,
+  costLoading?: boolean,
+  staleStepIds?: Set<string>,
+  expiredStepIds?: Set<string>,
+  hasExpiredQuotes?: boolean,
+  onRefetchCost?: () => void
 }) {
   const totalGasCost = plan.steps.reduce((acc, step) => acc + (step.simulation?.gasCostUsd || 0), 0);
 
@@ -32,18 +46,38 @@ export function SequencePlanView({
 
       <SequenceProgress plan={plan} currentStepId={currentStepId} />
 
+      <div className="mb-8">
+        <CostPreview
+          result={costResult}
+          isLoading={costLoading}
+          staleStepIds={staleStepIds}
+          expiredStepIds={expiredStepIds}
+          stepIds={plan.steps.map(s => s.id)}
+          refetch={onRefetchCost}
+        />
+      </div>
+
       <div className="space-y-4">
-        {plan.steps.map((step) => (
+        {plan.steps.map((step, index) => (
           <SequenceStepCard
             key={step.id}
             step={step}
-            isActive={step.id === currentStepId}
-            onSimulate={() => onSimulate(step.id)}
-            onSign={() => onSign(step.id)}
-            onEdit={onEdit}
+            index={index}
+            isCurrent={step.id === currentStepId}
+            onAction={async () => onSign(step.id)}
+            isQuoteExpired={expiredStepIds?.has(step.id) ?? false}
           />
         ))}
       </div>
+
+      {hasExpiredQuotes && (
+        <div className="mt-6 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex justify-between items-center">
+          <p className="text-red-400 text-sm">Bridge quote expired — refresh before signing</p>
+          <button onClick={onRefetchCost} className="text-sm text-white bg-red-800 hover:bg-red-700 px-3 py-1 rounded">
+            Refresh Quotes
+          </button>
+        </div>
+      )}
 
       <div className="mt-8 flex justify-center">
         <button 

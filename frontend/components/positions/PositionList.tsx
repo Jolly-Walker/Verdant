@@ -8,12 +8,15 @@ import { PositionType } from '@/types/shared'
 
 import { Badge } from '../ui/Badge'
 
+import { TemplateId } from '@/types/sequencer'
+
 interface PositionListProps {
   positions: Position[]
   isLoading?: boolean
+  onSequence?: (template: TemplateId, params: Record<string, string>) => void
 }
 
-export function PositionList({ positions, isLoading }: PositionListProps) {
+export function PositionList({ positions, isLoading, onSequence }: PositionListProps) {
   const [filter, setFilter] = useState<PositionType | 'all' | 'pendle'>('all')
   const { chainIds, getChainMetadata } = useChainMetadata()
 
@@ -90,7 +93,7 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
             {group.assets.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 {group.assets.map((p) => (
-                  <PositionCard key={p.id} position={p} />
+                  <PositionCard key={p.id} position={p} onSequence={onSequence} />
                 ))}
               </div>
             )}
@@ -103,7 +106,7 @@ export function PositionList({ positions, isLoading }: PositionListProps) {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {group.liabilities.map((p) => (
-                    <PositionCard key={p.id} position={p} />
+                    <PositionCard key={p.id} position={p} onSequence={onSequence} />
                   ))}
                 </div>
               </div>

@@ -9,6 +9,7 @@ export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): Seque
     createdAt: new Date(),
     status: 'draft',
     totalCostUsd: 0,
+    positionSizeUsd: params.amountUsd,
     description: isSameChain 
       ? `Deposit ${params.asset} into ${params.toProtocol} on ${params.toChain}`
       : `Bridge and deposit ${params.asset} from ${params.fromChain} to ${params.toChain}`,

@@ -22,11 +22,28 @@ export interface StepCost {
   gasCostUsd: number
   bridgeFeeUsd?: number
   slippageUsd?: number
+  /** ISO string of when the bridge quote expires — for staleness tracking */
+  quoteExpiresAt?: string
+}
+
+/** Optional de-leverage context for Aave loop unwind break-even calculation */
+export interface DeleverageBreakEvenInfo {
+  /** Annual USD savings from removing the borrow interest cost */
+  annualInterestSavingsUsd: number
+  /** Annual USD opportunity cost from removing the collateral supply APY */
+  annualCollateralCostUsd: number
+  /** Net annualised yield uplift (savings - cost) */
+  netAnnualUpliftUsd: number
+  breakEvenDays: number
 }
 
 export interface CostPreviewResult {
   steps: StepCost[]
   totalCostUsd: number
+  /** Subtotals */
+  totalGasUsd: number
+  totalBridgeFeeUsd: number
+  totalSlippageUsd: number
   currentApyDecimal: number
   targetApyDecimal: number
   netUpliftDecimal: number | null
@@ -37,4 +54,6 @@ export interface CostPreviewResult {
   quoteFetchedAt: Date
   warnings: Warning[]
   bridgeOptions?: BridgeQuote[]
+  /** Present only for de-leverage sequences */
+  deleverageBreakEven?: DeleverageBreakEvenInfo
 }

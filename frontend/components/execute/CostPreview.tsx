@@ -8,18 +8,49 @@ import { CostPreviewInput, CostPreviewResult } from '@/types/quote'
 import { useQuote } from '@/hooks/useQuote'
 
 interface CostPreviewProps {
-  input: CostPreviewInput | null
-  // Optional result if already fetched by parent (e.g. for a SequencePlan)
+  input?: CostPreviewInput | null
+  /** Optional: pre-fetched result (e.g. from useSequenceCost for a multi-step plan) */
   result?: CostPreviewResult | null
+  isLoading?: boolean
+  error?: string | null
+  isStale?: boolean
+  quoteAge?: number
+  refetch?: () => void
+  /** Step IDs whose bridge quotes are stale (show orange indicator) */
+  staleStepIds?: Set<string>
+  /** Step IDs whose bridge quotes have expired (show red indicator) */
+  expiredStepIds?: Set<string>
+  /** Labels for each step in the same order as result.steps, for staleness lookup */
+  stepIds?: string[]
 }
 
-export function CostPreview({ 
-  input,
-  result: providedResult
+export function CostPreview({
+  input = null,
+  result: providedResult,
+  isLoading: externalLoading,
+  error: externalError,
+  isStale: externalIsStale,
+  quoteAge: externalQuoteAge,
+  refetch: externalRefetch,
+  staleStepIds,
+  expiredStepIds,
+  stepIds,
 }: CostPreviewProps) {
-  const { quote: fetchedQuote, isLoading, error, isStale, quoteAge, refetch } = useQuote(input)
-  
+  const {
+    quote: fetchedQuote,
+    isLoading: internalLoading,
+    error: internalError,
+    isStale: internalIsStale,
+    quoteAge: internalQuoteAge,
+    refetch: internalRefetch,
+  } = useQuote(providedResult ? null : input) // skip internal fetch if result provided
+
   const result = providedResult || fetchedQuote
+  const isLoading = externalLoading ?? internalLoading
+  const error = externalError ?? internalError
+  const isStale = externalIsStale ?? internalIsStale
+  const quoteAge = externalQuoteAge ?? internalQuoteAge
+  const refetch = externalRefetch ?? internalRefetch
 
   if (isLoading && !result) {
     return (
@@ -37,7 +68,7 @@ export function CostPreview({
         <div className="bg-red-900/20 border border-red-900/50 rounded-lg p-4 mb-6">
           <p className="text-sm text-red-200">{error}</p>
         </div>
-        <button 
+        <button
           onClick={refetch}
           className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors"
         >
@@ -57,6 +88,9 @@ export function CostPreview({
     )
   }
 
+  const hasMultipleSteps = result.steps.length > 2
+  const hasSubtotals = result.totalGasUsd !== undefined
+
   return (
     <Card className="p-6 bg-zinc-900 border-zinc-800 relative overflow-hidden">
       {isLoading && (
@@ -64,7 +98,7 @@ export function CostPreview({
           <Spinner />
         </div>
       )}
-      
+
       <div className="flex justify-between items-start mb-6">
         <h2 className="text-xl font-semibold text-white">Cost & Yield Preview</h2>
         {isStale ? (
@@ -77,28 +111,78 @@ export function CostPreview({
           </span>
         )}
       </div>
-      
+
       <div className="space-y-8">
+        {/* ── Itemized Step Costs ───────────────────────────────────────── */}
         <section>
-          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Itemized Switching Costs</h3>
+          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">
+            Itemized Switching Costs
+          </h3>
           <div className="space-y-3">
-            {result.steps.map((step, i) => (
-              <div key={i} className="space-y-1">
-                <div className="flex justify-between text-sm">
-                  <span className="text-zinc-300 font-medium">{step.stepLabel}</span>
-                  <span className="text-white font-mono">
-                    {formatUsd(step.gasCostUsd + (step.bridgeFeeUsd || 0) + (step.slippageUsd || 0))}
-                  </span>
+            {result.steps.map((step, i) => {
+              const stepId = stepIds?.[i]
+              const isStepStale = stepId ? staleStepIds?.has(stepId) : false
+              const isStepExpired = stepId ? expiredStepIds?.has(stepId) : false
+              const hasBridgeFee = step.bridgeFeeUsd != null && step.bridgeFeeUsd > 0
+
+              return (
+                <div key={i} className="space-y-1">
+                  <div className="flex justify-between text-sm items-start">
+                    <div className="flex items-center gap-2">
+                      <span className="text-zinc-300 font-medium">{step.stepLabel}</span>
+                      {hasBridgeFee && isStepExpired && (
+                        <span className="text-[10px] bg-red-900/40 text-red-400 border border-red-800/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                          Quote Expired
+                        </span>
+                      )}
+                      {hasBridgeFee && isStepStale && !isStepExpired && (
+                        <span className="text-[10px] bg-amber-900/40 text-amber-400 border border-amber-800/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                          Stale Quote
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-white font-mono tabular-nums">
+                      {formatUsd(step.gasCostUsd + (step.bridgeFeeUsd || 0) + (step.slippageUsd || 0))}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-[11px] text-zinc-500">
+                    <span className="bg-zinc-800 px-1.5 rounded uppercase">{step.chain}</span>
+                    <span>Gas: {formatUsd(step.gasCostUsd)}</span>
+                    {step.bridgeFeeUsd != null && step.bridgeFeeUsd > 0 && (
+                      <span>• Fee: {formatUsd(step.bridgeFeeUsd)}</span>
+                    )}
+                    {step.slippageUsd != null && step.slippageUsd > 0 && (
+                      <span>• Slippage: {formatUsd(step.slippageUsd)}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex gap-2 text-[11px] text-zinc-500">
-                  <span className="bg-zinc-800 px-1.5 rounded uppercase">{step.chain}</span>
-                  <span>Gas: {formatUsd(step.gasCostUsd)}</span>
-                  {step.bridgeFeeUsd && <span>• Fee: {formatUsd(step.bridgeFeeUsd)}</span>}
-                  {step.slippageUsd && <span>• Slippage: {formatUsd(step.slippageUsd)}</span>}
-                </div>
+              )
+            })}
+
+            {/* Subtotals — shown for multi-step plans */}
+            {hasMultipleSteps && hasSubtotals && (
+              <div className="mt-4 pt-4 border-t border-zinc-800 space-y-2">
+                {result.totalGasUsd > 0 && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span>Total Gas</span>
+                    <span className="font-mono tabular-nums">{formatUsd(result.totalGasUsd)}</span>
+                  </div>
+                )}
+                {result.totalBridgeFeeUsd > 0 && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span>Total Bridge Fees</span>
+                    <span className="font-mono tabular-nums">{formatUsd(result.totalBridgeFeeUsd)}</span>
+                  </div>
+                )}
+                {result.totalSlippageUsd > 0 && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span>Total Slippage</span>
+                    <span className="font-mono tabular-nums">{formatUsd(result.totalSlippageUsd)}</span>
+                  </div>
+                )}
               </div>
-            ))}
-            
+            )}
+
             <div className="pt-4 border-t border-zinc-800 flex justify-between items-baseline">
               <span className="text-zinc-400 font-semibold uppercase text-xs">Total Cost</span>
               <span className="text-xl font-bold text-white">{formatUsd(result.totalCostUsd)}</span>
@@ -106,36 +190,82 @@ export function CostPreview({
           </div>
         </section>
 
-        <section>
-          <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Yield Impact</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Current APY</span>
-              <span className="text-white font-medium">{formatPercent(result.currentApyDecimal)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-zinc-400">Target APY</span>
-              <span className="text-emerald-400 font-medium">{formatPercent(result.targetApyDecimal)}</span>
-            </div>
-            <div className="pt-3 border-t border-zinc-800 flex justify-between items-center">
-              <span className="text-white font-semibold">Net Yield Uplift</span>
-              <div className="text-right">
-                <div className="text-lg font-bold text-emerald-400">
-                  {result.netUpliftDecimal && result.netUpliftDecimal > 0 ? '+' : ''}
-                  {formatPercent(result.netUpliftDecimal || 0)}
-                </div>
-                {result.dailyYieldGainUsd !== null && (
-                  <div className="text-xs text-zinc-500">
-                    {result.dailyYieldGainUsd > 0 ? '+' : ''}
-                    {formatUsd(result.dailyYieldGainUsd)} / day
-                  </div>
-                )}
+        {/* ── De-leverage Break-even ────────────────────────────────────── */}
+        {result.deleverageBreakEven && (
+          <section className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4 space-y-3">
+            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider">De-leverage Savings</h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Annual Interest Saved</span>
+                <span className="text-emerald-400 font-medium tabular-nums">
+                  +{formatUsd(result.deleverageBreakEven.annualInterestSavingsUsd)}/yr
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Collateral Yield Foregone</span>
+                <span className="text-amber-400 font-medium tabular-nums">
+                  -{formatUsd(result.deleverageBreakEven.annualCollateralCostUsd)}/yr
+                </span>
+              </div>
+              <div className="pt-2 border-t border-zinc-800 flex justify-between items-center">
+                <span className="text-white font-semibold text-sm">Net Annual Benefit</span>
+                <span className={`font-bold tabular-nums ${result.deleverageBreakEven.netAnnualUpliftUsd > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {result.deleverageBreakEven.netAnnualUpliftUsd > 0 ? '+' : ''}
+                  {formatUsd(result.deleverageBreakEven.netAnnualUpliftUsd)}/yr
+                </span>
               </div>
             </div>
-          </div>
-        </section>
+            {result.deleverageBreakEven.breakEvenDays !== Infinity && result.deleverageBreakEven.breakEvenDays > 0 && (
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-xs text-zinc-500">Break-even</span>
+                <Badge
+                  variant={result.deleverageBreakEven.breakEvenDays > 60 ? 'warning' : 'success'}
+                  className="text-sm px-3 py-1"
+                >
+                  {Math.ceil(result.deleverageBreakEven.breakEvenDays)} days
+                </Badge>
+              </div>
+            )}
+          </section>
+        )}
 
-        {result.breakEvenDays !== null && result.breakEvenDays > 0 && result.breakEvenDays !== Infinity && (
+        {/* ── Yield Impact ─────────────────────────────────────────────── */}
+        {(result.currentApyDecimal > 0 || result.targetApyDecimal > 0) && (
+          <section>
+            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-4">Yield Impact</h3>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Current APY</span>
+                <span className="text-white font-medium">{formatPercent(result.currentApyDecimal)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Target APY</span>
+                <span className="text-emerald-400 font-medium">{formatPercent(result.targetApyDecimal)}</span>
+              </div>
+              <div className="pt-3 border-t border-zinc-800 flex justify-between items-center">
+                <span className="text-white font-semibold">Net Yield Uplift</span>
+                <div className="text-right">
+                  <div className="text-lg font-bold text-emerald-400">
+                    {result.netUpliftDecimal && result.netUpliftDecimal > 0 ? '+' : ''}
+                    {formatPercent(result.netUpliftDecimal || 0)}
+                  </div>
+                  {result.dailyYieldGainUsd !== null && (
+                    <div className="text-xs text-zinc-500">
+                      {result.dailyYieldGainUsd > 0 ? '+' : ''}
+                      {formatUsd(result.dailyYieldGainUsd)} / day
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ── Standard Break-even ──────────────────────────────────────── */}
+        {result.breakEvenDays !== null &&
+          result.breakEvenDays > 0 &&
+          result.breakEvenDays !== Infinity &&
+          !result.deleverageBreakEven && (
           <section className="bg-emerald-500/5 border border-emerald-500/10 rounded-xl p-4">
             <div className="flex justify-between items-center">
               <div className="space-y-0.5">
@@ -149,6 +279,7 @@ export function CostPreview({
           </section>
         )}
 
+        {/* ── Warnings ─────────────────────────────────────────────────── */}
         {result.warnings.length > 0 && (
           <section className="space-y-2">
             {result.warnings.map((warning, i) => (

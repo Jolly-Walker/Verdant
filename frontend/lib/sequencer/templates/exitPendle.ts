@@ -9,6 +9,7 @@ export function buildExitPendlePlan(params: ExitPendleParams): SequencePlan {
     createdAt: new Date(),
     status: 'draft',
     totalCostUsd: 0,
+    positionSizeUsd: params.amountUsd,
     description: `Exit ${params.ptAsset} Pendle position and move to ${params.toProtocol} on ${params.toChain}`,
     steps: []
   };

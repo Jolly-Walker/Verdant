@@ -12,11 +12,19 @@ export function detectWarnings(
 ): Warning[] {
   const warnings: Warning[] = []
 
+  const totalBridgeFeeUsd = result.steps
+    ? result.steps.reduce((acc, s) => acc + (s.bridgeFeeUsd || 0), 0)
+    : undefined
+
+  const totalSlippageUsd = result.steps
+    ? result.steps.reduce((acc, s) => acc + (s.slippageUsd || 0), 0)
+    : undefined
+
   // Bridge fee > 0.5% of transaction value
   if (
-    result.bridgeFeeUsd !== undefined &&
+    totalBridgeFeeUsd !== undefined &&
     amountUsd > 0 &&
-    result.bridgeFeeUsd / amountUsd > 0.005
+    totalBridgeFeeUsd / amountUsd > 0.005
   ) {
     warnings.push({
       type: 'high_bridge_fee',
@@ -26,9 +34,9 @@ export function detectWarnings(
 
   // Slippage > 0.5%
   if (
-    result.slippageUsd !== undefined &&
+    totalSlippageUsd !== undefined &&
     amountUsd > 0 &&
-    result.slippageUsd / amountUsd > 0.005
+    totalSlippageUsd / amountUsd > 0.005
   ) {
     warnings.push({
       type: 'high_slippage',
@@ -40,6 +48,7 @@ export function detectWarnings(
   // Break-even > 30 days
   if (
     result.breakEvenDays !== undefined &&
+    result.breakEvenDays !== null &&
     isFinite(result.breakEvenDays) &&
     result.breakEvenDays > 30
   ) {
@@ -74,6 +83,7 @@ export function detectWarnings(
   // Negative yield uplift (moving to lower APY)
   if (
     result.netUpliftDecimal !== undefined &&
+    result.netUpliftDecimal !== null &&
     result.netUpliftDecimal < 0
   ) {
     warnings.push({

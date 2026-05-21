@@ -193,7 +193,7 @@ export async function POST(req: Request) {
           return NextResponse.json({ error: `Could not fetch price for asset '${assetToValidate}'. Please try again.` }, { status: 500 });
         }
         return NextResponse.json({ 
-          error: `Minimum transaction size of $1,000 USD required. Current: $${validation.amountUsd.toFixed(2)}` 
+          error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD} USD required. Current: $${validation.amountUsd.toFixed(2)}` 
         }, { status: 400 });
       }
 

@@ -1404,10 +1404,10 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Cost preview handles N-step sequences, not just bridge + deposit.
 
 **Tasks:**
-- [x] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
-- [x] Gas estimation for every step via plugin's `estimateGasCostUsd()`
+- [] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
+- [] Gas estimation for every step via plugin's `estimateGasCostUsd()`
 - [ ] Bridge fee pulled from winning `BridgeQuote` in plan
-- [x] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
+- [] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
 - [ ] Quote staleness tracking per bridge step (60s expiry, orange at 30s)
 - [ ] Disable "Begin Sequence" if any bridge quote is stale
 - [ ] Break-even calculation: accounts for position being partially unwound during de-leverage

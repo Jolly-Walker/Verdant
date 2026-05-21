@@ -15,6 +15,7 @@ interface SequenceStepCardProps {
   index: number;
   isCurrent: boolean;
   onAction: (params?: Record<string, unknown>) => Promise<void>;
+  isQuoteExpired?: boolean;
 }
 
 export function SequenceStepCard({
@@ -22,6 +23,7 @@ export function SequenceStepCard({
   index,
   isCurrent,
   onAction,
+  isQuoteExpired,
 }: SequenceStepCardProps) {
   const { signStep } = useSequencer();
   const [isSimulating, setIsSimulating] = useState(false);
@@ -60,7 +62,7 @@ export function SequenceStepCard({
       <div className="flex justify-between items-center">
         <div>
           <p className="text-zinc-400 text-sm">
-            {step.description || `Step ${index + 1}: ${step.label}`}
+            {step.unsignedTx?.description || `Step ${index + 1}: ${step.label}`}
           </p>
           {step.txHash && (
             <a
@@ -84,7 +86,8 @@ export function SequenceStepCard({
           ) : step.status === 'ready' && isCurrent ? (
             <button
               onClick={handleAction}
-              disabled={isSimulating}
+              disabled={isSimulating || isQuoteExpired}
+              title={isQuoteExpired ? 'Bridge quote expired — refresh cost preview' : undefined}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
             >
               {isSimulating ? (
@@ -92,13 +95,15 @@ export function SequenceStepCard({
                   <Spinner size="sm" className="mr-2" />
                   <span>Simulating...</span>
                 </div>
+              ) : isQuoteExpired ? (
+                'Quote Expired'
               ) : (
                 'Sign Transaction'
               )}
             </button>
           ) : step.status === 'pending' ? (
             <span className="text-zinc-500 text-sm">Waiting...</span>
-          ) : step.status === 'simulated' ? (
+          ) : step.status === 'ready' ? (
             <span className="text-emerald-400 text-sm">Verified</span>
           ) : null}
         </div>

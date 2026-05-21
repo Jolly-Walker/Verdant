@@ -7,7 +7,7 @@ import { simulateTransaction } from '@/lib/simulation/simulate'
 
 const BuildBridgeTxSchema = z.object({
   bridgeId: z.enum(ALL_BRIDGES),
-  quote: z.record(z.unknown()),
+  quote: z.any(),
   walletAddress: z.string(),
 })
 

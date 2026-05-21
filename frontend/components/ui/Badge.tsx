@@ -1,9 +1,8 @@
 import React from 'react'
 
-interface BadgeProps {
+interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   children: React.ReactNode
   variant?: 'default' | 'success' | 'warning' | 'error'
-  className?: string
 }
 
 const variantStyles: Record<string, string> = {
@@ -13,10 +12,11 @@ const variantStyles: Record<string, string> = {
   error: 'bg-red-900/40 text-red-300 border-red-800',
 }
 
-export function Badge({ children, variant = 'default', className = '' }: BadgeProps) {
+export function Badge({ children, variant = 'default', className = '', ...props }: BadgeProps) {
   return (
     <span
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${variantStyles[variant]} ${className}`}
+      {...props}
     >
       {children}
     </span>

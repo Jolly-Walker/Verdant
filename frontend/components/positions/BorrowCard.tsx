@@ -3,8 +3,15 @@ import { useRouter } from 'next/navigation'
 import { Position } from '@/types/position'
 import { usePositions } from '@/hooks/usePositions'
 import { HealthFactor } from '../ui/HealthFactor'
+import { TemplateId } from '@/types/sequencer'
 
-export function BorrowCard({ position }: { position: Position }) {
+export function BorrowCard({ 
+  position,
+  onSequence
+}: { 
+  position: Position
+  onSequence?: (template: TemplateId, params: Record<string, string>) => void
+}) {
   const router = useRouter()
   const { positions } = usePositions()
   const borrowApyPercent = (position.currentApy * 100).toFixed(2)
@@ -26,26 +33,31 @@ export function BorrowCard({ position }: { position: Position }) {
   const hasMultipleCollaterals = potentialCollaterals.length > 1
 
   const handleDeleverage = () => {
-    const query = new URLSearchParams({
+    const params: Record<string, string> = {
       template: 'deleverageAave',
       protocol: position.protocol,
       chain: position.chain,
       borrowAsset: position.asset,
       amount: position.amount.toString(),
       totalDebtUsd: position.amountUsd.toString(),
-    })
+    }
 
     if (collateralPosition) {
-      query.set('collateralAsset', collateralPosition.asset)
-      query.set('collateralAmount', collateralPosition.amount.toString())
-      query.set('totalCollateralUsd', collateralPosition.amountUsd.toString())
+      params.collateralAsset = collateralPosition.asset
+      params.collateralAmount = collateralPosition.amount.toString()
+      params.totalCollateralUsd = collateralPosition.amountUsd.toString()
     }
 
     if (position.healthFactor !== undefined) {
-      query.set('healthFactor', position.healthFactor.toString())
+      params.healthFactor = position.healthFactor.toString()
     }
 
-    router.push(`/sequence?${query.toString()}`)
+    if (onSequence) {
+      onSequence('deleverageAave', params)
+    } else {
+      const query = new URLSearchParams(params)
+      router.push(`/sequence?${query.toString()}`)
+    }
   }
   
   return (
