@@ -8,8 +8,14 @@ import { getActiveStep, deserializeSequencePlan, deserializeSequenceStep } from 
 import { TEMPLATE_REGISTRY } from '@/lib/sequencer/templates'
 import { fetchWithTimeout } from '@/lib/utils/fetch'
 import { useWallet } from './useWallet'
+import { useDemoSequencer } from './useDemoSequencer'
 
 export { TEMPLATE_REGISTRY }
+
+// process.env.NEXT_PUBLIC_DEMO_MODE is a build-time constant — it never
+// changes between renders, so branching on it is safe and the eslint
+// rules-of-hooks suppression below is intentional and documented.
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 const CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {
   ethereum: 1,
@@ -18,6 +24,15 @@ const CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {
 }
 
 export function useSequencer() {
+  if (IS_DEMO) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useDemoSequencer()
+  }
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useRealSequencer()
+}
+
+function useRealSequencer() {
   const { address } = useWallet()
   const { sendTransactionAsync } = useSendTransaction()
   const { signTransaction: signSolanaTransaction } = useSolanaWallet()

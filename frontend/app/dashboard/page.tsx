@@ -66,6 +66,12 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
+        {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
+          <div className="mb-6 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-400 flex items-center gap-2">
+            <span className="text-emerald-400 font-semibold">Demo Mode</span>
+            {' — '}Positions and transactions are simulated. No wallet connected, no real funds.
+          </div>
+        )}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">Your Positions</h2>
           <button

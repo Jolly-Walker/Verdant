@@ -4,6 +4,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@/hooks/useWallet'
 import { Position } from '@/types/position'
 import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
+import { useDemoPositions } from '@/hooks/useDemoPositions'
+
+// process.env.NEXT_PUBLIC_DEMO_MODE is a build-time constant — it never
+// changes between renders, so branching on it is safe and the eslint
+// rules-of-hooks suppression below is intentional and documented.
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 
 interface UsePositionsReturn {
@@ -16,6 +22,15 @@ interface UsePositionsReturn {
 }
 
 export function usePositions(): UsePositionsReturn {
+  if (IS_DEMO) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useDemoPositions()
+  }
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useRealPositions()
+}
+
+function useRealPositions(): UsePositionsReturn {
   const { evmAddress, solanaAddress, isConnected, isMounted } = useWallet()
   const [positions, setPositions] = useState<Position[]>([])
   const [isLoading, setIsLoading] = useState(false)

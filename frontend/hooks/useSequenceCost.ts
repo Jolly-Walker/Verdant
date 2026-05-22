@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { CostPreviewResult } from '@/types/quote'
 import { SequencePlan } from '@/types/sequencer'
+import { useDemoSequenceCost } from '@/hooks/useDemoSequenceCost'
+
+// process.env.NEXT_PUBLIC_DEMO_MODE is a build-time constant — it never
+// changes between renders, so branching on it is safe and the eslint
+// rules-of-hooks suppression below is intentional and documented.
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
 
 const STALE_WARN_MS = 30_000  // 30s → orange warning
 const STALE_EXPIRE_MS = 60_000 // 60s → disable execution
@@ -37,7 +43,16 @@ interface UseSequenceCostReturn {
  * - staleStepIds: steps with quotes older than 30s
  * - expiredStepIds: steps with quotes older than 60s (execution blocked)
  */
-export function useSequenceCost({
+export function useSequenceCost(options: UseSequenceCostOptions): UseSequenceCostReturn {
+  if (IS_DEMO) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    return useDemoSequenceCost(options)
+  }
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return useRealSequenceCost(options)
+}
+
+function useRealSequenceCost({
   plan,
   walletAddress,
   currentApy,
