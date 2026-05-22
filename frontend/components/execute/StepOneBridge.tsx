@@ -151,15 +151,15 @@ export function StepOneBridge({
     return (
       <div className="flex flex-col items-center justify-center py-12">
         <Spinner size="lg" />
-        <p className="text-zinc-400 mt-4 text-sm">Finding best bridge routes...</p>
+        <p className="text-verdant-text-muted mt-4 text-sm">Finding best bridge routes...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4 bg-red-900/20 border border-red-800 rounded-lg">
-        <p className="text-red-400 text-sm">{error}</p>
+      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+        <p className="text-verdant-loss text-sm font-mono">{error}</p>
       </div>
     );
   }
@@ -180,18 +180,18 @@ export function StepOneBridge({
           <button
             onClick={handleBridge}
             disabled={isSigning || !selectedQuote || !serializedTx}
-            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white font-semibold py-3 rounded-xl transition-colors shadow-lg shadow-emerald-900/20"
+            className="w-full bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
           >
             {isSimulating ? 'Simulating route...' : isSigning ? 'Waiting for Wallet...' : `Approve & Bridge ${amount} ${token}`}
           </button>
         </>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-center py-6 px-4 bg-zinc-800 rounded-lg border border-zinc-700">
+          <div className="flex items-center justify-center py-6 px-4 bg-verdant-surface-accent rounded-lg border border-[#D5E8E0]">
             {bridgeStatus === 'pending' ? (
               <div className="text-center">
                 <Spinner size="md" className="mx-auto mb-3" />
-                <p className="text-sm text-zinc-300">
+                <p className="text-sm text-verdant-text-primary">
                   Bridging funds to {getChainDisplayName(toChain)} via {selectedQuote?.bridgeId}...
                 </p>
                 {trackingUrl && (
@@ -199,17 +199,17 @@ export function StepOneBridge({
                     href={trackingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-block mt-2 text-xs text-emerald-400 hover:text-emerald-300 underline"
+                    className="inline-block mt-2 text-xs text-verdant-moss hover:text-verdant-moss-dark underline"
                   >
                     View status ↗
                   </a>
                 )}
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-xs text-verdant-text-muted mt-2">
                   This usually takes a few minutes.
                 </p>
               </div>
             ) : (
-              <span className="text-sm text-emerald-400 font-medium">Funds successfully bridged!</span>
+              <span className="text-sm text-verdant-profit font-semibold">Funds successfully bridged!</span>
             )}
           </div>
           
@@ -218,13 +218,13 @@ export function StepOneBridge({
               href={getExplorerTxUrl(fromChain, txHash)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-center py-2 bg-zinc-700 hover:bg-zinc-600 text-white text-sm rounded-lg transition-colors"
+              className="flex-1 text-center py-2 bg-verdant-moss hover:bg-verdant-moss-dark text-white text-sm rounded-md transition-colors font-medium"
             >
               View Transaction
             </a>
             <button 
               onClick={() => setTxHash(null)}
-              className="px-4 py-2 bg-transparent text-zinc-400 hover:text-white text-sm transition-colors"
+              className="px-4 py-2 bg-transparent text-verdant-text-muted hover:text-verdant-text-primary text-sm transition-colors"
             >
               Cancel
             </button>

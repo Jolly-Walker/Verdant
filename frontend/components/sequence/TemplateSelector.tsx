@@ -18,17 +18,17 @@ export function TemplateSelector({ selectedTemplate, onSelect, filter }: Templat
       {templates.map(template => (
         <div 
           key={template.id} 
-          className={`border rounded-xl p-6 cursor-pointer hover:border-blue-500 transition-all ${
+          className={`border rounded-xl p-6 cursor-pointer hover:border-verdant-teak transition-all ${
             selectedTemplate === template.id 
-              ? 'border-blue-600 bg-blue-50/5' 
-              : 'border-zinc-800 bg-zinc-900/50 hover:bg-zinc-900'
+              ? 'border-verdant-teak bg-verdant-surface-accent' 
+              : 'border-[#E5E0D8] bg-verdant-surface hover:bg-verdant-surface-accent'
           }`}
           onClick={() => onSelect(template.id)}
         >
-          <h3 className={`font-semibold text-lg mb-2 ${selectedTemplate === template.id ? 'text-blue-400' : 'text-zinc-100'}`}>
+          <h3 className={`font-semibold text-lg mb-2 ${selectedTemplate === template.id ? 'text-verdant-teak' : 'text-verdant-text-primary'}`}>
             {template.displayName}
           </h3>
-          <p className="text-zinc-400 text-sm">{template.description}</p>
+          <p className="text-verdant-text-muted text-sm">{template.description}</p>
         </div>
       ))}
     </div>

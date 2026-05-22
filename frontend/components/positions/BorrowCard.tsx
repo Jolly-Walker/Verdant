@@ -61,35 +61,35 @@ export function BorrowCard({
   }
   
   return (
-    <div className="bg-zinc-900 border border-red-900/30 rounded-xl p-5 flex flex-col gap-5 hover:border-red-900/50 transition">
+    <div className="bg-verdant-surface border border-red-200 rounded-xl p-5 flex flex-col gap-5 shadow-organic hover:shadow-organic-lg transition-shadow">
       <div className="flex flex-col gap-1">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-xl font-semibold text-verdant-text-primary">
               {position.asset} Debt
             </h3>
-            <span className="text-[10px] bg-red-950 text-red-400 border border-red-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+            <span className="text-[10px] bg-red-50 text-verdant-loss border border-red-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
               Borrow
             </span>
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold text-white">${position.amountUsd.toFixed(2)}</p>
+            <p className="text-xl font-bold text-verdant-text-primary font-mono">${position.amountUsd.toFixed(2)}</p>
           </div>
         </div>
         <div className="flex justify-between items-start">
-          <p className="text-sm text-zinc-400 capitalize">
+          <p className="text-sm text-verdant-text-muted capitalize">
             {position.protocol} • {position.chain}
           </p>
           <div className="text-right">
-            <p className="text-sm text-zinc-400">{position.amount.toFixed(4)} {position.asset}</p>
+            <p className="text-sm text-verdant-text-muted font-mono">{position.amount.toFixed(4)} {position.asset}</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 bg-zinc-950/50 rounded-lg p-3 border border-zinc-800/60">
+      <div className="grid grid-cols-2 gap-3 bg-red-50/60 border border-red-100 rounded-lg p-3">
         <div>
-          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Borrow APY</p>
-          <p className="text-red-400 font-medium">{borrowApyPercent}%</p>
+          <p className="text-xs text-verdant-text-muted uppercase tracking-wider font-semibold mb-1">Borrow APY</p>
+          <p className="text-verdant-loss font-medium font-mono">{borrowApyPercent}%</p>
         </div>
         {position.healthFactor !== undefined && (
           <HealthFactor value={position.healthFactor} />
@@ -97,9 +97,9 @@ export function BorrowCard({
       </div>
 
       {hasMultipleCollaterals && (
-        <div className="text-[11px] text-zinc-500 bg-zinc-800/40 px-2 py-1.5 rounded border border-zinc-700/50 flex gap-1.5 items-start">
+        <div className="text-[11px] text-verdant-text-muted bg-amber-50 px-2 py-1.5 rounded border border-amber-200 flex gap-1.5 items-start">
           <span>⚠️</span>
-          <span>Multiple collateral assets found. De-leverage pre-filled with <strong>{collateralPosition?.asset}</strong> (largest position).</span>
+          <span>Multiple collateral assets found. De-leverage pre-filled with <strong className="font-mono">{collateralPosition?.asset}</strong> (largest position).</span>
         </div>
       )}
 
@@ -107,12 +107,12 @@ export function BorrowCard({
         {position.healthFactor !== undefined ? (
           <button 
             onClick={handleDeleverage}
-            className="text-sm bg-red-650 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+            className="text-sm bg-verdant-loss hover:bg-red-700 text-white px-4 py-2 rounded-md transition-colors font-medium"
           >
             De-leverage
           </button>
         ) : (
-          <button className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
+          <button className="text-sm border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-4 py-2 rounded-md transition-colors font-medium">
             Repay
           </button>
         )}

@@ -23,10 +23,10 @@ export function PositionTypeFilter({ selected, onChange }: PositionTypeFilterPro
         <button
           key={t.value}
           onClick={() => onChange(t.value)}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
             selected === t.value
-              ? 'bg-zinc-100 text-zinc-900'
-              : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-800'
+              ? 'bg-verdant-moss text-white'
+              : 'bg-verdant-surface text-verdant-text-muted hover:text-verdant-text-primary border border-[#E5E0D8] hover:bg-verdant-surface-accent'
           }`}
         >
           {t.label}

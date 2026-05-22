@@ -7,7 +7,7 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
     <div className="mb-8">
       <div className="flex items-center justify-between relative">
         {/* Background Line */}
-        <div className="absolute top-5 left-0 right-0 h-0.5 bg-zinc-800 -z-0" />
+        <div className="absolute top-5 left-0 right-0 h-0.5 bg-[#E5E0D8] -z-0" />
         
         {plan.steps.map((step, index) => {
           const isActive = step.id === currentStepId;
@@ -15,13 +15,13 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
           const isFailed = step.status === 'failed';
           
           return (
-            <div key={step.id} className="flex flex-col items-center relative z-10 bg-zinc-950 px-4">
+            <div key={step.id} className="flex flex-col items-center relative z-10 bg-verdant-canvas px-4">
               <div 
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors
-                  ${isCompleted ? 'bg-emerald-600 border-emerald-600' : 
-                    isFailed ? 'bg-red-600 border-red-600' :
-                    isActive ? 'bg-zinc-950 border-emerald-500 text-emerald-500' : 
-                    'bg-zinc-950 border-zinc-800 text-zinc-500'}`}
+                  ${isCompleted ? 'bg-verdant-profit border-verdant-profit text-white' : 
+                    isFailed ? 'bg-verdant-loss border-verdant-loss text-white' :
+                    isActive ? 'bg-verdant-canvas border-verdant-moss text-verdant-moss' : 
+                    'bg-verdant-canvas border-[#E5E0D8] text-verdant-text-muted'}`}
               >
                 {isCompleted ? (
                   <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -32,13 +32,13 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 ) : step.status === 'simulating' || step.status === 'signing' ? (
-                  <Spinner size="sm" className={isActive ? 'text-emerald-500' : 'text-zinc-500'} />
+                  <Spinner size="sm" className={isActive ? 'text-verdant-moss' : 'text-verdant-text-muted'} />
                 ) : (
                   <span className="font-semibold">{index + 1}</span>
                 )}
               </div>
               <span className={`mt-2 text-xs font-medium text-center max-w-[120px] transition-colors
-                ${isActive ? 'text-emerald-400' : isCompleted ? 'text-zinc-300' : 'text-zinc-500'}`}>
+                ${isActive ? 'text-verdant-moss font-semibold' : isCompleted ? 'text-verdant-text-primary' : 'text-verdant-text-muted'}`}>
                 {step.label}
               </span>
             </div>

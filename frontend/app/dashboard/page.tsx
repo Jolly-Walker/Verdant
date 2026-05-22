@@ -27,21 +27,21 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm sticky top-0 z-10">
+    <div className="min-h-screen bg-verdant-canvas text-verdant-text-primary">
+      <header className="border-b border-[#E5E0D8] bg-verdant-surface/80 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold tracking-tight">Verdant</h1>
+            <h1 className="text-xl font-bold tracking-tight text-verdant-text-primary">Verdant</h1>
             {!isLoading && positions.length > 0 && (
               <div className="flex items-center gap-4 text-sm">
                 <div>
-                  <span className="text-zinc-500">Portfolio </span>
-                  <span className="font-semibold text-zinc-100">{formatUsd(totalValueUsd)}</span>
+                  <span className="text-verdant-text-muted">Portfolio </span>
+                  <span className="font-semibold text-verdant-text-primary font-mono">{formatUsd(totalValueUsd)}</span>
                 </div>
                 {totalRewardsUsd > 1 && (
                   <div>
-                    <span className="text-zinc-500">Claimable </span>
-                    <span className="font-semibold text-emerald-400">{formatUsd(totalRewardsUsd)}</span>
+                    <span className="text-verdant-text-muted">Claimable </span>
+                    <span className="font-semibold text-verdant-profit font-mono">{formatUsd(totalRewardsUsd)}</span>
                   </div>
                 )}
               </div>
@@ -50,14 +50,14 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => openModal()}
-              className="text-sm bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg transition-colors font-medium cursor-pointer"
+              className="text-sm bg-verdant-moss hover:bg-verdant-moss-dark text-white px-4 py-2 rounded-md transition-colors font-semibold cursor-pointer"
             >
               Sequence
             </button>
             <ConnectButton />
             <button
               onClick={() => disconnect()}
-              className="px-3 py-2 text-sm text-zinc-400 hover:text-red-400 transition-colors"
+              className="px-3 py-2 text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-medium"
             >
               Disconnect
             </button>
@@ -67,24 +67,24 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
-          <div className="mb-6 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-400 flex items-center gap-2">
-            <span className="text-emerald-400 font-semibold">Demo Mode</span>
+          <div className="mb-6 px-4 py-3 bg-verdant-surface-accent border border-[#D5E8E0] rounded-lg text-sm text-verdant-text-muted flex items-center gap-2">
+            <span className="text-verdant-moss font-semibold">Demo Mode</span>
             {' — '}Positions and transactions are simulated. No wallet connected, no real funds.
           </div>
         )}
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">Your Positions</h2>
+          <h2 className="text-xl font-semibold text-verdant-text-primary">Your Positions</h2>
           <button
             onClick={refetch}
             disabled={isLoading}
-            className="text-sm text-zinc-400 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 transition-colors"
+            className="text-sm border border-[#E5E0D8] text-verdant-text-muted hover:border-verdant-moss hover:text-verdant-moss disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors font-medium"
           >
             {isLoading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
 
         {error && (
-          <div className="bg-amber-900/30 border border-amber-800 text-amber-200 text-sm px-4 py-3 rounded-lg mb-6">
+          <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm px-4 py-3 rounded-lg mb-6">
             ⚠️ {error}
           </div>
         )}

@@ -25,44 +25,44 @@ export function PendleCard({
     : 'Unknown'
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-5 hover:border-zinc-700 transition">
+    <div className="bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 flex flex-col gap-5 shadow-organic hover:shadow-organic-lg transition-shadow">
       {showExpiryWarning && (
-        <WarningBanner message={`This position matures soon (${formattedMaturity})`} />
+        <WarningBanner message={`This position matures soon (${formattedMaturity})`} variant="error" />
       )}
       <div className="flex flex-col gap-1">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-xl font-semibold text-verdant-text-primary">
               {position.asset} {isPT ? 'PT' : 'YT'}
             </h3>
-            <span className="text-[10px] bg-purple-950 text-purple-400 border border-purple-900/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+            <span className="text-[10px] bg-verdant-surface-accent text-verdant-text-muted border border-[#D5E8E0] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
               Pendle
             </span>
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold text-white">${position.amountUsd.toFixed(2)}</p>
+            <p className="text-xl font-bold text-verdant-text-primary font-mono">${position.amountUsd.toFixed(2)}</p>
           </div>
         </div>
         <div className="flex justify-between items-start">
-          <p className="text-sm text-zinc-400 capitalize">
+          <p className="text-sm text-verdant-text-muted capitalize">
             {position.chain} • {isPT ? 'Fixed Yield' : 'Yield Token'}
           </p>
           <div className="text-right">
-            <p className="text-sm text-zinc-400">{position.amount.toFixed(4)} {position.asset}</p>
+            <p className="text-sm text-verdant-text-muted font-mono">{position.amount.toFixed(4)} {position.asset}</p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 bg-zinc-950/50 rounded-lg p-3 border border-zinc-800/60">
+      <div className="grid grid-cols-2 gap-3 bg-verdant-surface-accent rounded-lg p-3 border border-[#D5E8E0]">
         <div>
-          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">
+          <p className="text-xs text-verdant-text-muted uppercase tracking-wider font-semibold mb-1">
             {isPT ? 'Fixed APY' : 'Implied APY'}
           </p>
-          <p className="text-zinc-200 font-medium">{apyPercent}%</p>
+          <p className="text-verdant-profit font-medium font-mono">{apyPercent}%</p>
         </div>
         <div className="text-right">
-          <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Maturity</p>
-          <p className="text-zinc-400 text-sm">{formattedMaturity}</p>
+          <p className="text-xs text-verdant-text-muted uppercase tracking-wider font-semibold mb-1">Maturity</p>
+          <p className={`text-sm font-mono ${showExpiryWarning ? 'text-verdant-loss' : 'text-verdant-text-muted'}`}>{formattedMaturity}</p>
         </div>
       </div>
 
@@ -76,14 +76,14 @@ export function PendleCard({
               ptAddress: position.assetAddress || '',
               chain: position.chain,
             })}
-            className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center cursor-pointer"
+            className="text-sm border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-4 py-2 rounded-md transition-colors font-medium text-center cursor-pointer"
           >
             Exit
           </button>
         ) : (
           <Link 
             href={`/sequence?template=exitPendle&asset=${position.asset}&amount=${position.amount}&ptAddress=${position.assetAddress}&chain=${position.chain}`}
-            className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium text-center"
+            className="text-sm border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-4 py-2 rounded-md transition-colors font-medium text-center"
           >
             Exit
           </Link>

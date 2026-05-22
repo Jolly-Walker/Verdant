@@ -21,13 +21,13 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-24">
       <div className="text-center">
-        <h1 className="mb-4 text-5xl font-bold tracking-tight">Verdant</h1>
-        <p className="mb-8 text-lg opacity-80">Discretionary cross-chain yield execution</p>
+        <h1 className="mb-4 text-5xl font-bold tracking-tight text-verdant-text-primary">Verdant</h1>
+        <p className="mb-8 text-lg text-verdant-text-muted">Discretionary cross-chain yield execution</p>
         <div className="flex flex-col items-center gap-4">
           {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
             <Link
               href="/dashboard"
-              className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
+              className="inline-block bg-verdant-moss hover:bg-verdant-moss-dark text-white font-semibold px-6 py-3 rounded-lg transition-colors"
             >
               Try Demo
             </Link>
@@ -35,7 +35,7 @@ export default function Home() {
           <ConnectButton />
           <button
             onClick={enableDebug}
-            className="text-sm text-zinc-500 hover:text-zinc-300 underline underline-offset-4 transition-colors"
+            className="text-sm text-verdant-text-muted hover:text-verdant-text-primary underline underline-offset-4 transition-colors"
           >
             Enter Debug Mode
           </button>

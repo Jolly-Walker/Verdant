@@ -1,8 +1,17 @@
 import React from 'react'
 
-export function WarningBanner({ message }: { message: string }) {
+interface WarningBannerProps {
+  message: string
+  variant?: 'warning' | 'error'
+}
+
+export function WarningBanner({ message, variant = 'warning' }: WarningBannerProps) {
+  const styles = variant === 'error'
+    ? 'bg-red-50 border-red-200 text-verdant-loss'
+    : 'bg-amber-50 border-amber-200 text-amber-700'
+
   return (
-    <div className="bg-amber-900/40 border border-amber-800 text-amber-200 text-sm px-4 py-2 rounded-lg">
+    <div className={`border text-sm px-4 py-2 rounded-lg ${styles}`}>
       ⚠️ {message}
     </div>
   )

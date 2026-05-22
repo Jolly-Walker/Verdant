@@ -52,45 +52,45 @@ export function PositionCard({
   const isReady = currentStep?.status === 'ready'
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex flex-col gap-5 hover:border-zinc-700 transition">
+    <div className="bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 flex flex-col gap-5 shadow-organic hover:shadow-organic-lg transition-shadow">
       <div className="flex flex-col gap-1">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-xl font-semibold text-verdant-text-primary">
               {position.asset} {isWallet ? '' : `on ${position.protocol.charAt(0).toUpperCase() + position.protocol.slice(1)}`}
             </h3>
             {isWallet && (
-              <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+              <span className="text-[10px] bg-verdant-surface-accent text-verdant-text-muted border border-[#D5E8E0] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
                 Wallet
               </span>
             )}
           </div>
           <div className="text-right">
-            <p className="text-lg font-bold text-white">${position.amountUsd.toFixed(2)}</p>
+            <p className="text-xl font-bold text-verdant-text-primary font-mono">${position.amountUsd.toFixed(2)}</p>
           </div>
         </div>
         <div className="flex justify-between items-start">
-          <p className="text-sm text-zinc-400 capitalize">
+          <p className="text-sm text-verdant-text-muted capitalize">
             {position.chain} • {position.positionType}
           </p>
           <div className="text-right">
-            <p className="text-sm text-zinc-400">{position.amount.toFixed(4)} {position.asset}</p>
+            <p className="text-sm text-verdant-text-muted font-mono">{position.amount.toFixed(4)} {position.asset}</p>
           </div>
         </div>
       </div>
 
       {!isWallet && (
-        <div className="flex justify-between items-center bg-zinc-950/50 rounded-lg p-3 border border-zinc-800/60">
+        <div className="flex justify-between items-center bg-verdant-surface-accent border border-[#D5E8E0] rounded-lg p-3">
           <div>
-            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Current APY</p>
-            <p className="text-zinc-200 font-medium">{currentApyPercent}%</p>
+            <p className="text-xs text-verdant-text-muted uppercase tracking-wider font-semibold mb-1">Current APY</p>
+            <p className="text-verdant-profit font-medium font-mono">{currentApyPercent}%</p>
           </div>
           <div className="text-right">
-            <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1">Rewards</p>
+            <p className="text-xs text-verdant-text-muted uppercase tracking-wider font-semibold mb-1">Rewards</p>
             {hasRewards ? (
-              <p className="text-emerald-400 font-medium">${rewardsUsd.toFixed(2)}</p>
+              <p className="text-verdant-profit font-medium font-mono">${rewardsUsd.toFixed(2)}</p>
             ) : (
-              <p className="text-zinc-600 font-medium">$0.00</p>
+              <p className="text-verdant-text-muted font-mono">$0.00</p>
             )}
           </div>
         </div>
@@ -103,13 +103,13 @@ export function PositionCard({
               <button 
                 onClick={handleHarvest}
                 disabled={!canHarvest || isHarvesting || isSimulating}
-                className="text-sm bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 text-white px-4 py-2 rounded-lg transition-colors font-medium shadow-sm shadow-emerald-900/20"
+                className="text-sm bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white px-4 py-2 rounded-md transition-colors font-medium"
               >
                 {isHarvestSimulating ? "Simulating..." : isSigning ? "Signing..." : isReady ? "Sign Harvest" : "Harvest"}
               </button>
             </Tooltip>
           )}
-          <button className="text-sm bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-2 rounded-lg transition-colors font-medium">
+          <button className="text-sm border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-4 py-2 rounded-md transition-colors font-medium">
             Manage
           </button>
         </div>

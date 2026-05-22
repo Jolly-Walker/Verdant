@@ -32,13 +32,13 @@ export function AssetSelector({
 
   return (
     <div className="space-y-4">
-      <h3 className="text-sm text-zinc-500 uppercase tracking-wider font-semibold">
+      <h3 className="text-sm text-verdant-text-muted uppercase tracking-wider font-semibold">
         Select Asset to Move
       </h3>
 
       {positions.length === 0 ? (
         <Card className="text-center py-8">
-          <p className="text-zinc-500 text-sm">No positions found to move</p>
+          <p className="text-verdant-text-muted text-sm">No positions found to move</p>
         </Card>
       ) : (
         <div className="space-y-4">
@@ -64,7 +64,7 @@ export function AssetSelector({
       {/* Amount input */}
       {selectedPosition && (
         <div className="space-y-2">
-          <label className="text-sm text-zinc-400 block">Amount</label>
+          <label className="text-sm text-verdant-text-muted block">Amount</label>
           <div className="relative">
             <input
               type="number"
@@ -74,25 +74,25 @@ export function AssetSelector({
               step="any"
               min="0"
               max={selectedPosition.amount}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-4 py-3 text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-600 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md px-4 py-3 text-verdant-text-primary placeholder-verdant-text-muted/50 focus:outline-none focus:border-verdant-moss transition-colors font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
             <button
               onClick={() => onAmountChange(selectedPosition.amount.toString())}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-emerald-400 hover:text-emerald-300 font-medium"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-verdant-moss hover:text-verdant-moss-dark font-semibold"
             >
               MAX
             </button>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-zinc-500">
+          <div className="flex justify-between text-xs font-mono text-verdant-text-muted">
+            <span>
               ≈ {formatUsd(amountUsd)}
             </span>
-            <span className="text-zinc-500">
+            <span>
               Balance: {formatToken(selectedPosition.amount)} {selectedPosition.asset}
             </span>
           </div>
           {isBelowMinimum && (
-            <p className="text-xs text-amber-400">
+            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
               ⚠️ Minimum transaction is ${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} to cover fees
             </p>
           )}
@@ -115,30 +115,33 @@ function PositionGroup({
 }) {
   return (
     <div>
-      <p className="text-xs text-zinc-500 mb-2">{label}</p>
+      <p className="text-xs text-verdant-text-muted mb-2 font-semibold">{label}</p>
       <div className="space-y-2">
-        {positions.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => onSelect(p)}
-            className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-              selectedId === p.id
-                ? 'bg-emerald-900/20 border-emerald-800 text-white'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700'
-            }`}
-          >
-            <div className="flex justify-between">
-              <span className="font-medium">
-                {p.asset} on{' '}
-                {p.protocol.charAt(0).toUpperCase() + p.protocol.slice(1)}
-              </span>
-              <span className="text-sm">{formatUsd(p.amountUsd)}</span>
-            </div>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {formatToken(p.amount)} {p.asset} • {(p.currentApy * 100).toFixed(2)}% APY
-            </p>
-          </button>
-        ))}
+        {positions.map((p) => {
+          const isSelected = selectedId === p.id
+          return (
+            <button
+              key={p.id}
+              onClick={() => onSelect(p)}
+              className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${
+                isSelected
+                  ? 'bg-verdant-surface-accent border-verdant-moss text-verdant-text-primary'
+                  : 'bg-verdant-surface border-[#E5E0D8] text-verdant-text-primary hover:bg-verdant-surface-accent/30 hover:border-verdant-moss/50'
+              }`}
+            >
+              <div className="flex justify-between items-center">
+                <span className="font-semibold text-verdant-text-primary">
+                  {p.asset} on{' '}
+                  {p.protocol.charAt(0).toUpperCase() + p.protocol.slice(1)}
+                </span>
+                <span className="text-sm font-semibold font-mono text-verdant-text-primary">{formatUsd(p.amountUsd)}</span>
+              </div>
+              <p className="text-xs text-verdant-text-muted mt-1 font-mono">
+                {formatToken(p.amount)} {p.asset} • <span className="text-verdant-profit font-semibold">{(p.currentApy * 100).toFixed(2)}% APY</span>
+              </p>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

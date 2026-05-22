@@ -1,602 +1,593 @@
-# Verdant — Demo Sandbox
+# Verdant — Design Rebrand Implementation
 
-Branch: `demo` (branch from `m10` after it merges)
+Branch: `demo` (commit directly here, do not branch again)
 
----
+This ticket converts the entire UI from the current dark zinc theme to the
+Verdant light theme defined in `DESIGN.md`. It is a visual-only change. No
+logic, no hooks, no types, no API routes are modified. If you find yourself
+editing anything outside of `app/globals.css`, `tailwind.config.ts`, and
+the `components/` and `app/` TSX files, stop — you are out of scope.
 
-## What this is
-
-A demo mode that runs the full Verdant UI flow — positions dashboard, sequence
-modal, plan creation, simulate, sign — without touching any wallet, blockchain,
-or external API. Everything is in-memory. No Supabase writes. No Alchemy calls.
-No RPC. No bridge quotes. Fake tx hashes.
-
-The goal is to let someone experience the complete product flow: see a realistic
-portfolio, open the sequence modal, configure a cross-chain rebalance, step
-through simulation and signing, and reach the completion screen.
+Read `frontend/DESIGN.md` in full before writing a single line. Every
+colour decision in this ticket traces back to it.
 
 ---
 
-## Entry point
+## Step 1 — Update `tailwind.config.ts`
 
-`NEXT_PUBLIC_DEMO_MODE=true` in `.env.local`.
+Replace the entire file with the config from `DESIGN.md` section 5, verbatim.
+The existing `background`/`foreground` CSS variable colours are removed. The
+`verdant` colour namespace is added in their place.
 
-One env var. The whole app switches mode. No URL params to thread. No UI toggle
-to build. If the var is set, demo mode is active from the moment the app loads.
-
-When `NEXT_PUBLIC_DEMO_MODE=true`:
-- The landing page shows a "Try Demo" button instead of (or alongside) the
-  wallet connect buttons. Clicking it navigates directly to `/dashboard`.
-- `useWallet` returns a hardcoded demo identity — no real wallet needed.
-- `usePositions` returns fixture positions — no `/api/positions` call.
-- The sequencer API routes (`/api/sequencer/*`) are intercepted client-side
-  and return mock responses — no Supabase, no simulation, no RPC.
-
----
-
-## Architecture: where the mock boundary sits
-
-The mock boundary is entirely client-side. No API routes are modified. Instead,
-the hooks that call those routes are replaced in demo mode with local
-implementations that return realistic fixture data after a short artificial
-delay (to preserve the loading state UX).
-
-```
-Real mode:                          Demo mode:
-usePositions → /api/positions       usePositions → DEMO_POSITIONS fixture
-useSequencer → /api/sequencer/*     useSequencer → in-memory demo sequencer
-useSequenceCost → /api/sequencer/cost  useSequenceCost → fixture cost data
-useBridges → /api/bridges/*         (not called — bridge step is mocked)
-```
-
-This means:
-- Zero changes to any API route
-- Zero changes to any component
-- Zero changes to any type
-- All mock logic lives in three new files + one modified hook entry point each
+The final config must include:
+- `verdant.moss.DEFAULT` = `#2D6A4F`
+- `verdant.moss.dark` = `#1B4332`
+- `verdant.teak.DEFAULT` = `#8B5A2B`
+- `verdant.teak.light` = `#B07D4A`
+- `verdant.glacial` = `#74C69D`
+- `verdant.canvas` = `#FAF9F6`
+- `verdant.surface.DEFAULT` = `#FFFFFF`
+- `verdant.surface.accent` = `#EBF4F1`
+- `verdant.black` = `#1A1614`
+- `verdant.text.primary` = `#1A1614`
+- `verdant.text.muted` = `#70655D`
+- `verdant.profit` = `#27AE60`
+- `verdant.loss` = `#C95252`
+- `boxShadow.organic` = `0 4px 20px -4px rgba(26, 22, 20, 0.05)`
+- `boxShadow.organic-lg` = `0 10px 30px -4px rgba(26, 22, 20, 0.08)`
+- `fontFamily.sans` = `['var(--font-geist-sans)']`
+- `fontFamily.mono` = `['var(--font-geist-mono)']`
 
 ---
 
-## Files to create
+## Step 2 — Update `app/globals.css`
 
-### 1. `lib/demo/positions.ts` — fixture positions
+Replace the `:root` block and the dark mode media query entirely:
 
-A static array of `Position[]` that represents a realistic whale portfolio.
-Design for the demo flow: the user will bridge USDC from Arbitrum Aave supply
-into Morpho on Base, so the fixtures must include a supply position that makes
-that sequence sensible.
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-```
-Portfolio composition (realistic for a $500K whale):
-
-1. Aave V3 — USDC supply — Arbitrum — $180,000 — 4.2% APY
-   (this is the position the demo sequence starts from)
-
-2. Aave V3 — WETH supply — Ethereum — $95,000 — 1.8% APY
-
-3. Aave V3 — USDC borrow — Ethereum — $42,000 — 5.1% APY
-   health factor: 1.82, liquidation price: $1,420
-   (triggers BorrowCard with De-leverage button)
-
-4. Morpho — USDC supply — Base — $67,000 — 6.8% APY
-   (the destination in the demo sequence)
-
-5. Pendle PT-stETH — Ethereum — $38,000 — 8.3% fixed APY
-   maturityDate: ~60 days from now (so it shows but doesn't trigger
-   the <30d maturity warning)
-
-6. Wallet — ETH — Ethereum — $22,000
-   (plain wallet balance, no protocol)
-
-7. Euler — USDC supply — Base — $31,000 — 5.9% APY
-   small claimable reward: 12.4 EULER ≈ $87
-```
-
-Populate all required `Position` fields. Use plausible token amounts and
-addresses. `assetAddress` can be the real USDC contract address on each chain
-(these are static strings, not fetched).
-
-Export a single constant:
-```ts
-export const DEMO_POSITIONS: Position[] = [...]
-```
-
-Also export summary helpers that `usePositions` needs:
-```ts
-export const DEMO_TOTAL_VALUE_USD = 475000
-export const DEMO_TOTAL_REWARDS_USD = 87
-```
-
----
-
-### 2. `lib/demo/sequencer.ts` — in-memory demo sequencer
-
-This file exports a function `createDemoSequencer()` that returns an object
-with the same shape as `useSequencer()`'s return value, but backed entirely
-by local state (passed in via React state setters, or self-contained with
-`useState` if implemented as a hook).
-
-Actually implement this as a hook: `useDemoSequencer()`, in
-`hooks/useDemoSequencer.ts` (see below). This file contains only the fixture
-plan data and mock helpers.
-
-**Demo plan fixture:**
-
-When `createPlan` is called with `templateId === 'crossChainRebalance'`
-(or any template — the demo only shows one flow), return a pre-built
-`SequencePlan` using the real template builder
-(`buildCrossChainRebalancePlan`). This gives a real plan structure with real
-step IDs, real dependency chains, and correct serialization — the only thing
-mocked is the external I/O.
-
-The plan params for the demo:
-```ts
-{
-  asset: 'USDC',
-  amount: '180000000000',   // 180,000 USDC in base units (6 decimals)
-  fromProtocol: 'aave',
-  fromChain: 'arbitrum',
-  toProtocol: 'morpho',
-  toChain: 'base',
-  slippagePercent: 0.5,
-  walletAddress: DEMO_WALLET_ADDRESS,
-  amountUsd: 180000,
-}
-```
-
-Export:
-```ts
-export const DEMO_WALLET_ADDRESS = '0xdemo0000000000000000000000000000000000001'
-
-export function buildDemoPlan(walletAddress: string): SequencePlan {
-  return buildCrossChainRebalancePlan({
-    asset: 'USDC',
-    amount: '180000000000',
-    fromProtocol: 'aave',
-    fromChain: 'arbitrum',
-    toProtocol: 'morpho',
-    toChain: 'base',
-    slippagePercent: 0.5,
-    walletAddress,
-    amountUsd: 180000,
-  })
+:root {
+  --background: #FAF9F6;
+  --foreground: #1A1614;
 }
 
-export const DEMO_SIMULATION_RESULT: SimulationResult = {
-  success: true,
-  gasEstimate: BigInt(185000),
-  gasCostUsd: 3.40,
-  simulatedAt: new Date(),
-  stateChanges: [
-    {
-      type: 'balance',
-      token: 'USDC',
-      address: DEMO_WALLET_ADDRESS,
-      before: '180000000000',
-      after: '0',
-      decimals: 6,
-    }
-  ],
-  warnings: [],
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
 
-export const DEMO_COST_RESULT: CostPreviewResult = {
-  steps: [
-    {
-      stepId: 'withdraw',
-      stepLabel: 'Withdraw USDC from Aave',
-      gasCostUsd: 3.40,
-      bridgeFeeUsd: 0,
-      slippageUsd: 0,
-      totalCostUsd: 3.40,
-    },
-    {
-      stepId: 'bridge',
-      stepLabel: 'Bridge USDC via Across',
-      gasCostUsd: 1.20,
-      bridgeFeeUsd: 54.00,    // 0.03% of $180k
-      slippageUsd: 9.00,      // 0.005%
-      totalCostUsd: 64.20,
-      quoteExpiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
-    },
-    {
-      stepId: 'deposit',
-      stepLabel: 'Deposit USDC into Morpho',
-      gasCostUsd: 2.80,
-      bridgeFeeUsd: 0,
-      slippageUsd: 0,
-      totalCostUsd: 2.80,
-    },
-  ],
-  totalCostUsd: 70.40,
-  currentApyPercent: 4.2,
-  targetApyPercent: 6.8,
-  dailyYieldGainUsd: 12.82,   // ($180k × 2.6%) / 365
-  breakEvenDays: 5.5,
-  warnings: [],
-}
-```
-
----
-
-### 3. `hooks/useDemoSequencer.ts` — demo version of useSequencer
-
-Same return signature as `useSequencer`. All API calls replaced with
-in-memory operations + artificial delays.
-
-```ts
-export function useDemoSequencer() {
-  const [plan, setPlan] = useState<SequencePlan | null>(null)
-  const [isSimulating, setIsSimulating] = useState(false)
-  const planRef = useRef<SequencePlan | null>(null)
-  planRef.current = plan
-
-  const currentStep = useMemo(() => plan ? getActiveStep(plan) : null, [plan])
-
-  const createPlan = useCallback(async (_templateId: TemplateId, _params: TemplateParams) => {
-    // Ignore the actual params — always build the demo plan
-    await delay(600)
-    const newPlan = buildDemoPlan(DEMO_WALLET_ADDRESS)
-    setPlan(newPlan)
-    return newPlan
-  }, [])
-
-  const simulateStep = useCallback(async (stepId: string): Promise<SimulationResult> => {
-    const currentPlan = planRef.current
-    if (!currentPlan) throw new Error('No active plan')
-
-    setIsSimulating(true)
-    setPlan(prev => prev ? {
-      ...prev,
-      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'simulating' } : s)
-    } : null)
-
-    await delay(1400)  // feel like a real simulation
-
-    const updatedSteps = currentPlan.steps.map(s =>
-      s.id === stepId
-        ? { ...s, status: 'ready' as const, simulation: DEMO_SIMULATION_RESULT }
-        : s
-    )
-
-    setPlan(prev => prev ? { ...prev, steps: updatedSteps } : null)
-    setIsSimulating(false)
-    return DEMO_SIMULATION_RESULT
-  }, [])
-
-  const executeStep = useCallback(async (stepId: string): Promise<string> => {
-    const currentPlan = planRef.current
-    if (!currentPlan) throw new Error('No active plan')
-
-    const step = currentPlan.steps.find(s => s.id === stepId)
-    if (!step || step.status !== 'ready') throw new Error('Step not ready')
-
-    // Signing state
-    setPlan(prev => prev ? {
-      ...prev,
-      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'signing' } : s)
-    } : null)
-
-    await delay(800)  // fake wallet confirmation delay
-
-    const fakeTxHash = `0xdemo${stepId.replace(/-/g, '')}${Date.now().toString(16)}`
-
-    setPlan(prev => prev ? {
-      ...prev,
-      steps: prev.steps.map(s =>
-        s.id === stepId ? { ...s, status: 'confirmed', txHash: fakeTxHash } : s
-      )
-    } : null)
-
-    return fakeTxHash
-  }, [])
-
-  const signStep = useCallback(async (stepId: string, txHash: string): Promise<void> => {
-    setPlan(prev => prev ? {
-      ...prev,
-      steps: prev.steps.map(s => s.id === stepId ? { ...s, status: 'confirmed', txHash } : s)
-    } : null)
-  }, [])
-
-  const reset = useCallback(() => setPlan(null), [])
-
-  const stableSetPlan = useCallback((newPlan: SequencePlan | SerializedSequencePlan | null) => {
-    if (!newPlan) {
-      setPlan(null)
-    } else if ('createdAt' in newPlan && typeof newPlan.createdAt === 'string') {
-      setPlan(deserializeSequencePlan(newPlan as SerializedSequencePlan))
-    } else {
-      setPlan(newPlan as SequencePlan)
-    }
-  }, [])
-
-  return { plan, currentStep, isSimulating, createPlan, simulateStep, executeStep, signStep, reset, setPlan: stableSetPlan }
-}
-
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-```
-
----
-
-### 4. `hooks/useDemoPositions.ts` — demo version of usePositions
-
-Same return signature as `usePositions`.
-
-```ts
-export function useDemoPositions() {
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    // Simulate a fetch delay so loading skeletons are visible
-    const t = setTimeout(() => setIsLoading(false), 900)
-    return () => clearTimeout(t)
-  }, [])
-
-  return {
-    positions: isLoading ? [] : DEMO_POSITIONS,
-    isLoading,
-    error: null,
-    refetch: () => {},
-    totalValueUsd: DEMO_TOTAL_VALUE_USD,
-    totalRewardsUsd: DEMO_TOTAL_REWARDS_USD,
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
   }
 }
 ```
 
----
-
-### 5. `hooks/useDemoSequenceCost.ts` — demo version of useSequenceCost
-
-Same return signature as `useSequenceCost`.
-
-```ts
-export function useDemoSequenceCost(_input: { plan: SequencePlan | null; walletAddress?: string }) {
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 700)
-    return () => clearTimeout(t)
-  }, [])
-
-  return {
-    result: isLoading ? null : DEMO_COST_RESULT,
-    isLoading,
-    error: null,
-    staleStepIds: new Set<string>(),
-    expiredStepIds: new Set<string>(),
-    hasExpiredQuotes: false,
-    refetch: () => {},
-  }
-}
-```
+Remove the `@media (prefers-color-scheme: dark)` block entirely — Verdant is
+light-only.
 
 ---
 
-### 6. `lib/demo/wallet.ts` — demo wallet identity
+## Step 3 — UI Primitives
 
-```ts
-export const DEMO_WALLET_ADDRESS = '0xdemo0000000000000000000000000000000000001' as `0x${string}`
-export const DEMO_EVM_ADDRESS = DEMO_WALLET_ADDRESS
-```
+### `components/ui/Card.tsx`
 
-This is the address returned by `useWallet` in demo mode. It must match the
-address used to build demo plans, so `plan.walletAddress === address` is always
-true.
-
----
-
-## Files to modify
-
-### `hooks/useWallet.ts`
-
-Add demo mode identity. When `NEXT_PUBLIC_DEMO_MODE === 'true'`, bypass the
-wagmi and Solana wallet checks entirely:
-
-```ts
-const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-
-// Inside the hook, before the existing return:
-if (isDemo) {
-  return {
-    address: DEMO_WALLET_ADDRESS,
-    evmAddress: DEMO_WALLET_ADDRESS,
-    solanaAddress: undefined,
-    isConnected: true,
-    isEvmConnected: true,
-    isSolanaConnected: false,
-    isMounted: true,
-    enableDebug: () => {},
-    disconnect: () => { window.location.href = '/' },
-  }
-}
-```
-
-The existing debug mode (`localStorage.getItem('verdant_debug')`) stays
-unchanged. Demo mode and debug mode are separate concepts: debug mode is a
-developer tool for testing with a real spoof address; demo mode is a
-sandboxed experience for showing the product.
-
----
-
-### `hooks/usePositions.ts`
-
-Add a demo mode branch at the top of the function:
-
-```ts
-const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
-if (isDemo) return useDemoPositions()
-```
-
-Wait — React hooks cannot be called conditionally. The correct pattern is:
-
-At the module level, export a wrapper:
-```ts
-export function usePositions() {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useDemoPositions()
-  }
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  return useRealPositions()
-}
-
-function useRealPositions(): UsePositionsReturn {
-  // ... existing implementation, renamed
-}
-```
-
-This is safe because `process.env.NEXT_PUBLIC_DEMO_MODE` is a build-time
-constant — it never changes between renders. The lint suppression is correct
-and documented. Add a comment explaining this.
-
-Apply the same pattern to `useSequencer.ts` and `useSequenceCost.ts`.
-
----
-
-### `hooks/useSequencer.ts`
-
-Same pattern as `usePositions`:
-
-```ts
-export function useSequencer() {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useDemoSequencer()
-  }
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  return useRealSequencer()
-}
-
-function useRealSequencer() {
-  // ... existing implementation, renamed
-}
-```
-
----
-
-### `hooks/useSequenceCost.ts`
-
-Same pattern:
-
-```ts
-export function useSequenceCost(input: { plan: SequencePlan | null; walletAddress?: string }) {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useDemoSequenceCost(input)
-  }
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  return useRealSequenceCost(input)
-}
-
-function useRealSequenceCost(...) {
-  // ... existing implementation, renamed
-}
-```
-
----
-
-### `app/page.tsx` — landing page
-
-When `NEXT_PUBLIC_DEMO_MODE === 'true'`, add a "Try Demo" button that
-navigates to `/dashboard` without wallet connection:
+The Card is the foundational surface. Every position card, step card, and
+modal panel uses it.
 
 ```tsx
-{process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
-  <Link
-    href="/dashboard"
-    className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-  >
-    Try Demo
-  </Link>
-)}
+export function Card({ children, className = '', hover = false }: CardProps) {
+  return (
+    <div
+      className={`bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 shadow-organic ${
+        hover ? 'hover:shadow-organic-lg transition-shadow' : ''
+      } ${className}`}
+    >
+      {children}
+    </div>
+  )
+}
 ```
 
-Place it above the `<ConnectButton />`. In demo mode, `useWallet` will return
-`isConnected: true` immediately, so the `useEffect` redirect in `Home` will
-fire and route to `/dashboard` anyway — the button just makes it explicit.
+### `components/ui/Badge.tsx`
+
+```tsx
+const variantStyles: Record<string, string> = {
+  default:  'bg-verdant-surface-accent text-verdant-text-muted border-[#D5E8E0]',
+  success:  'bg-verdant-surface-accent text-verdant-profit border-[#A8D5BE]',
+  warning:  'bg-amber-50 text-amber-700 border-amber-200',
+  error:    'bg-red-50 text-verdant-loss border-red-200',
+}
+```
+
+### `components/ui/HealthFactor.tsx`
+
+Replace `text-emerald-400` / `text-amber-400` / `text-red-400` with the
+semantic palette:
+
+```tsx
+let colorClass = 'text-verdant-loss'        // < 1.2 — danger
+if (value >= 2.0)      colorClass = 'text-verdant-profit'   // safe
+else if (value >= 1.2) colorClass = 'text-amber-600'        // caution
+```
+
+The label text changes from `text-zinc-500` to `text-verdant-text-muted`.
+The dot indicator uses `bg-verdant-profit`, `bg-amber-600`, `bg-verdant-loss`
+to match.
+
+### `components/ui/Spinner.tsx`
+
+Change the spinner ring colour from whatever zinc shade it uses to
+`border-verdant-moss` for the active arc and `border-verdant-surface-accent`
+for the track.
+
+### `components/ui/Tooltip.tsx`
+
+Tooltip background from `bg-zinc-800 text-white` to
+`bg-verdant-black text-verdant-canvas` — readable dark-on-light inversion
+for contrast.
+
+### `components/ui/WarningBanner.tsx`
+
+Warning banners: amber variant stays amber, error variant uses
+`bg-red-50 border-red-200 text-verdant-loss`.
 
 ---
+
+## Step 4 — Position Components
+
+### `components/positions/PositionCard.tsx`
+
+**Outer wrapper:** `bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5
+shadow-organic hover:shadow-organic-lg transition-shadow`
+
+**Asset + protocol heading:** `text-xl font-semibold text-verdant-text-primary`
+
+**Chain + type subtext:** `text-sm text-verdant-text-muted capitalize`
+
+**USD value:** `text-xl font-bold text-verdant-text-primary font-mono`
+
+**Token amount:** `text-sm text-verdant-text-muted font-mono`
+
+**APY / Rewards inner panel:** Background changes from `bg-zinc-950/50` to
+`bg-verdant-surface-accent`, border to `border-[#D5E8E0]`.
+
+- APY label: `text-xs text-verdant-text-muted uppercase tracking-wider font-semibold`
+- APY value: `text-verdant-profit font-medium font-mono` (positive yield is profit)
+- Rewards label: same muted style
+- Rewards value when > 0: `text-verdant-profit font-medium font-mono`
+- Rewards value when 0: `text-verdant-text-muted font-mono`
+
+**"Wallet" type badge:** `text-[10px] bg-verdant-surface-accent
+text-verdant-text-muted border border-[#D5E8E0] px-1.5 py-0.5 rounded font-bold
+uppercase tracking-wider`
+
+**Protocol tag** (e.g. "on Aave"): same badge style as above.
+
+**Harvest button:** `text-sm bg-verdant-moss hover:bg-verdant-moss-dark
+text-white px-4 py-2 rounded-md transition-colors font-medium`
+
+**Manage button:** secondary style — `text-sm border border-verdant-teak
+text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent
+px-4 py-2 rounded-md transition-colors font-medium`
+
+### `components/positions/BorrowCard.tsx`
+
+The borrow card has a red accent in dark mode. In light mode, use a warm
+loss-tinted border instead:
+
+**Outer wrapper:** `bg-verdant-surface border border-red-200 rounded-xl p-5
+shadow-organic hover:shadow-organic-lg transition-shadow`
+
+**"USDC Debt" heading:** `text-xl font-semibold text-verdant-text-primary`
+
+**"Borrow" badge:** `text-[10px] bg-red-50 text-verdant-loss border
+border-red-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider`
+
+**Inner stats panel:** `bg-red-50/60 border border-red-100 rounded-lg p-3`
+
+**Borrow APY value:** `text-verdant-loss font-medium font-mono`
+
+**Multi-collateral warning note:** `text-[11px] text-verdant-text-muted
+bg-amber-50 px-2 py-1.5 rounded border border-amber-200`
+
+**De-leverage button:** `text-sm bg-verdant-loss hover:bg-red-700 text-white
+px-4 py-2 rounded-md transition-colors font-medium`
+
+**Repay button:** secondary style with teak.
+
+### `components/positions/PendleCard.tsx`
+
+Apply the same Card surface treatment. The PT/YT type badge uses the default
+badge style. Fixed APY in `text-verdant-profit font-mono`. Maturity date in
+`text-verdant-text-muted font-mono`. The "Exit" button uses the secondary
+(teak) button style. If maturity is within 30 days, the maturity value uses
+`text-verdant-loss` instead of the muted colour.
+
+### `components/positions/PositionSkeleton.tsx`
+
+Replace `bg-zinc-800` pulse blocks with `bg-verdant-surface-accent` and the
+outer container with `bg-verdant-surface border border-[#E5E0D8] rounded-xl
+p-5 shadow-organic`.
+
+### `components/positions/PositionTypeFilter.tsx`
+
+Filter pills: inactive state `bg-verdant-surface border border-[#E5E0D8]
+text-verdant-text-muted hover:border-verdant-moss`. Active state
+`bg-verdant-moss text-white border-verdant-moss`.
+
+---
+
+## Step 5 — Sequence Components
+
+### `components/sequence/SequenceModal.tsx`
+
+**Backdrop:** `bg-verdant-black/40 backdrop-blur-sm` (lighter than current
+`bg-black/60` — the light theme backdrop should feel airy, not oppressive)
+
+**Modal card:** `bg-verdant-surface border border-[#E5E0D8] rounded-2xl
+shadow-organic-lg` — remove the current `bg-zinc-900`.
+
+**Header:** `border-b border-[#E5E0D8]`
+
+**Title:** `text-xl font-bold text-verdant-text-primary`
+
+**Close button:** `text-verdant-text-muted hover:text-verdant-text-primary
+hover:bg-verdant-surface-accent transition-colors p-1 rounded-md`
+
+**Configure Parameters section:** Background from `bg-zinc-950/40` to
+`bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-6`
+
+**Section heading:** `font-bold text-lg text-verdant-text-primary`
+
+**Form labels:** `text-sm font-medium text-verdant-text-muted`
+
+**Select and input fields:** `w-full bg-verdant-surface border border-[#E5E0D8]
+rounded-md p-2 text-verdant-text-primary focus:outline-none
+focus:border-verdant-moss transition-colors`
+
+**Create Sequence Plan button:** Primary moss style — `w-full bg-verdant-moss
+hover:bg-verdant-moss-dark text-white font-bold py-3 rounded-lg
+transition-colors disabled:opacity-50`
+
+**Template selector cards** (in `TemplateSelector.tsx` — restyle in the same
+pass): Each template option — unselected: `bg-verdant-surface border
+border-[#E5E0D8] rounded-lg p-4 cursor-pointer hover:border-verdant-moss
+transition-colors`. Selected: `border-verdant-moss bg-verdant-surface-accent`.
+Template name in `text-verdant-text-primary font-semibold`. Description in
+`text-verdant-text-muted text-sm`.
+
+### `components/sequence/SequenceStepCard.tsx`
+
+**Card outer:** Current step: `border border-verdant-moss/40 bg-verdant-surface-accent`
+Non-current: `border border-[#E5E0D8] bg-verdant-surface`
+
+**Step number bubble:** Confirmed: `bg-verdant-profit/10 text-verdant-profit`.
+Current: `bg-verdant-moss text-white`. Pending: `bg-verdant-surface-accent
+text-verdant-text-muted border border-[#E5E0D8]`.
+
+**Step label:** Current: `font-semibold text-verdant-text-primary`. Other:
+`text-verdant-text-muted`.
+
+**Chain badge:** `text-[10px] text-verdant-text-muted uppercase tracking-widest
+bg-verdant-surface-accent px-2 py-0.5 rounded border border-[#E5E0D8]`
+
+**Description text:** `text-verdant-text-muted text-sm`
+
+**"View on Explorer" link:** `text-verdant-moss text-xs hover:underline`
+
+**"Complete" confirmed state:** `text-verdant-profit font-medium` with a
+`text-verdant-profit` checkmark.
+
+**"Sign Transaction" button:** Primary moss — `bg-verdant-moss
+hover:bg-verdant-moss-dark text-white font-semibold py-2 px-4 rounded-md
+transition-colors disabled:opacity-50`
+
+**"Quote Expired" disabled state:** `bg-verdant-loss/80` with `text-white`.
+
+**"Waiting…" state:** `text-verdant-text-muted text-sm`
+
+**"Verified" ready state (non-current):** `text-verdant-profit text-sm`
+
+**Error panel:** `bg-red-50 border border-red-200 rounded-lg` with
+`text-verdant-loss text-xs` message and `text-verdant-loss font-bold
+hover:underline` retry link.
+
+### `components/sequence/SequencePlanView.tsx`
+
+**Page background:** The `py-12 px-6` wrapper needs no explicit background —
+it inherits `bg-verdant-canvas` from the body.
+
+**Plan title:** `text-2xl font-bold text-verdant-text-primary`
+
+**Subtext (created date, cost):** `text-verdant-text-muted` with the cost
+value in `text-verdant-text-primary font-semibold font-mono`
+
+**Expired quotes banner:** `bg-red-50 border border-red-200 rounded-lg` with
+`text-verdant-loss text-sm` message. Refresh button:
+`bg-verdant-loss hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm`
+
+**Cancel link:** `text-sm text-verdant-text-muted hover:text-verdant-text-primary
+transition-colors`
+
+### `components/sequence/SequenceProgress.tsx`
+
+The progress stepper: completed steps use `text-verdant-profit` and a filled
+`bg-verdant-profit` indicator. Current step uses `text-verdant-moss` and
+`bg-verdant-moss`. Pending steps use `text-verdant-text-muted` and
+`bg-verdant-surface-accent border border-[#E5E0D8]`. Connector lines between
+steps: completed segment in `bg-verdant-profit`, pending in `bg-[#E5E0D8]`.
+
+### `components/sequence/SequenceComplete.tsx`
+
+**Success icon circle:** `bg-verdant-profit/10 border-2 border-verdant-profit`
+with `text-verdant-profit` checkmark.
+
+**Heading:** `text-3xl font-bold text-verdant-text-primary`
+
+**Subtext:** `text-verdant-text-muted`
+
+**Summary card:** `bg-verdant-surface border border-[#E5E0D8] shadow-organic
+divide-y divide-[#E5E0D8]` with labels in `text-verdant-text-muted` and
+values in `text-verdant-text-primary font-semibold font-mono`.
+
+**"View Tx" links:** `text-verdant-moss hover:text-verdant-moss-dark font-medium`
+
+**"Back to Dashboard" button:** Primary moss style.
+
+---
+
+## Step 6 — Execute / Cost Components
+
+### `components/execute/CostPreview.tsx`
+
+**Loading state card:** `bg-verdant-surface border border-[#E5E0D8]
+shadow-organic`. Spinner uses moss colour. Loading text:
+`text-verdant-text-muted`.
+
+**Error state card:** `bg-verdant-surface border border-red-200 shadow-organic`.
+Error message: `text-verdant-loss text-sm`. Retry button: secondary teak style.
+
+**Results card:** `bg-verdant-surface border border-[#E5E0D8] shadow-organic`
+
+**Section heading ("Cost Preview"):** `text-lg font-semibold text-verdant-text-primary`
+
+**Per-step rows:**
+- Step label: `text-verdant-text-primary text-sm font-medium`
+- Gas cost: `text-verdant-text-muted font-mono text-sm`
+- Bridge fee: `text-verdant-text-primary font-mono text-sm`
+- HIGH FEE badge: `bg-red-50 text-verdant-loss border border-red-200`
+- Stale indicator: `text-amber-600`
+- Expired indicator: `text-verdant-loss`
+
+**Totals row:** Separator `border-[#E5E0D8]`. Total label
+`text-verdant-text-primary font-semibold`. Total value
+`text-verdant-text-primary font-bold font-mono`.
+
+**Break-even block:** Background `bg-verdant-surface-accent border
+border-[#D5E8E0] rounded-lg`. Yield gain value: `text-verdant-profit
+font-mono`. Break-even days: `text-verdant-text-primary font-mono font-semibold`.
+
+**Stale quote warning:** `bg-amber-50 border border-amber-200` with
+`text-amber-700`. Refresh button: `text-verdant-moss hover:text-verdant-moss-dark
+font-medium text-sm`.
+
+### `components/execute/SimulationResult.tsx`
+
+**Success state:** `bg-verdant-surface-accent border border-[#D5E8E0]
+rounded-lg`. "Simulation passed" text: `text-verdant-profit font-semibold`.
+State changes list: labels `text-verdant-text-muted text-sm`, values
+`text-verdant-text-primary font-mono text-sm`.
+
+**Failure state:** `bg-red-50 border border-red-200 rounded-lg`. Revert reason:
+`text-verdant-loss text-sm font-mono`.
+
+**Warning banners (amber):** `bg-amber-50 border border-amber-200 text-amber-700`
+with the acknowledgment checkbox accent colour `accent-verdant-moss`.
+
+### `components/execute/BridgeQuoteSelector.tsx`
+
+**Quote option cards:** Unselected `bg-verdant-surface border border-[#E5E0D8]
+rounded-lg`. Selected `border-verdant-moss bg-verdant-surface-accent`.
+
+**Bridge name:** `text-verdant-text-primary font-semibold`
+
+**Fee:** `text-verdant-text-primary font-mono`
+
+**HIGH FEE badge:** `bg-red-50 text-verdant-loss border border-red-200`
+
+**Time estimate:** `text-verdant-text-muted text-sm`
+
+### `components/execute/StepOneBridge.tsx`
+
+Apply Card surface. Inputs and selects use the same form field style as
+SequenceModal (white background, `border-[#E5E0D8]`, moss focus ring).
+Primary action button uses moss primary style.
+
+### `components/execute/AssetSelector.tsx`
+
+Same form field treatment. Asset option rows: hover state
+`hover:bg-verdant-surface-accent`. Selected state
+`bg-verdant-surface-accent border-verdant-moss`.
+
+---
+
+## Step 7 — Harvest Components
+
+### `components/harvest/RewardsList.tsx`
+
+Apply Card surface for each reward row. Reward token name:
+`text-verdant-text-primary font-semibold`. Amount: `text-verdant-profit
+font-mono`. USD value: `text-verdant-text-muted font-mono text-sm`.
+"No rewards" empty state: `text-verdant-text-muted`.
+
+### `components/harvest/HarvestButton.tsx`
+
+Primary moss button style. Loading / signing states keep the same label
+changes but in `bg-verdant-moss` colour.
+
+---
+
+## Step 8 — Wallet Components
+
+### `components/wallet/ConnectButton.tsx`
+
+The RainbowKit `ConnectButton` renders its own styled button. Wrap or override
+with: `bg-verdant-moss hover:bg-verdant-moss-dark text-white font-semibold
+px-4 py-2 rounded-md transition-colors`.
+
+If the ConnectButton component is a thin wrapper around RainbowKit's component
+with custom rendering, apply the moss style to the custom render props. If it
+is a direct `<ConnectButton />` passthrough, leave the RainbowKit default — do
+not fight the library's own styling.
+
+### `components/wallet/SolanaConnectButton.tsx`
+
+Same moss primary style as above.
+
+---
+
+## Step 9 — App Pages
+
+### `app/globals.css` and `app/layout.tsx`
+
+`layout.tsx` needs no changes — it applies fonts and renders `<WalletProvider>`
+and children. The `bg-verdant-canvas` comes from the `globals.css` body rule.
+
+### `app/page.tsx` (landing)
+
+**Page background:** Remove `flex min-h-screen` dark treatment. The page
+inherits `bg-verdant-canvas` from body.
+
+**Heading "Verdant":** `text-5xl font-bold tracking-tight text-verdant-text-primary`
+
+**Tagline:** `text-lg text-verdant-text-muted`
+
+**"Try Demo" button (demo mode):** Primary moss — `bg-verdant-moss
+hover:bg-verdant-moss-dark text-white font-semibold px-6 py-3 rounded-lg
+transition-colors`
+
+**"Connect Wallet" button:** Same primary moss style (via ConnectButton).
+
+**"Enter Debug Mode" link:** `text-sm text-verdant-text-muted
+hover:text-verdant-text-primary underline underline-offset-4 transition-colors`
 
 ### `app/dashboard/page.tsx`
 
-In demo mode, the redirect guard (`if (!isConnected) router.push('/')`) must
-not fire, since `isConnected` is always true in demo mode. This already works
-correctly because `useWallet` returns `isConnected: true` in demo mode — no
-changes needed here.
+**Page wrapper:** `min-h-screen bg-verdant-canvas text-verdant-text-primary`
 
-Add a demo mode banner at the top of the dashboard (inside `<main>`, above
-`PositionList`):
+**Header:** `border-b border-[#E5E0D8] bg-verdant-surface/80 backdrop-blur-sm
+sticky top-0 z-10` — the surface-white sticky header contrasts cleanly against
+the canvas background.
 
-```tsx
-{process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
-  <div className="mb-6 px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-400 flex items-center gap-2">
-    <span className="text-emerald-400 font-semibold">Demo Mode</span>
-    — Positions and transactions are simulated. No wallet connected, no real funds.
-  </div>
-)}
-```
+**"Verdant" brand in header:** `text-xl font-bold tracking-tight
+text-verdant-text-primary`
 
----
+**Portfolio value in header:** `text-verdant-text-muted` label,
+`text-verdant-text-primary font-semibold font-mono` value.
 
-## What the demo flow looks like end-to-end
+**Claimable rewards in header:** `text-verdant-text-muted` label,
+`text-verdant-profit font-semibold font-mono` value.
 
-1. User visits `/` with `NEXT_PUBLIC_DEMO_MODE=true` set
-2. Clicks "Try Demo" → routed to `/dashboard`
-3. Dashboard loads with a 900ms fake fetch, then shows the 7-position fixture
-4. Demo banner is visible at the top
-5. User sees the $180K Aave USDC supply on Arbitrum — clicks "Sequence"
-   button on that card → opens `SequenceModal` with `crossChainRebalance`
-   pre-selected and params pre-filled
-6. Or: user clicks the header "Sequence" button → modal opens blank
-7. User configures the template (params are pre-filled in both cases) → clicks
-   "Create Sequence Plan"
-8. `useSequencer.createPlan` → `useDemoSequencer.createPlan` → 600ms delay →
-   returns a real `SequencePlan` object built by the real template builder
-9. Modal closes, router pushes to `/sequence/{planId}`
-10. Plan execution page loads with `CostPreview` showing the DEMO_COST_RESULT
-    (withdraw $3.40, bridge $64.20, deposit $2.80, total $70.40, break-even 5.5 days)
-11. Step 1 (Withdraw): user clicks "Sign Transaction" →
-    `simulateStep` → 1400ms delay → step turns green with simulation pass →
-    "Sign Transaction" button appears → user clicks → `executeStep` → 800ms
-    delay → step confirmed with fake tx hash
-12. Step 2 (Bridge): same flow
-13. Step 3 (Deposit): same flow
-14. `SequenceComplete` screen renders
+**"Sequence" header button:** Primary moss style.
 
----
+**"Disconnect" link:** `text-sm text-verdant-text-muted
+hover:text-verdant-loss transition-colors`
 
-## What is explicitly not built
+**"Your Positions" section heading:** `text-xl font-semibold
+text-verdant-text-primary`
 
-- No demo mode for `/harvest` — that page is out of scope for the demo
-- No demo mode for `/api/*` routes — those routes are never called in demo mode
-- No persisted demo state — refreshing resets everything, which is fine
-- No "reset demo" button — refresh achieves the same
-- No Supabase schema changes — nothing is written
-- No environment variable validation — if `NEXT_PUBLIC_DEMO_MODE` is missing,
-  the app behaves normally
+**"Refresh" button:** Secondary teak style but smaller — `text-sm border
+border-[#E5E0D8] text-verdant-text-muted hover:border-verdant-moss
+hover:text-verdant-moss px-3 py-1.5 rounded-lg border transition-colors`
+
+**Error banner:** `bg-amber-50 border border-amber-200 text-amber-700 text-sm
+px-4 py-3 rounded-lg`
+
+**Demo mode banner:** `bg-verdant-surface-accent border border-[#D5E8E0]
+rounded-lg text-sm text-verdant-text-muted` with
+`text-verdant-moss font-semibold` for the "Demo Mode" label.
+
+### `app/sequence/page.tsx` (full-page sequence setup fallback)
+
+Apply the same form field and Card surface treatments as SequenceModal. Page
+background inherits canvas. Page heading `text-verdant-text-primary`.
+
+### `app/sequence/[planId]/page.tsx`
+
+Page background inherits canvas. Loading state uses `text-verdant-text-muted`.
+Error state uses `text-verdant-loss`.
+
+### `app/harvest/page.tsx`
+
+Page heading `text-verdant-text-primary`. Apply Card surface to harvest panels.
 
 ---
 
-## Acceptance criteria
+## Typographic rules — apply everywhere
 
-- [ ] `NEXT_PUBLIC_DEMO_MODE=true` in `.env.local` is the only change needed
-      to enter demo mode
-- [ ] Landing page shows "Try Demo" button in demo mode
-- [ ] `/dashboard` loads with 7 fixture positions and correct totals
-- [ ] Demo banner is visible on the dashboard
-- [ ] No network requests are made to `/api/positions`, `/api/sequencer/*`,
-      or any bridge/RPC endpoint during demo mode (verify in browser Network tab)
-- [ ] Sequence modal opens from BorrowCard De-leverage button and header
-      Sequence button
-- [ ] Creating a plan navigates to `/sequence/[planId]` with a valid plan
-- [ ] CostPreview renders with the fixture cost breakdown (3 steps, $70.40 total)
-- [ ] Simulate → 1.4s delay → step shows green simulation pass
-- [ ] Sign → 0.8s delay → step shows confirmed with a `0xdemo...` tx hash
-- [ ] All 3 steps can be completed to reach `SequenceComplete`
-- [ ] No `as any` introduced
-- [ ] No `<form>` tags introduced
-- [ ] Existing real mode is completely unaffected when env var is absent
-- [ ] `useWallet`, `usePositions`, `useSequencer`, `useSequenceCost` all have
-      unchanged external signatures — no call sites modified
+These are mechanical rules, not component-specific. Apply them globally as you
+restyle each component:
+
+1. **All financial numbers** (USD values, APY percentages, token amounts,
+   tx hashes, wallet addresses) must be wrapped in `font-mono` or have the
+   `font-mono` class on their element.
+
+2. **Positive financial values** (yields, rewards, profits, successful
+   simulation) use `text-verdant-profit`.
+
+3. **Negative financial values** (borrow costs, losses, errors, high fees,
+   health factor danger) use `text-verdant-loss`.
+
+4. **Primary text** (headings, card titles, important labels) uses
+   `text-verdant-text-primary`.
+
+5. **Secondary text** (sublabels, metadata, timestamps, helper text) uses
+   `text-verdant-text-muted`.
+
+6. **Never use `text-black`, `text-white` (except on coloured button
+   backgrounds), `text-zinc-*`, `text-emerald-*`, or `bg-zinc-*`** in
+   any restyled component. These are all remnants of the dark theme.
+
+---
+
+## What not to touch
+
+- All files under `hooks/` — no changes
+- All files under `lib/` — no changes
+- All files under `app/api/` — no changes
+- All files under `types/` — no changes
+- All files under `constants/` — no changes
+- All files under `supabase/` — no changes
+- `lib/utils/formatting.ts` — no changes
+- `DESIGN.md`, `AGENTS.md`, `SPECS.md` — no changes
+
+---
+
+## Acceptance checklist
+
+Before marking done, verify each item visually by running the dev server with
+`NEXT_PUBLIC_DEMO_MODE=true` and walking the full demo flow.
+
+- [ ] `tailwind.config.ts` contains the full `verdant` colour namespace
+- [ ] `globals.css` has no dark mode media query; body background is `#FAF9F6`
+- [ ] Landing page: light canvas background, moss Connect Wallet button
+- [ ] Dashboard: light header with surface-white sticky bar on canvas background
+- [ ] Dashboard: portfolio value and APY in `font-mono`
+- [ ] Position cards: white surface cards with organic shadow on canvas
+- [ ] Position cards: APY values in `text-verdant-profit font-mono`
+- [ ] BorrowCard: red-200 border, loss-coloured borrow APY
+- [ ] BorrowCard: De-leverage button in `bg-verdant-loss`
+- [ ] SequenceModal: light modal panel, moss Create button, teak-bordered selects
+- [ ] TemplateSelector: unselected/selected states use moss accent
+- [ ] SequenceStepCard: current step in surface-accent, moss sign button
+- [ ] CostPreview: surface card, profit-coloured yield gain, mono font on all numbers
+- [ ] SequenceComplete: profit-coloured success icon, moss Back button
+- [ ] No `bg-zinc-*`, `text-zinc-*`, `bg-emerald-*`, or `text-emerald-*`
+      classes anywhere in components or app pages
+- [ ] No `text-white` on any text that sits on a light background
+- [ ] All financial numbers in `font-mono`

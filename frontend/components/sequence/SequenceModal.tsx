@@ -189,17 +189,17 @@ export function SequenceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1A1614]/60 backdrop-blur-sm p-4">
       {/* Backdrop click listener to close */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] z-10 overflow-hidden text-zinc-100">
+      <div className="relative w-full max-w-2xl bg-verdant-surface border border-[#E5E0D8] rounded-2xl shadow-organic-lg flex flex-col max-h-[90vh] z-10 overflow-hidden text-verdant-text-primary">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-zinc-800">
+        <div className="flex items-center justify-between p-6 border-b border-[#E5E0D8]">
           <h2 className="text-xl font-bold">Choose a Sequence</h2>
           <button
             onClick={onClose}
-            className="text-zinc-500 hover:text-zinc-300 transition-colors p-1 rounded-lg hover:bg-zinc-800"
+            className="text-verdant-text-muted hover:text-verdant-text-primary transition-colors p-1 rounded-lg hover:bg-verdant-surface-accent"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -216,20 +216,20 @@ export function SequenceModal({
           />
 
           {selectedTemplate === 'exitPendle' && !ptAddress ? (
-            <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-xl p-8 text-center">
-              <p className="text-red-400">Please use the Exit button from your Pendle position.</p>
+            <div className="bg-verdant-surface-accent border border-verdant-loss/20 rounded-xl p-8 text-center">
+              <p className="text-verdant-loss">Please use the Exit button from your Pendle position.</p>
             </div>
           ) : selectedTemplate && (
-            <div className="bg-zinc-950/40 border border-zinc-800/50 rounded-xl p-6 space-y-4">
-              <h3 className="font-bold text-lg mb-4 text-zinc-200">Configure Parameters</h3>
+            <div className="bg-verdant-surface-accent border border-[#E5E0D8] rounded-xl p-6 space-y-4">
+              <h3 className="font-bold text-lg mb-4 text-verdant-text-primary">Configure Parameters</h3>
 
               <div className="space-y-4">
                 {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') ? (
                   <>
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-zinc-400">Borrow Asset (to repay)</label>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Borrow Asset (to repay)</label>
                       <select
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                         value={borrowAsset}
                         onChange={(e) => setBorrowAsset(e.target.value)}
                       >
@@ -239,9 +239,9 @@ export function SequenceModal({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-zinc-400">Collateral Asset (to withdraw)</label>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Collateral Asset (to withdraw)</label>
                       <select
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                         value={collateralAsset}
                         onChange={(e) => setCollateralAsset(e.target.value)}
                       >
@@ -253,9 +253,9 @@ export function SequenceModal({
                   </>
                 ) : (
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-zinc-400">Asset</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Asset</label>
                     <select
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                       value={asset}
                       onChange={(e) => setAsset(e.target.value)}
                     >
@@ -265,47 +265,47 @@ export function SequenceModal({
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-zinc-400">
+                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
                     {selectedTemplate === 'deleverageAave' ? 'Total Debt Amount' : 'Amount'}
                   </label>
                   <input
                     type="number"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                    className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                   />
                 </div>
                 {selectedTemplate === 'deleverageAave' && (
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-zinc-400">Unwind Cycles</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Unwind Cycles</label>
                     <input
                       type="number"
                       min="1"
                       max="10"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
                       value={cycles}
                       onChange={(e) => setCycles(parseInt(e.target.value) || 1)}
                     />
-                    <p className="text-xs text-zinc-500 mt-1">Higher cycles are safer but cost more gas.</p>
+                    <p className="text-xs text-verdant-text-muted mt-1">Higher cycles are safer but cost more gas.</p>
                   </div>
                 )}
                 {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') && (
                   <>
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-zinc-400">Total Collateral Amount</label>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Total Collateral Amount</label>
                       <input
                         type="number"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
                         value={collateralAmount}
                         onChange={(e) => setCollateralAmount(e.target.value)}
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-zinc-400">Current Health Factor</label>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Current Health Factor</label>
                       <input
                         type="number"
                         step="0.1"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
                         value={healthFactor}
                         onChange={(e) => setHealthFactor(parseFloat(e.target.value) || 2.5)}
                       />
@@ -313,9 +313,9 @@ export function SequenceModal({
                   </>
                 )}
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-zinc-400">From Chain</label>
+                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">From Chain</label>
                   <select
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                    className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                     value={fromChain}
                     onChange={(e) => setFromChain(e.target.value as ChainId)}
                   >
@@ -326,9 +326,9 @@ export function SequenceModal({
                 </div>
                 {(selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') && (
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-zinc-400">From Protocol</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">From Protocol</label>
                     <select
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                       value={fromProtocol}
                       onChange={(e) => setFromProtocol(e.target.value as ProtocolId)}
                     >
@@ -340,9 +340,9 @@ export function SequenceModal({
                 )}
                 {(selectedTemplate === 'bridgeAndDeposit' || selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'exitPendle') && (
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-zinc-400">To Chain</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">To Chain</label>
                     <select
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                       value={toChain}
                       onChange={(e) => setToChain(e.target.value as ChainId)}
                     >
@@ -354,9 +354,9 @@ export function SequenceModal({
                 )}
                 {selectedTemplate !== 'repayAndWithdraw' && selectedTemplate !== 'deleverageAave' && selectedTemplate !== 'exitPendle' && (
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-zinc-400">Destination Protocol</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Destination Protocol</label>
                     <select
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-100"
+                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
                       value={toProtocol}
                       onChange={(e) => setToProtocol(e.target.value as ProtocolId)}
                     >
@@ -371,7 +371,7 @@ export function SequenceModal({
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitting}
-                className="mt-8 w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="mt-8 w-full bg-verdant-moss text-white font-bold py-3 rounded-lg hover:bg-verdant-moss-dark disabled:opacity-50 transition-colors"
               >
                 {isSubmitting ? 'Creating Plan...' : 'Create Sequence Plan'}
               </button>

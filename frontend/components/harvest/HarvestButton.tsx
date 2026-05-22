@@ -46,11 +46,13 @@ export function HarvestButton({
         onClick={handleClick}
         disabled={isDisabled}
         className={`
-          inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold
+          inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold
           transition-all duration-150
           ${isDisabled
-            ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-            : 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-lg shadow-emerald-900/30'
+            ? (isSimulating || isSigning
+                ? 'bg-verdant-moss text-white opacity-50 cursor-not-allowed'
+                : 'bg-verdant-surface-accent text-verdant-text-muted/50 border border-[#E5E0D8] cursor-not-allowed')
+            : 'bg-verdant-moss hover:bg-verdant-moss-dark text-white'
           }
           ${className}
         `}
@@ -59,7 +61,7 @@ export function HarvestButton({
         {label}
       </button>
       {error && (
-        <p className="text-red-400 text-xs max-w-xs text-right">{error}</p>
+        <p className="text-verdant-loss text-xs max-w-xs text-right font-mono">{error}</p>
       )}
     </div>
   )

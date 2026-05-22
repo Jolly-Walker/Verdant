@@ -66,9 +66,9 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id, currentStep?.id, currentStep?.status, simulateStep]);
 
-  if (!address) return <div className="p-8 text-center">Please connect your wallet.</div>;
-  if (loading) return <div className="p-8 text-center">Loading plan...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (!address) return <div className="p-8 text-center text-verdant-text-muted font-medium">Please connect your wallet.</div>;
+  if (loading) return <div className="p-8 text-center text-verdant-text-muted font-medium">Loading plan...</div>;
+  if (error) return <div className="p-8 text-center text-verdant-loss font-medium">{error}</div>;
   if (!plan) return <div className="p-8 text-center">Plan not found.</div>;
 
   if (plan.status === 'complete') {

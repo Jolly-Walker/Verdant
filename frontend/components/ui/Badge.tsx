@@ -6,10 +6,10 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<string, string> = {
-  default: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  success: 'bg-emerald-900/40 text-emerald-300 border-emerald-800',
-  warning: 'bg-amber-900/40 text-amber-300 border-amber-800',
-  error: 'bg-red-900/40 text-red-300 border-red-800',
+  default:  'bg-verdant-surface-accent text-verdant-text-muted border-[#D5E8E0]',
+  success:  'bg-verdant-surface-accent text-verdant-profit border-[#A8D5BE]',
+  warning:  'bg-amber-50 text-amber-700 border-amber-200',
+  error:    'bg-red-50 text-verdant-loss border-red-200',
 }
 
 export function Badge({ children, variant = 'default', className = '', ...props }: BadgeProps) {

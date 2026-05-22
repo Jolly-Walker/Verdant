@@ -36,11 +36,11 @@ export function SequencePlanView({
   return (
     <div className="max-w-3xl mx-auto py-12 px-6">
       <div className="mb-10 text-center">
-        <h2 className="text-2xl font-bold text-zinc-100 mb-2">{plan.description}</h2>
-        <div className="flex items-center justify-center gap-4 text-sm text-zinc-500">
+        <h2 className="text-2xl font-bold text-verdant-text-primary mb-2">{plan.description}</h2>
+        <div className="flex items-center justify-center gap-4 text-sm text-verdant-text-muted">
           <span>Created {new Date(plan.createdAt).toLocaleString()}</span>
           <span>•</span>
-          <span>Estimated Cost: <span className="text-zinc-300 font-semibold">{formatUsd(totalGasCost)}</span></span>
+          <span>Estimated Cost: <span className="text-verdant-text-primary font-semibold font-mono">{formatUsd(totalGasCost)}</span></span>
         </div>
       </div>
 
@@ -71,9 +71,9 @@ export function SequencePlanView({
       </div>
 
       {hasExpiredQuotes && (
-        <div className="mt-6 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex justify-between items-center">
-          <p className="text-red-400 text-sm">Bridge quote expired — refresh before signing</p>
-          <button onClick={onRefetchCost} className="text-sm text-white bg-red-800 hover:bg-red-700 px-3 py-1 rounded">
+        <div className="mt-6 p-3 bg-verdant-loss/10 border border-verdant-loss/30 rounded-lg flex justify-between items-center">
+          <p className="text-verdant-loss text-sm">Bridge quote expired — refresh before signing</p>
+          <button onClick={onRefetchCost} className="text-sm text-white bg-verdant-loss hover:bg-[#B04545] px-3 py-1 rounded transition-colors">
             Refresh Quotes
           </button>
         </div>
@@ -82,7 +82,7 @@ export function SequencePlanView({
       <div className="mt-8 flex justify-center">
         <button 
           onClick={onEdit}
-          className="text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
+          className="text-sm text-verdant-text-muted hover:text-verdant-text-primary transition-colors"
         >
           Cancel and return to dashboard
         </button>
