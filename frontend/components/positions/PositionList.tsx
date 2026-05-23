@@ -7,8 +7,8 @@ import { useChainMetadata } from '@/hooks/useChainMetadata'
 import { PositionType } from '@/types/shared'
 
 import { Badge } from '../ui/Badge'
-
 import { TemplateId } from '@/types/sequencer'
+import { formatUsd } from '@/lib/utils/formatting'
 
 interface PositionListProps {
   positions: Position[]
@@ -22,8 +22,8 @@ export function PositionList({ positions, isLoading, onSequence }: PositionListP
 
   if (isLoading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
+      <div className="space-y-8">
+        {[1, 2].map((i) => (
           <PositionSkeleton key={i} />
         ))}
       </div>
@@ -39,17 +39,61 @@ export function PositionList({ positions, isLoading, onSequence }: PositionListP
 
   const positionsByChain = chainIds.map(chainId => {
     const chainPositions = filteredPositions.filter(p => p.chain === chainId)
-    const assets = chainPositions.filter(p => p.positionType !== 'borrow')
-    const liabilities = chainPositions.filter(p => p.positionType === 'borrow')
     const metadata = getChainMetadata(chainId)
     
+    // Group chainPositions by protocol
+    const groupedByProtocol: Record<string, Position[]> = {}
+    chainPositions.forEach(p => {
+      const proto = p.protocol || 'wallet'
+      if (!groupedByProtocol[proto]) {
+        groupedByProtocol[proto] = []
+      }
+      groupedByProtocol[proto].push(p)
+    })
+
+    const PROTOCOL_NAMES: Record<string, string> = {
+      aave: 'Aave V3',
+      morpho: 'Morpho',
+      pendle: 'Pendle',
+      euler: 'Euler',
+      wallet: 'Wallet Balances'
+    }
+
+    // Map each protocol group to summary info
+    const protocolGroups = Object.entries(groupedByProtocol).map(([protocolId, protocolPositions]) => {
+      const netValueUsd = protocolPositions.reduce((sum, p) => {
+        if (p.positionType === 'borrow') {
+          return sum - p.amountUsd
+        }
+        return sum + p.amountUsd
+      }, 0)
+
+      const healthFactor = protocolPositions.find(p => p.healthFactor !== undefined)?.healthFactor
+
+      return {
+        protocolId,
+        displayName: PROTOCOL_NAMES[protocolId] || (protocolId.charAt(0).toUpperCase() + protocolId.slice(1)),
+        positions: protocolPositions,
+        netValueUsd,
+        healthFactor
+      }
+    })
+
+    // Sort protocolGroups: DeFi protocols first (by absolute net value descending), wallet balances last
+    const sortedProtocolGroups = protocolGroups.sort((a, b) => {
+      if (a.protocolId === 'wallet') return 1
+      if (b.protocolId === 'wallet') return -1
+      
+      return Math.abs(b.netValueUsd) - Math.abs(a.netValueUsd)
+    })
+
     return {
       chainId,
       displayName: metadata.displayName,
       family: metadata.family,
-      assets,
-      liabilities,
-      hasPositions: chainPositions.length > 0
+      protocolGroups: sortedProtocolGroups,
+      hasPositions: chainPositions.length > 0,
+      totalPositionsCount: chainPositions.length
     }
   }).filter(group => group.hasPositions)
 
@@ -72,6 +116,12 @@ export function PositionList({ positions, isLoading, onSequence }: PositionListP
     )
   }
 
+  const getHealthFactorColor = (hf: number) => {
+    if (hf < 1.5) return 'text-verdant-loss'
+    if (hf < 2.0) return 'text-amber-600'
+    return 'text-verdant-profit'
+  }
+
   return (
     <div className="space-y-6">
       <PositionTypeFilter selected={filter} onChange={setFilter} />
@@ -86,31 +136,68 @@ export function PositionList({ positions, isLoading, onSequence }: PositionListP
               )}
               <div className="h-px flex-1 bg-[#E5E0D8]"></div>
               <p className="text-xs text-verdant-text-muted font-mono uppercase">
-                {group.assets.length + group.liabilities.length} positions
+                {group.totalPositionsCount} {group.totalPositionsCount === 1 ? 'position' : 'positions'}
               </p>
             </div>
 
-            {group.assets.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                {group.assets.map((p) => (
-                  <PositionCard key={p.id} position={p} onSequence={onSequence} />
-                ))}
-              </div>
-            )}
+            {group.protocolGroups.map((protoGroup) => (
+              <div 
+                key={protoGroup.protocolId} 
+                className="bg-verdant-surface border border-[#E5E0D8] rounded-xl shadow-organic overflow-hidden mb-6 last:mb-0"
+              >
+                {/* Sub-header */}
+                <div className="bg-[#FAF9F6] border-b border-[#E5E0D8]/40 px-5 py-3.5 flex items-center justify-between flex-wrap gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-verdant-text-primary text-sm tracking-wide">
+                      {protoGroup.displayName}
+                    </span>
+                    <span className="text-[10px] bg-verdant-surface-accent text-verdant-moss font-semibold px-2 py-0.5 rounded font-mono">
+                      {protoGroup.positions.length} {protoGroup.positions.length === 1 ? 'asset' : 'assets'}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-5">
+                    {/* Health Factor if exists */}
+                    {protoGroup.healthFactor !== undefined && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-verdant-text-muted">Health Factor:</span>
+                        <span className={`font-mono text-xs font-bold ${getHealthFactorColor(protoGroup.healthFactor)}`}>
+                          {protoGroup.healthFactor.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Net Value */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-verdant-text-muted">Net Value:</span>
+                      <span className={`font-mono text-sm font-bold ${protoGroup.netValueUsd < 0 ? 'text-verdant-loss' : 'text-verdant-text-primary'}`}>
+                        {protoGroup.netValueUsd < 0 ? '-' : ''}{formatUsd(Math.abs(protoGroup.netValueUsd))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-            {group.liabilities.length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-verdant-loss"></span>
-                  <h3 className="text-xs font-bold text-verdant-loss uppercase tracking-widest">Liabilities</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {group.liabilities.map((p) => (
-                    <PositionCard key={p.id} position={p} onSequence={onSequence} />
-                  ))}
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-[#E5E0D8]/40 bg-[#FAF9F6]/30">
+                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider">Asset</th>
+                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">Price</th>
+                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">Balance</th>
+                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">APY</th>
+                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {protoGroup.positions.map((p) => (
+                        <PositionCard key={p.id} position={p} onSequence={onSequence} />
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            )}
+            ))}
           </section>
         ))}
 
