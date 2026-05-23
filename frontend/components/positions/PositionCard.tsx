@@ -14,11 +14,15 @@ import { TemplateId } from "@/types/sequencer"
 interface PositionCardProps {
   position: Position
   onSequence?: (template: TemplateId, params: Record<string, string>) => void
+  onOpenBuilder?: (positionId: string) => void
+  onOpenLoopModal?: (position: Position, collateral?: Position) => void
 }
 
 export function PositionCard({ 
   position,
-  onSequence
+  onSequence,
+  onOpenBuilder,
+  onOpenLoopModal
 }: PositionCardProps) {
   const router = useRouter()
   const [isHarvesting, setIsHarvesting] = useState(false)
@@ -78,6 +82,10 @@ export function PositionCard({
   // Handler for De-leverage action
   const handleDeleverage = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenLoopModal) {
+      onOpenLoopModal(position, collateralPosition)
+      return
+    }
     const params: Record<string, string> = {
       template: 'deleverageAave',
       protocol: position.protocol,
@@ -108,6 +116,10 @@ export function PositionCard({
   // Handler for Repay action
   const handleRepay = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenBuilder) {
+      onOpenBuilder(position.id)
+      return
+    }
     const params: Record<string, string> = {
       template: 'repayAndWithdraw',
       protocol: position.protocol,
@@ -132,6 +144,10 @@ export function PositionCard({
   // Handler for Exit Pendle action
   const handleExitPendle = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenBuilder) {
+      onOpenBuilder(position.id)
+      return
+    }
     const params = {
       template: 'exitPendle' as TemplateId,
       asset: position.asset,
@@ -151,6 +167,10 @@ export function PositionCard({
   // Handler for Manage/Rebalance action (Supply positions)
   const handleManageSupply = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenBuilder) {
+      onOpenBuilder(position.id)
+      return
+    }
     const params = {
       template: 'crossChainRebalance' as TemplateId,
       asset: position.asset,
@@ -171,6 +191,10 @@ export function PositionCard({
   // Handler for Wallet Deposit action
   const handleDepositWallet = (e: React.MouseEvent) => {
     e.stopPropagation()
+    if (onOpenBuilder) {
+      onOpenBuilder(position.id)
+      return
+    }
     const params = {
       template: 'bridgeAndDeposit' as TemplateId,
       asset: position.asset,
@@ -340,7 +364,7 @@ export function PositionCard({
                 onClick={handleManageSupply}
                 className="text-xs border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
               >
-                Manage
+                {onOpenBuilder ? 'Sequence' : 'Manage'}
               </button>
             </>
           )}

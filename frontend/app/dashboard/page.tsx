@@ -9,12 +9,18 @@ import { usePositions } from '@/hooks/usePositions'
 import { formatUsd } from '@/lib/utils/formatting'
 import { useSequenceModal } from '@/hooks/useSequenceModal'
 import { SequenceModal } from '@/components/sequence/SequenceModal'
+import { useSequenceBuilderModal } from '@/hooks/useSequenceBuilderModal'
+import { useLoopModal } from '@/hooks/useLoopModal'
+import { SequenceBuilderModal } from '@/components/sequenceBuilder/SequenceBuilderModal'
+import { LoopModal } from '@/components/loop/LoopModal'
 
 export default function Dashboard() {
   const { isConnected, disconnect, isMounted } = useWallet()
   const router = useRouter()
   const { positions, isLoading, error, refetch, totalValueUsd, totalRewardsUsd } = usePositions()
   const { isOpen, options, openModal, closeModal } = useSequenceModal()
+  const { isOpen: isBuilderOpen, builderPositionId, openBuilder, closeBuilder } = useSequenceBuilderModal()
+  const { isOpen: isLoopOpen, loopPosition, loopCollateral, openLoop, closeLoop } = useLoopModal()
 
   useEffect(() => {
     if (isMounted && !isConnected) {
@@ -49,7 +55,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => openModal()}
+              onClick={() => openBuilder()}
               className="text-sm bg-verdant-moss hover:bg-verdant-moss-dark text-white px-4 py-2 rounded-md transition-colors font-semibold cursor-pointer"
             >
               Sequence
@@ -93,6 +99,8 @@ export default function Dashboard() {
           positions={positions} 
           isLoading={isLoading} 
           onSequence={(template, params) => openModal({ template, params })}
+          onOpenBuilder={(positionId) => openBuilder({ positionId })}
+          onOpenLoop={(position, collateral) => openLoop(position, collateral)}
         />
       </main>
 
@@ -102,6 +110,21 @@ export default function Dashboard() {
         initialTemplate={options.template}
         initialParams={options.params}
       />
+
+      <SequenceBuilderModal
+        isOpen={isBuilderOpen}
+        onClose={closeBuilder}
+        initialPositionId={builderPositionId}
+      />
+
+      {loopPosition && (
+        <LoopModal
+          isOpen={isLoopOpen}
+          onClose={closeLoop}
+          position={loopPosition}
+          collateralPosition={loopCollateral}
+        />
+      )}
     </div>
   )
 }

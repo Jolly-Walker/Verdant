@@ -1,593 +1,862 @@
-# Verdant — Design Rebrand Implementation
+# Verdant — Flowchart Sequence Builder & Loop Modal Design
 
-Branch: `demo` (commit directly here, do not branch again)
+Branch: `demo`
 
-This ticket converts the entire UI from the current dark zinc theme to the
-Verdant light theme defined in `DESIGN.md`. It is a visual-only change. No
-logic, no hooks, no types, no API routes are modified. If you find yourself
-editing anything outside of `app/globals.css`, `tailwind.config.ts`, and
-the `components/` and `app/` TSX files, stop — you are out of scope.
+This document covers two new components:
+1. **SequenceBuilder** — replaces `SequenceModal` as the primary sequence entry point
+2. **LoopModal** — a dedicated modal for leveraged loop and deleverage flows, triggered from `BorrowCard`
 
-Read `frontend/DESIGN.md` in full before writing a single line. Every
-colour decision in this ticket traces back to it.
+The existing `SequenceModal` is kept in the codebase as a fallback but is no longer the primary entry point from the dashboard. `BorrowCard` triggers `LoopModal` instead.
 
 ---
 
-## Step 1 — Update `tailwind.config.ts`
+## Part 1 — SequenceBuilder
 
-Replace the entire file with the config from `DESIGN.md` section 5, verbatim.
-The existing `background`/`foreground` CSS variable colours are removed. The
-`verdant` colour namespace is added in their place.
+### Concept
 
-The final config must include:
-- `verdant.moss.DEFAULT` = `#2D6A4F`
-- `verdant.moss.dark` = `#1B4332`
-- `verdant.teak.DEFAULT` = `#8B5A2B`
-- `verdant.teak.light` = `#B07D4A`
-- `verdant.glacial` = `#74C69D`
-- `verdant.canvas` = `#FAF9F6`
-- `verdant.surface.DEFAULT` = `#FFFFFF`
-- `verdant.surface.accent` = `#EBF4F1`
-- `verdant.black` = `#1A1614`
-- `verdant.text.primary` = `#1A1614`
-- `verdant.text.muted` = `#70655D`
-- `verdant.profit` = `#27AE60`
-- `verdant.loss` = `#C95252`
-- `boxShadow.organic` = `0 4px 20px -4px rgba(26, 22, 20, 0.05)`
-- `boxShadow.organic-lg` = `0 10px 30px -4px rgba(26, 22, 20, 0.08)`
-- `fontFamily.sans` = `['var(--font-geist-sans)']`
-- `fontFamily.mono` = `['var(--font-geist-mono)']`
+The user builds a transaction sequence step-by-step, where each completed step constrains what actions are valid next. The system always knows the current token, amount, and chain — so every dropdown is contextually filtered. There are no fixed templates in this UI; the user composes the flow themselves.
+
+The builder grows **horizontally**, wrapping to a new row when needed. Each step is a fixed-width card. On desktop: 4 cards per row. On tablet: 3. On mobile: 2. Cards never collapse into summaries — the user scrolls horizontally within each row or reads the full chain top-to-bottom.
 
 ---
 
-## Step 2 — Update `app/globals.css`
+### State model
 
-Replace the `:root` block and the dark mode media query entirely:
+The builder is driven by a `BuilderStep[]` array. Each step has a type, the resolved token state entering it, the user's selection, and the resolved token state exiting it.
 
-```css
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+```ts
+// lib/sequenceBuilder/types.ts
 
-:root {
-  --background: #FAF9F6;
-  --foreground: #1A1614;
+export type ActionType =
+  | 'deposit'          // terminal
+  | 'repay'            // terminal
+  | 'withdraw'         // transit
+  | 'repayAndWithdraw' // transit
+  | 'bridge'           // transit
+  | 'swap'             // transit
+
+export type TokenState = {
+  token: string           // e.g. 'USDC'
+  chain: ChainId
+  amount: number          // in human units
+  amountUsd: number
+  sourcePositionId?: string  // set if token came from a position (supply/borrow), else undefined (wallet)
+  positionType?: 'wallet' | 'supply' // what type of holding this token represents at this point
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
-}
+export type BuilderStep =
+  | { kind: 'source';         tokenOut: TokenState }
+  | { kind: 'action-select';  tokenIn: TokenState }
+  | { kind: 'deposit';        tokenIn: TokenState; destination: DepositDestination }
+  | { kind: 'repay';          tokenIn: TokenState; targetPositionId: string }
+  | { kind: 'withdraw';       tokenIn: TokenState; sourcePositionId: string; tokenOut: TokenState }
+  | { kind: 'repayAndWithdraw'; tokenIn: TokenState; targetPositionId: string; tokenOut: TokenState }
+  | { kind: 'bridge';         tokenIn: TokenState; toChain: ChainId; bridgeId: BridgeId; feeUsd: number; tokenOut: TokenState }
+  | { kind: 'swap';           tokenIn: TokenState; toToken: string; feeUsd: number; tokenOut: TokenState }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+export type DepositDestination = {
+  protocol: ProtocolId
+  chain: ChainId
+  token: string
+  apy: number
+  apyLabel: string        // e.g. '6.8% APY'
+  displayName: string     // e.g. 'Morpho Gauntlet USDC'
+  outputTokenLabel: string // e.g. 'gauntletUSDC' or 'aUSDC'
+  outputTokenSymbol: string
 }
 ```
 
-Remove the `@media (prefers-color-scheme: dark)` block entirely — Verdant is
-light-only.
+**Termination rule:** A step is terminal when its `kind` is `'deposit'` or `'repay'`. The chain is complete and can be submitted. Transit steps (`withdraw`, `repayAndWithdraw`, `bridge`, `swap`) always append an `action-select` card after them so the user can optionally continue or submit.
 
 ---
 
-## Step 3 — UI Primitives
+### Source registry — `lib/sequenceBuilder/destinations.ts`
 
-### `components/ui/Card.tsx`
+This is the key new data file. It defines every supported deposit destination across all chains and assets. This is what populates the Deposit dropdown. It is a static registry for now — APYs will be live-fetched in a future milestone.
 
-The Card is the foundational surface. Every position card, step card, and
-modal panel uses it.
+```ts
+export interface DepositDestination {
+  id: string              // unique — e.g. 'morpho-gauntlet-usdc-base'
+  protocol: ProtocolId
+  chain: ChainId
+  token: string           // input token symbol
+  apy: number             // decimal, e.g. 0.068 for 6.8%
+  displayName: string     // e.g. 'Morpho — Gauntlet USDC Vault'
+  outputTokenSymbol: string // e.g. 'gauntletUSDC'
+  apyType: 'variable' | 'fixed'
+}
 
-```tsx
-export function Card({ children, className = '', hover = false }: CardProps) {
+export const DEPOSIT_DESTINATIONS: DepositDestination[] = [
+  // Ethereum
+  { id: 'aave-usdc-eth',            protocol: 'aave',   chain: 'ethereum', token: 'USDC',   apy: 0.042, displayName: 'Aave V3 — USDC',              outputTokenSymbol: 'aUSDC',         apyType: 'variable' },
+  { id: 'aave-weth-eth',            protocol: 'aave',   chain: 'ethereum', token: 'WETH',   apy: 0.018, displayName: 'Aave V3 — WETH',              outputTokenSymbol: 'aWETH',         apyType: 'variable' },
+  { id: 'aave-wbtc-eth',            protocol: 'aave',   chain: 'ethereum', token: 'WBTC',   apy: 0.011, displayName: 'Aave V3 — WBTC',              outputTokenSymbol: 'aWBTC',         apyType: 'variable' },
+  { id: 'morpho-gauntlet-usdc-eth', protocol: 'morpho', chain: 'ethereum', token: 'USDC',   apy: 0.071, displayName: 'Morpho — Gauntlet USDC',      outputTokenSymbol: 'gauntletUSDC',  apyType: 'variable' },
+  { id: 'morpho-steakhouse-usdc-eth',protocol:'morpho', chain: 'ethereum', token: 'USDC',   apy: 0.065, displayName: 'Morpho — Steakhouse USDC',    outputTokenSymbol: 'steakUSDC',     apyType: 'variable' },
+  { id: 'morpho-re7-weth-eth',      protocol: 'morpho', chain: 'ethereum', token: 'WETH',   apy: 0.034, displayName: 'Morpho — Re7 WETH',           outputTokenSymbol: 're7WETH',       apyType: 'variable' },
+  { id: 'euler-usdc-eth',           protocol: 'euler',  chain: 'ethereum', token: 'USDC',   apy: 0.059, displayName: 'Euler V2 — USDC',             outputTokenSymbol: 'eUSDC',         apyType: 'variable' },
+  { id: 'euler-weth-eth',           protocol: 'euler',  chain: 'ethereum', token: 'WETH',   apy: 0.028, displayName: 'Euler V2 — WETH',             outputTokenSymbol: 'eWETH',         apyType: 'variable' },
+
+  // Arbitrum
+  { id: 'aave-usdc-arb',            protocol: 'aave',   chain: 'arbitrum', token: 'USDC',   apy: 0.044, displayName: 'Aave V3 — USDC',              outputTokenSymbol: 'aUSDC',         apyType: 'variable' },
+  { id: 'aave-weth-arb',            protocol: 'aave',   chain: 'arbitrum', token: 'WETH',   apy: 0.019, displayName: 'Aave V3 — WETH',              outputTokenSymbol: 'aWETH',         apyType: 'variable' },
+  { id: 'morpho-gauntlet-usdc-arb', protocol: 'morpho', chain: 'arbitrum', token: 'USDC',   apy: 0.068, displayName: 'Morpho — Gauntlet USDC',      outputTokenSymbol: 'gauntletUSDC',  apyType: 'variable' },
+  { id: 'euler-usdc-arb',           protocol: 'euler',  chain: 'arbitrum', token: 'USDC',   apy: 0.057, displayName: 'Euler V2 — USDC',             outputTokenSymbol: 'eUSDC',         apyType: 'variable' },
+
+  // Base
+  { id: 'aave-usdc-base',           protocol: 'aave',   chain: 'base',     token: 'USDC',   apy: 0.041, displayName: 'Aave V3 — USDC',              outputTokenSymbol: 'aUSDC',         apyType: 'variable' },
+  { id: 'morpho-gauntlet-usdc-base',protocol: 'morpho', chain: 'base',     token: 'USDC',   apy: 0.068, displayName: 'Morpho — Gauntlet USDC',      outputTokenSymbol: 'gauntletUSDC',  apyType: 'variable' },
+  { id: 'morpho-usdc-base',         protocol: 'morpho', chain: 'base',     token: 'USDC',   apy: 0.062, displayName: 'Morpho — USDC Core',          outputTokenSymbol: 'mUSDC',         apyType: 'variable' },
+  { id: 'euler-usdc-base',          protocol: 'euler',  chain: 'base',     token: 'USDC',   apy: 0.055, displayName: 'Euler V2 — USDC',             outputTokenSymbol: 'eUSDC',         apyType: 'variable' },
+  { id: 'euler-weth-base',          protocol: 'euler',  chain: 'base',     token: 'WETH',   apy: 0.024, displayName: 'Euler V2 — WETH',             outputTokenSymbol: 'eWETH',         apyType: 'variable' },
+]
+
+export function getDepositDestinations(token: string, chain: ChainId): DepositDestination[] {
+  return DEPOSIT_DESTINATIONS.filter(d => d.token === token && d.chain === chain)
+    .sort((a, b) => b.apy - a.apy)  // highest APY first
+}
+```
+
+---
+
+### Builder logic — `lib/sequenceBuilder/logic.ts`
+
+```ts
+// Returns which actions are valid given the current token state
+export function getEligibleActions(
+  tokenState: TokenState,
+  userPositions: Position[]
+): ActionType[] {
+  const actions: ActionType[] = []
+
+  // Always available if token is a wallet or freely held token
+  const isWalletToken =
+    tokenState.positionType === 'wallet' ||
+    tokenState.sourcePositionId === undefined
+
+  const isSupplyPosition = tokenState.positionType === 'supply'
+
+  if (isSupplyPosition) {
+    actions.push('withdraw')
+    // No other actions — user must withdraw first
+    return actions
+  }
+
+  // From wallet/transit token:
+  actions.push('bridge')
+  actions.push('swap')
+  actions.push('deposit')
+  actions.push('repay')
+  actions.push('repayAndWithdraw')
+
+  // Filter repay/repayAndWithdraw if no matching borrow positions
+  const hasBorrowMatch = userPositions.some(
+    p => p.positionType === 'borrow' &&
+         p.chain === tokenState.chain &&
+         p.asset === tokenState.token
+  )
+  if (!hasBorrowMatch) {
+    return actions.filter(a => a !== 'repay' && a !== 'repayAndWithdraw')
+  }
+
+  return actions
+}
+
+// Returns true if the sequence can be submitted at this point
+export function canSubmit(steps: BuilderStep[]): boolean {
+  if (steps.length < 2) return false  // need at least source + one action
+  const last = steps[steps.length - 1]
+  return last.kind === 'deposit' || last.kind === 'repay'
+}
+
+// Returns true if the sequence is in a valid intermediate state
+// where the user can optionally add more steps or submit
+export function canAddMore(steps: BuilderStep[]): boolean {
+  if (steps.length < 2) return false
+  const last = steps[steps.length - 1]
   return (
-    <div
-      className={`bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 shadow-organic ${
-        hover ? 'hover:shadow-organic-lg transition-shadow' : ''
-      } ${className}`}
-    >
-      {children}
-    </div>
+    last.kind === 'withdraw' ||
+    last.kind === 'repayAndWithdraw' ||
+    last.kind === 'bridge' ||
+    last.kind === 'swap'
   )
 }
-```
 
-### `components/ui/Badge.tsx`
+// Computes the net token delta for the summary bar
+export function computeTokenDelta(steps: BuilderStep[]): {
+  input: { token: string; amount: number; chain: ChainId } | null
+  output: { token: string; amount: number; chain: ChainId; label: string } | null
+  totalFeeUsd: number
+  feeBreakdown: { label: string; feeUsd: number }[]
+} {
+  const source = steps[0]
+  if (!source || source.kind !== 'source') return { input: null, output: null, totalFeeUsd: 0, feeBreakdown: [] }
 
-```tsx
-const variantStyles: Record<string, string> = {
-  default:  'bg-verdant-surface-accent text-verdant-text-muted border-[#D5E8E0]',
-  success:  'bg-verdant-surface-accent text-verdant-profit border-[#A8D5BE]',
-  warning:  'bg-amber-50 text-amber-700 border-amber-200',
-  error:    'bg-red-50 text-verdant-loss border-red-200',
+  const input = {
+    token: source.tokenOut.token,
+    amount: source.tokenOut.amount,
+    chain: source.tokenOut.chain,
+  }
+
+  let totalFeeUsd = 0
+  const feeBreakdown: { label: string; feeUsd: number }[] = []
+
+  let outputLabel = ''
+  let outputToken = ''
+  let outputAmount = source.tokenOut.amount
+  let outputChain = source.tokenOut.chain
+
+  for (const step of steps) {
+    if (step.kind === 'bridge') {
+      totalFeeUsd += step.feeUsd
+      feeBreakdown.push({ label: 'Bridge fee', feeUsd: step.feeUsd })
+      outputChain = step.toChain
+      outputAmount = step.tokenOut.amount
+    } else if (step.kind === 'swap') {
+      totalFeeUsd += step.feeUsd
+      feeBreakdown.push({ label: 'Swap fee', feeUsd: step.feeUsd })
+      outputToken = step.tokenOut.token
+      outputAmount = step.tokenOut.amount
+    } else if (step.kind === 'deposit') {
+      outputToken = step.destination.outputTokenSymbol
+      outputLabel = step.destination.displayName
+    } else if (step.kind === 'repay') {
+      outputToken = 'debt repaid'
+      outputLabel = 'Debt repaid'
+    } else if (step.kind === 'repayAndWithdraw') {
+      outputToken = step.tokenOut.token
+      outputAmount = step.tokenOut.amount
+      outputChain = step.tokenOut.chain
+    } else if (step.kind === 'withdraw') {
+      outputToken = step.tokenOut.token
+      outputAmount = step.tokenOut.amount
+    }
+  }
+
+  // Gas is not yet computed in builder — shown as "+ gas" placeholder
+  const output = outputToken ? {
+    token: outputToken,
+    amount: outputAmount,
+    chain: outputChain,
+    label: outputLabel,
+  } : null
+
+  return { input, output, totalFeeUsd, feeBreakdown }
 }
 ```
 
-### `components/ui/HealthFactor.tsx`
+---
 
-Replace `text-emerald-400` / `text-amber-400` / `text-red-400` with the
-semantic palette:
+### Components
 
-```tsx
-let colorClass = 'text-verdant-loss'        // < 1.2 — danger
-if (value >= 2.0)      colorClass = 'text-verdant-profit'   // safe
-else if (value >= 1.2) colorClass = 'text-amber-600'        // caution
+#### `components/sequenceBuilder/SequenceBuilderModal.tsx`
+
+The outer modal shell. Replaces `SequenceModal` as the primary entry point.
+
+**Props:**
+```ts
+interface SequenceBuilderModalProps {
+  isOpen: boolean
+  onClose: () => void
+  /** Pre-seed with a source position (e.g. from a position card's "Sequence" button) */
+  initialPositionId?: string
+}
 ```
 
-The label text changes from `text-zinc-500` to `text-verdant-text-muted`.
-The dot indicator uses `bg-verdant-profit`, `bg-amber-600`, `bg-verdant-loss`
-to match.
+**Layout:**
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Build a Sequence                                    [×]         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  [SourceCard] → [ActionCard] → [DepositCard]                     │
+│                                                                   │
+│  [BridgeCard] → [ActionCard]                                     │
+│                                                                   │
+├─────────────────────────────────────────────────────────────────┤
+│  [SummaryBar]                          [Cancel]  [Execute →]     │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-### `components/ui/Spinner.tsx`
+The step area scrolls vertically if the chain grows past two rows. Cards wrap
+at 4 per row on desktop, 3 on tablet, 2 on mobile using CSS grid with
+`grid-cols-2 sm:grid-cols-3 lg:grid-cols-4` and `gap-3`.
 
-Change the spinner ring colour from whatever zinc shade it uses to
-`border-verdant-moss` for the active arc and `border-verdant-surface-accent`
-for the track.
+Between each completed step and the next, render a right-arrow connector
+`→` (`text-verdant-text-muted text-lg self-center mt-4`). At the end of
+each row before wrapping, the arrow drops to the start of the next row.
+Arrows are purely decorative — rendered as `<span>` between grid items.
 
-### `components/ui/Tooltip.tsx`
-
-Tooltip background from `bg-zinc-800 text-white` to
-`bg-verdant-black text-verdant-canvas` — readable dark-on-light inversion
-for contrast.
-
-### `components/ui/WarningBanner.tsx`
-
-Warning banners: amber variant stays amber, error variant uses
-`bg-red-50 border-red-200 text-verdant-loss`.
-
----
-
-## Step 4 — Position Components
-
-### `components/positions/PositionCard.tsx`
-
-**Outer wrapper:** `bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5
-shadow-organic hover:shadow-organic-lg transition-shadow`
-
-**Asset + protocol heading:** `text-xl font-semibold text-verdant-text-primary`
-
-**Chain + type subtext:** `text-sm text-verdant-text-muted capitalize`
-
-**USD value:** `text-xl font-bold text-verdant-text-primary font-mono`
-
-**Token amount:** `text-sm text-verdant-text-muted font-mono`
-
-**APY / Rewards inner panel:** Background changes from `bg-zinc-950/50` to
-`bg-verdant-surface-accent`, border to `border-[#D5E8E0]`.
-
-- APY label: `text-xs text-verdant-text-muted uppercase tracking-wider font-semibold`
-- APY value: `text-verdant-profit font-medium font-mono` (positive yield is profit)
-- Rewards label: same muted style
-- Rewards value when > 0: `text-verdant-profit font-medium font-mono`
-- Rewards value when 0: `text-verdant-text-muted font-mono`
-
-**"Wallet" type badge:** `text-[10px] bg-verdant-surface-accent
-text-verdant-text-muted border border-[#D5E8E0] px-1.5 py-0.5 rounded font-bold
-uppercase tracking-wider`
-
-**Protocol tag** (e.g. "on Aave"): same badge style as above.
-
-**Harvest button:** `text-sm bg-verdant-moss hover:bg-verdant-moss-dark
-text-white px-4 py-2 rounded-md transition-colors font-medium`
-
-**Manage button:** secondary style — `text-sm border border-verdant-teak
-text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent
-px-4 py-2 rounded-md transition-colors font-medium`
-
-### `components/positions/BorrowCard.tsx`
-
-The borrow card has a red accent in dark mode. In light mode, use a warm
-loss-tinted border instead:
-
-**Outer wrapper:** `bg-verdant-surface border border-red-200 rounded-xl p-5
-shadow-organic hover:shadow-organic-lg transition-shadow`
-
-**"USDC Debt" heading:** `text-xl font-semibold text-verdant-text-primary`
-
-**"Borrow" badge:** `text-[10px] bg-red-50 text-verdant-loss border
-border-red-200 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider`
-
-**Inner stats panel:** `bg-red-50/60 border border-red-100 rounded-lg p-3`
-
-**Borrow APY value:** `text-verdant-loss font-medium font-mono`
-
-**Multi-collateral warning note:** `text-[11px] text-verdant-text-muted
-bg-amber-50 px-2 py-1.5 rounded border border-amber-200`
-
-**De-leverage button:** `text-sm bg-verdant-loss hover:bg-red-700 text-white
-px-4 py-2 rounded-md transition-colors font-medium`
-
-**Repay button:** secondary style with teak.
-
-### `components/positions/PendleCard.tsx`
-
-Apply the same Card surface treatment. The PT/YT type badge uses the default
-badge style. Fixed APY in `text-verdant-profit font-mono`. Maturity date in
-`text-verdant-text-muted font-mono`. The "Exit" button uses the secondary
-(teak) button style. If maturity is within 30 days, the maturity value uses
-`text-verdant-loss` instead of the muted colour.
-
-### `components/positions/PositionSkeleton.tsx`
-
-Replace `bg-zinc-800` pulse blocks with `bg-verdant-surface-accent` and the
-outer container with `bg-verdant-surface border border-[#E5E0D8] rounded-xl
-p-5 shadow-organic`.
-
-### `components/positions/PositionTypeFilter.tsx`
-
-Filter pills: inactive state `bg-verdant-surface border border-[#E5E0D8]
-text-verdant-text-muted hover:border-verdant-moss`. Active state
-`bg-verdant-moss text-white border-verdant-moss`.
+The modal itself: `max-w-5xl w-full bg-verdant-surface rounded-2xl
+shadow-organic-lg border border-[#E5E0D8] flex flex-col max-h-[90vh]`.
+Header `border-b border-[#E5E0D8] px-6 py-4`. Step area
+`flex-1 overflow-y-auto px-6 py-6`. Footer
+`border-t border-[#E5E0D8] px-6 py-4`.
 
 ---
 
-## Step 5 — Sequence Components
+#### `components/sequenceBuilder/SourceCard.tsx`
 
-### `components/sequence/SequenceModal.tsx`
+The first card. The user selects what they are starting from.
 
-**Backdrop:** `bg-verdant-black/40 backdrop-blur-sm` (lighter than current
-`bg-black/60` — the light theme backdrop should feel airy, not oppressive)
+**Two tabs inside the card:**
+- **"My Positions"** — lists the user's current positions from `usePositions()`, filtered to `positionType === 'wallet' | 'supply'` (borrow positions are not starting points — those go to LoopModal). Each entry shows token, chain, USD value.
+- **"Wallet Balance"** — same list filtered to `positionType === 'wallet'` only.
 
-**Modal card:** `bg-verdant-surface border border-[#E5E0D8] rounded-2xl
-shadow-organic-lg` — remove the current `bg-zinc-900`.
+Actually there's no need for two tabs — just show all wallet and supply positions together, since that covers both examples from the spec. Group them with a subtle divider: "Protocol Positions" and "Wallet" as inline labels.
 
-**Header:** `border-b border-[#E5E0D8]`
+Each position row in the list:
+```
+[USDC icon]  USDC on Arbitrum (Aave)     $180,000
+             4.2% APY · supply
+```
 
-**Title:** `text-xl font-bold text-verdant-text-primary`
+Clicking a position row sets it as the source and appends an `action-select`
+card.
 
-**Close button:** `text-verdant-text-muted hover:text-verdant-text-primary
-hover:bg-verdant-surface-accent transition-colors p-1 rounded-md`
+The user also inputs an amount beneath the position selector:
+```
+Amount: [________] USDC    MAX
+```
+Amount defaults to the full position size. The `MAX` button fills it.
 
-**Configure Parameters section:** Background from `bg-zinc-950/40` to
-`bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-6`
+**Card dimensions:** `w-56 min-h-48` — all step cards use this fixed width so
+the grid is uniform. Content scrolls within the card if needed.
 
-**Section heading:** `font-bold text-lg text-verdant-text-primary`
+**Card style when active (being filled):**
+`bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic`
 
-**Form labels:** `text-sm font-medium text-verdant-text-muted`
+**Card style when complete (locked in):**
+`bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4`
 
-**Select and input fields:** `w-full bg-verdant-surface border border-[#E5E0D8]
-rounded-md p-2 text-verdant-text-primary focus:outline-none
-focus:border-verdant-moss transition-colors`
+**Card header:** small label `text-[10px] text-verdant-text-muted uppercase
+tracking-wider font-semibold mb-2` reading `SOURCE`.
 
-**Create Sequence Plan button:** Primary moss style — `w-full bg-verdant-moss
-hover:bg-verdant-moss-dark text-white font-bold py-3 rounded-lg
-transition-colors disabled:opacity-50`
-
-**Template selector cards** (in `TemplateSelector.tsx` — restyle in the same
-pass): Each template option — unselected: `bg-verdant-surface border
-border-[#E5E0D8] rounded-lg p-4 cursor-pointer hover:border-verdant-moss
-transition-colors`. Selected: `border-verdant-moss bg-verdant-surface-accent`.
-Template name in `text-verdant-text-primary font-semibold`. Description in
-`text-verdant-text-muted text-sm`.
-
-### `components/sequence/SequenceStepCard.tsx`
-
-**Card outer:** Current step: `border border-verdant-moss/40 bg-verdant-surface-accent`
-Non-current: `border border-[#E5E0D8] bg-verdant-surface`
-
-**Step number bubble:** Confirmed: `bg-verdant-profit/10 text-verdant-profit`.
-Current: `bg-verdant-moss text-white`. Pending: `bg-verdant-surface-accent
-text-verdant-text-muted border border-[#E5E0D8]`.
-
-**Step label:** Current: `font-semibold text-verdant-text-primary`. Other:
-`text-verdant-text-muted`.
-
-**Chain badge:** `text-[10px] text-verdant-text-muted uppercase tracking-widest
-bg-verdant-surface-accent px-2 py-0.5 rounded border border-[#E5E0D8]`
-
-**Description text:** `text-verdant-text-muted text-sm`
-
-**"View on Explorer" link:** `text-verdant-moss text-xs hover:underline`
-
-**"Complete" confirmed state:** `text-verdant-profit font-medium` with a
-`text-verdant-profit` checkmark.
-
-**"Sign Transaction" button:** Primary moss — `bg-verdant-moss
-hover:bg-verdant-moss-dark text-white font-semibold py-2 px-4 rounded-md
-transition-colors disabled:opacity-50`
-
-**"Quote Expired" disabled state:** `bg-verdant-loss/80` with `text-white`.
-
-**"Waiting…" state:** `text-verdant-text-muted text-sm`
-
-**"Verified" ready state (non-current):** `text-verdant-profit text-sm`
-
-**Error panel:** `bg-red-50 border border-red-200 rounded-lg` with
-`text-verdant-loss text-xs` message and `text-verdant-loss font-bold
-hover:underline` retry link.
-
-### `components/sequence/SequencePlanView.tsx`
-
-**Page background:** The `py-12 px-6` wrapper needs no explicit background —
-it inherits `bg-verdant-canvas` from the body.
-
-**Plan title:** `text-2xl font-bold text-verdant-text-primary`
-
-**Subtext (created date, cost):** `text-verdant-text-muted` with the cost
-value in `text-verdant-text-primary font-semibold font-mono`
-
-**Expired quotes banner:** `bg-red-50 border border-red-200 rounded-lg` with
-`text-verdant-loss text-sm` message. Refresh button:
-`bg-verdant-loss hover:bg-red-700 text-white px-3 py-1 rounded-md text-sm`
-
-**Cancel link:** `text-sm text-verdant-text-muted hover:text-verdant-text-primary
-transition-colors`
-
-### `components/sequence/SequenceProgress.tsx`
-
-The progress stepper: completed steps use `text-verdant-profit` and a filled
-`bg-verdant-profit` indicator. Current step uses `text-verdant-moss` and
-`bg-verdant-moss`. Pending steps use `text-verdant-text-muted` and
-`bg-verdant-surface-accent border border-[#E5E0D8]`. Connector lines between
-steps: completed segment in `bg-verdant-profit`, pending in `bg-[#E5E0D8]`.
-
-### `components/sequence/SequenceComplete.tsx`
-
-**Success icon circle:** `bg-verdant-profit/10 border-2 border-verdant-profit`
-with `text-verdant-profit` checkmark.
-
-**Heading:** `text-3xl font-bold text-verdant-text-primary`
-
-**Subtext:** `text-verdant-text-muted`
-
-**Summary card:** `bg-verdant-surface border border-[#E5E0D8] shadow-organic
-divide-y divide-[#E5E0D8]` with labels in `text-verdant-text-muted` and
-values in `text-verdant-text-primary font-semibold font-mono`.
-
-**"View Tx" links:** `text-verdant-moss hover:text-verdant-moss-dark font-medium`
-
-**"Back to Dashboard" button:** Primary moss style.
+**Completed summary view:**
+```
+SOURCE
+USDC · Arbitrum
+Aave supply
+$180,000
+```
+All values `font-mono`.
 
 ---
 
-## Step 6 — Execute / Cost Components
+#### `components/sequenceBuilder/ActionSelectCard.tsx`
 
-### `components/execute/CostPreview.tsx`
+Appears after every transit step (and as the second card in any sequence).
+Shows the valid actions for the current token state.
 
-**Loading state card:** `bg-verdant-surface border border-[#E5E0D8]
-shadow-organic`. Spinner uses moss colour. Loading text:
-`text-verdant-text-muted`.
+**Props:**
+```ts
+{ tokenIn: TokenState; userPositions: Position[]; onSelect: (action: ActionType) => void }
+```
 
-**Error state card:** `bg-verdant-surface border border-red-200 shadow-organic`.
-Error message: `text-verdant-loss text-sm`. Retry button: secondary teak style.
+Calls `getEligibleActions(tokenIn, userPositions)` and renders each as a
+selectable pill/button.
 
-**Results card:** `bg-verdant-surface border border-[#E5E0D8] shadow-organic`
+**Action display names and descriptions:**
+| Action | Label | Description |
+|---|---|---|
+| `deposit` | Deposit | Earn yield in a protocol |
+| `repay` | Repay | Pay down existing debt |
+| `repayAndWithdraw` | Repay & Withdraw | Repay debt, free collateral |
+| `bridge` | Bridge | Move to another chain |
+| `swap` | Swap | Exchange for another token |
+| `withdraw` | Withdraw | Exit protocol position |
 
-**Section heading ("Cost Preview"):** `text-lg font-semibold text-verdant-text-primary`
+Each option is a card-within-a-card:
+```
+┌──────────────────┐
+│  Bridge          │  ← label in text-verdant-text-primary font-semibold
+│  Move to another │  ← description in text-verdant-text-muted text-xs
+│  chain           │
+└──────────────────┘
+```
 
-**Per-step rows:**
-- Step label: `text-verdant-text-primary text-sm font-medium`
-- Gas cost: `text-verdant-text-muted font-mono text-sm`
-- Bridge fee: `text-verdant-text-primary font-mono text-sm`
-- HIGH FEE badge: `bg-red-50 text-verdant-loss border border-red-200`
-- Stale indicator: `text-amber-600`
-- Expired indicator: `text-verdant-loss`
+Hover: `hover:border-verdant-moss hover:bg-verdant-surface-accent`.
+The entire action option card is clickable.
 
-**Totals row:** Separator `border-[#E5E0D8]`. Total label
-`text-verdant-text-primary font-semibold`. Total value
-`text-verdant-text-primary font-bold font-mono`.
+Unavailable actions are not shown — the list is already filtered by
+`getEligibleActions`.
 
-**Break-even block:** Background `bg-verdant-surface-accent border
-border-[#D5E8E0] rounded-lg`. Yield gain value: `text-verdant-profit
-font-mono`. Break-even days: `text-verdant-text-primary font-mono font-semibold`.
-
-**Stale quote warning:** `bg-amber-50 border border-amber-200` with
-`text-amber-700`. Refresh button: `text-verdant-moss hover:text-verdant-moss-dark
-font-medium text-sm`.
-
-### `components/execute/SimulationResult.tsx`
-
-**Success state:** `bg-verdant-surface-accent border border-[#D5E8E0]
-rounded-lg`. "Simulation passed" text: `text-verdant-profit font-semibold`.
-State changes list: labels `text-verdant-text-muted text-sm`, values
-`text-verdant-text-primary font-mono text-sm`.
-
-**Failure state:** `bg-red-50 border border-red-200 rounded-lg`. Revert reason:
-`text-verdant-loss text-sm font-mono`.
-
-**Warning banners (amber):** `bg-amber-50 border border-amber-200 text-amber-700`
-with the acknowledgment checkbox accent colour `accent-verdant-moss`.
-
-### `components/execute/BridgeQuoteSelector.tsx`
-
-**Quote option cards:** Unselected `bg-verdant-surface border border-[#E5E0D8]
-rounded-lg`. Selected `border-verdant-moss bg-verdant-surface-accent`.
-
-**Bridge name:** `text-verdant-text-primary font-semibold`
-
-**Fee:** `text-verdant-text-primary font-mono`
-
-**HIGH FEE badge:** `bg-red-50 text-verdant-loss border border-red-200`
-
-**Time estimate:** `text-verdant-text-muted text-sm`
-
-### `components/execute/StepOneBridge.tsx`
-
-Apply Card surface. Inputs and selects use the same form field style as
-SequenceModal (white background, `border-[#E5E0D8]`, moss focus ring).
-Primary action button uses moss primary style.
-
-### `components/execute/AssetSelector.tsx`
-
-Same form field treatment. Asset option rows: hover state
-`hover:bg-verdant-surface-accent`. Selected state
-`bg-verdant-surface-accent border-verdant-moss`.
+**Card header label:** `ACTION`.
 
 ---
 
-## Step 7 — Harvest Components
+#### `components/sequenceBuilder/DepositCard.tsx`
 
-### `components/harvest/RewardsList.tsx`
+Terminal step. Shows the available deposit destinations for the current
+token/chain.
 
-Apply Card surface for each reward row. Reward token name:
-`text-verdant-text-primary font-semibold`. Amount: `text-verdant-profit
-font-mono`. USD value: `text-verdant-text-muted font-mono text-sm`.
-"No rewards" empty state: `text-verdant-text-muted`.
+**Props:**
+```ts
+{ tokenIn: TokenState; onSelect: (dest: DepositDestination) => void }
+```
 
-### `components/harvest/HarvestButton.tsx`
+Calls `getDepositDestinations(tokenIn.token, tokenIn.chain)` and renders
+each destination as a selectable row:
 
-Primary moss button style. Loading / signing states keep the same label
-changes but in `bg-verdant-moss` colour.
+```
+┌─────────────────────────────────────────────────┐
+│  Morpho — Gauntlet USDC          6.8% APY  [●]  │
+│  Morpho — Steakhouse USDC        6.5% APY       │
+│  Aave V3 — USDC                  4.2% APY       │
+│  Euler V2 — USDC                 5.9% APY       │
+└─────────────────────────────────────────────────┘
+```
 
----
+APY in `text-verdant-profit font-mono font-semibold`. Protocol name in
+`text-verdant-text-primary text-sm`. Selected row gets
+`bg-verdant-surface-accent border-l-2 border-verdant-moss`.
 
-## Step 8 — Wallet Components
+If no destinations match: `text-verdant-text-muted text-sm text-center py-4`
+reading "No supported destinations for [TOKEN] on [CHAIN]."
 
-### `components/wallet/ConnectButton.tsx`
+**Completed summary view:**
+```
+DEPOSIT
+Morpho Gauntlet USDC
+Arbitrum · 6.8% APY
+→ gauntletUSDC
+```
 
-The RainbowKit `ConnectButton` renders its own styled button. Wrap or override
-with: `bg-verdant-moss hover:bg-verdant-moss-dark text-white font-semibold
-px-4 py-2 rounded-md transition-colors`.
-
-If the ConnectButton component is a thin wrapper around RainbowKit's component
-with custom rendering, apply the moss style to the custom render props. If it
-is a direct `<ConnectButton />` passthrough, leave the RainbowKit default — do
-not fight the library's own styling.
-
-### `components/wallet/SolanaConnectButton.tsx`
-
-Same moss primary style as above.
-
----
-
-## Step 9 — App Pages
-
-### `app/globals.css` and `app/layout.tsx`
-
-`layout.tsx` needs no changes — it applies fonts and renders `<WalletProvider>`
-and children. The `bg-verdant-canvas` comes from the `globals.css` body rule.
-
-### `app/page.tsx` (landing)
-
-**Page background:** Remove `flex min-h-screen` dark treatment. The page
-inherits `bg-verdant-canvas` from body.
-
-**Heading "Verdant":** `text-5xl font-bold tracking-tight text-verdant-text-primary`
-
-**Tagline:** `text-lg text-verdant-text-muted`
-
-**"Try Demo" button (demo mode):** Primary moss — `bg-verdant-moss
-hover:bg-verdant-moss-dark text-white font-semibold px-6 py-3 rounded-lg
-transition-colors`
-
-**"Connect Wallet" button:** Same primary moss style (via ConnectButton).
-
-**"Enter Debug Mode" link:** `text-sm text-verdant-text-muted
-hover:text-verdant-text-primary underline underline-offset-4 transition-colors`
-
-### `app/dashboard/page.tsx`
-
-**Page wrapper:** `min-h-screen bg-verdant-canvas text-verdant-text-primary`
-
-**Header:** `border-b border-[#E5E0D8] bg-verdant-surface/80 backdrop-blur-sm
-sticky top-0 z-10` — the surface-white sticky header contrasts cleanly against
-the canvas background.
-
-**"Verdant" brand in header:** `text-xl font-bold tracking-tight
-text-verdant-text-primary`
-
-**Portfolio value in header:** `text-verdant-text-muted` label,
-`text-verdant-text-primary font-semibold font-mono` value.
-
-**Claimable rewards in header:** `text-verdant-text-muted` label,
-`text-verdant-profit font-semibold font-mono` value.
-
-**"Sequence" header button:** Primary moss style.
-
-**"Disconnect" link:** `text-sm text-verdant-text-muted
-hover:text-verdant-loss transition-colors`
-
-**"Your Positions" section heading:** `text-xl font-semibold
-text-verdant-text-primary`
-
-**"Refresh" button:** Secondary teak style but smaller — `text-sm border
-border-[#E5E0D8] text-verdant-text-muted hover:border-verdant-moss
-hover:text-verdant-moss px-3 py-1.5 rounded-lg border transition-colors`
-
-**Error banner:** `bg-amber-50 border border-amber-200 text-amber-700 text-sm
-px-4 py-3 rounded-lg`
-
-**Demo mode banner:** `bg-verdant-surface-accent border border-[#D5E8E0]
-rounded-lg text-sm text-verdant-text-muted` with
-`text-verdant-moss font-semibold` for the "Demo Mode" label.
-
-### `app/sequence/page.tsx` (full-page sequence setup fallback)
-
-Apply the same form field and Card surface treatments as SequenceModal. Page
-background inherits canvas. Page heading `text-verdant-text-primary`.
-
-### `app/sequence/[planId]/page.tsx`
-
-Page background inherits canvas. Loading state uses `text-verdant-text-muted`.
-Error state uses `text-verdant-loss`.
-
-### `app/harvest/page.tsx`
-
-Page heading `text-verdant-text-primary`. Apply Card surface to harvest panels.
+**Card header label:** `DEPOSIT`.
 
 ---
 
-## Typographic rules — apply everywhere
+#### `components/sequenceBuilder/RepayCard.tsx`
 
-These are mechanical rules, not component-specific. Apply them globally as you
-restyle each component:
+Terminal step. Shows the user's existing borrow positions that match
+the current token and chain.
 
-1. **All financial numbers** (USD values, APY percentages, token amounts,
-   tx hashes, wallet addresses) must be wrapped in `font-mono` or have the
-   `font-mono` class on their element.
+**Props:**
+```ts
+{ tokenIn: TokenState; userPositions: Position[]; onSelect: (positionId: string) => void }
+```
 
-2. **Positive financial values** (yields, rewards, profits, successful
-   simulation) use `text-verdant-profit`.
+Filters `userPositions` where `positionType === 'borrow'` and
+`chain === tokenIn.chain` and `asset === tokenIn.token`.
 
-3. **Negative financial values** (borrow costs, losses, errors, high fees,
-   health factor danger) use `text-verdant-loss`.
+Each borrow position row:
+```
+Aave V3 — USDC debt
+Ethereum · $42,000 owed
+5.1% borrow APY
+```
 
-4. **Primary text** (headings, card titles, important labels) uses
-   `text-verdant-text-primary`.
+Amount owed in `text-verdant-loss font-mono`. If no matching borrows:
+`"No matching debt positions on [CHAIN]."` in `text-verdant-text-muted`.
 
-5. **Secondary text** (sublabels, metadata, timestamps, helper text) uses
-   `text-verdant-text-muted`.
-
-6. **Never use `text-black`, `text-white` (except on coloured button
-   backgrounds), `text-zinc-*`, `text-emerald-*`, or `bg-zinc-*`** in
-   any restyled component. These are all remnants of the dark theme.
+**Card header label:** `REPAY`.
 
 ---
 
-## What not to touch
+#### `components/sequenceBuilder/RepayAndWithdrawCard.tsx`
 
-- All files under `hooks/` — no changes
-- All files under `lib/` — no changes
-- All files under `app/api/` — no changes
-- All files under `types/` — no changes
-- All files under `constants/` — no changes
-- All files under `supabase/` — no changes
-- `lib/utils/formatting.ts` — no changes
-- `DESIGN.md`, `AGENTS.md`, `SPECS.md` — no changes
+Transit step. Same borrow position selector as RepayCard, but after
+selecting, the card also shows the collateral that will be freed:
+
+```
+REPAY & WITHDRAW
+Aave USDC debt · $42,000
+→ Frees: 0.8 WETH (~$1,920)
+```
+
+The collateral information comes from the matched borrow position's
+corresponding supply position (find the supply on the same protocol/chain —
+same logic as `BorrowCard.tsx` already does). If no collateral position
+is found, show: `"Collateral position not found — proceed manually."`
+
+On selection, calls `onSelect(positionId)` and emits `tokenOut` as the
+freed collateral token state.
+
+**Card header label:** `REPAY & WITHDRAW`.
+
+---
+
+#### `components/sequenceBuilder/BridgeCard.tsx`
+
+Transit step. User selects destination chain and bridge.
+
+**Layout:**
+```
+BRIDGE
+To chain:  [Arbitrum ▾]
+Via:       [Across — $1.20, ~45s      ]
+           [LayerZero CCTP — $0.80, ~2m]
+```
+
+Chain selector: dropdown of `ALL_CHAINS` excluding the current chain.
+
+Bridge options: in demo mode, show static fixture bridge quotes
+(match the format of `DEMO_COST_RESULT.steps`). In real mode, these
+would be live quotes. For the design, show 2-3 options per destination:
+
+```ts
+// lib/sequenceBuilder/fixtures.ts
+export const DEMO_BRIDGE_QUOTES: Record<string, { bridgeId: BridgeId; label: string; feeUsd: number; timeSeconds: number }[]> = {
+  'arbitrum': [
+    { bridgeId: 'across',    label: 'Across V3',       feeUsd: 1.20, timeSeconds: 45 },
+    { bridgeId: 'layerzero', label: 'LayerZero CCTP',  feeUsd: 0.80, timeSeconds: 120 },
+  ],
+  'base': [
+    { bridgeId: 'across',    label: 'Across V3',       feeUsd: 0.90, timeSeconds: 30 },
+    { bridgeId: 'chainlink', label: 'Chainlink CCIP',  feeUsd: 1.50, timeSeconds: 900 },
+  ],
+  'ethereum': [
+    { bridgeId: 'across',    label: 'Across V3',       feeUsd: 3.40, timeSeconds: 120 },
+    { bridgeId: 'layerzero', label: 'LayerZero CCTP',  feeUsd: 2.90, timeSeconds: 180 },
+  ],
+}
+```
+
+Bridge row display: name in `text-verdant-text-primary text-sm`, fee in
+`text-verdant-text-primary font-mono`, time in `text-verdant-text-muted text-xs`.
+Selected row: `bg-verdant-surface-accent border-l-2 border-verdant-moss`.
+
+On selection of both chain and bridge, emits the completed bridge step with
+`tokenOut` = same token, new chain, amount adjusted for bridge fees.
+
+**Completed summary:**
+```
+BRIDGE
+Ethereum → Arbitrum
+Across V3 · $1.20
+~45s
+```
+
+**Card header label:** `BRIDGE`.
+
+---
+
+#### `components/sequenceBuilder/SwapCard.tsx`
+
+Transit step. User selects destination token.
+
+**Layout:**
+```
+SWAP
+From:  USDC (current, locked)
+To:    [WETH         ▾]
+Via:   1inch
+Fee:   ~$0.40 (0.04%)
+```
+
+The "To" token selector shows all tokens in `SUPPORTED_TOKENS` that are
+available on the current chain, excluding the current token. Selecting a
+token shows a stub swap quote (demo mode: 0.04% fee of the USD value,
+capped at $5 for small amounts).
+
+```ts
+// Demo swap fee stub
+function estimateDemoSwapFee(amountUsd: number): number {
+  return Math.min(amountUsd * 0.0004, 20)
+}
+```
+
+On token selection, emits `tokenOut` = new token, same chain, amount
+adjusted by swap fee.
+
+**Completed summary:**
+```
+SWAP
+USDC → WETH
+1inch · $0.40
+```
+
+**Card header label:** `SWAP`.
+
+---
+
+#### `components/sequenceBuilder/WithdrawCard.tsx`
+
+Transit step. The source position was already selected in `SourceCard` (or
+is the collateral from `RepayAndWithdrawCard`). This card just confirms
+what is being withdrawn.
+
+When triggered as the first action from a supply position, it shows:
+```
+WITHDRAW
+Aave USDC · Ethereum
+$180,000 → 180,000 USDC
+```
+
+No further user input needed — clicking "Confirm Withdraw" locks it in
+and appends the next `action-select` card.
+
+**Card header label:** `WITHDRAW`.
+
+---
+
+#### `components/sequenceBuilder/SummaryBar.tsx`
+
+Fixed at the bottom of the modal, above the footer buttons. Updates live
+as each step is completed.
+
+```
+−1,000 USDC (Ethereum)  →  +998.1 gauntletUSDC (Arbitrum)
+Est. fees: $3.30   (Bridge $1.20 · Swap $0.80 · Gas ~$1.30)
+```
+
+Left side: token delta. Right side: fee breakdown.
+
+Token amounts in `font-mono`. Negative value (`−1,000 USDC`) in
+`text-verdant-text-primary` (neutral — it's not a loss, it's a movement).
+Positive output (`+998.1 gauntletUSDC`) in `text-verdant-profit font-mono`.
+
+Fee total in `text-verdant-text-primary font-mono font-semibold`. Fee
+breakdown items in `text-verdant-text-muted text-sm`.
+
+If the sequence is not yet complete (no terminal step), show:
+`"Complete your sequence to see the full summary."` in
+`text-verdant-text-muted text-sm italic`.
+
+Gas is shown as `~$X` (estimated, not exact) when the sequence is complete.
+In demo mode use a flat `$1.30` per non-bridge step.
+
+**Footer buttons:**
+
+Left: `Cancel` — `text-verdant-text-muted hover:text-verdant-loss text-sm
+transition-colors` — calls `onClose()` without navigating.
+
+Right: `Execute Sequence →` — primary moss button, `disabled` and
+`opacity-50` until `canSubmit(steps) === true`.
+
+---
+
+### Entry points
+
+**Dashboard header "Sequence" button** → opens `SequenceBuilderModal` with
+no `initialPositionId`. User starts from the SourceCard picking any position.
+
+**PositionCard "Sequence" button** → opens `SequenceBuilderModal` with
+`initialPositionId` pre-set to that position's `id`. The SourceCard is
+pre-filled and locked; the modal opens directly at the `ActionSelectCard`.
+
+**BorrowCard** → does NOT open `SequenceBuilderModal`. It opens `LoopModal`
+(see Part 2). The "De-leverage" button remains on `BorrowCard` and triggers
+`LoopModal` in unloop mode.
+
+The `useSequenceModal` hook gains a new method:
+```ts
+openBuilder: (opts?: { positionId?: string }) => void
+```
+
+---
+
+## Part 2 — LoopModal
+
+A dedicated modal for leveraged loop and deleverage (unloop) flows. Triggered
+exclusively from `BorrowCard`. Has two tabs: **Deleverage** (unloop) and
+**Leverage** (loop).
+
+### Layout
+
+```
+┌─────────────────────────────────────────────────┐
+│  Manage Position                      [×]        │
+│  [Deleverage ●]  [Leverage]                      │
+├─────────────────────────────────────────────────┤
+│  [Tab content]                                   │
+├─────────────────────────────────────────────────┤
+│  [SummaryPanel]                                  │
+│                        [Cancel]  [Execute →]     │
+└─────────────────────────────────────────────────┘
+```
+
+Modal: `max-w-xl w-full`. Smaller than the builder — this flow is linear,
+not compositional.
+
+**Props:**
+```ts
+interface LoopModalProps {
+  isOpen: boolean
+  onClose: () => void
+  position: Position           // the borrow position from BorrowCard
+  collateralPosition?: Position // matched supply position
+}
+```
+
+---
+
+### Deleverage tab
+
+Pre-filled from the borrow position. Shows the current state and lets the
+user confirm or adjust cycles.
+
+```
+Position
+  Debt:        42,000 USDC    (5.1% APY)
+  Collateral:  18.2 WETH      ($43,600)
+  Health Factor: 1.82
+
+Unwind Settings
+  Cycles:  [3 ▾]   (auto-computed, adjustable)
+  Est. gas: ~$8.40 (3 × $2.80)
+
+After unwind
+  Freed: ~17.8 WETH  (~$42,720)
+  Remaining debt: $0
+  Net gain vs. instant: +$120 (fewer liquidation risk events)
+```
+
+Cycles selector: a simple `<select>` with options 1–10, defaulting to
+`computeOptimalCycles(totalDebtUsd, totalCollateralUsd, lt)` — same as the
+current `BorrowCard` logic.
+
+The "After unwind" panel is a `SummaryPanel` styled like `SummaryBar`:
+`bg-verdant-surface-accent border border-[#D5E8E0] rounded-lg p-4`.
+
+**Execute button:** `Execute Deleverage →` — primary moss. On click, creates
+a plan using the existing `deleverageAave` template (same as before, routed
+through `useSequencer.createPlan`), then navigates to `/sequence/[planId]`.
+
+---
+
+### Leverage tab
+
+Kept simple for now per spec. User specifies target leverage multiplier.
+
+```
+Position
+  Collateral:  18.2 WETH   ($43,600)
+  Protocol:    Aave V3 · Ethereum
+
+Leverage Settings
+  Target multiplier:  [2.0×  ▾]   (1.5× / 2× / 2.5× / 3×)
+  Borrow asset:       [USDC  ▾]
+
+After leverage
+  New collateral:  ~$87,200
+  New debt:        ~$43,600 USDC
+  Est. health factor: ~1.85
+  Est. gas:        ~$5.60
+```
+
+The "After leverage" numbers are estimates from simple arithmetic:
+- New collateral = current collateral × multiplier
+- New debt = new collateral − current collateral
+- Health factor estimate = (new collateral × 0.82) / new debt
+  (0.82 = conservative LTV)
+
+**Execute button:** `Execute Leverage →` — primary moss. In demo mode this
+is wired to a stub that creates a plan using `crossChainRebalance` as a
+placeholder (the real loop template is future work). In real mode it will
+use a future `leverageAave` template.
+
+The tab is clearly marked with a `Badge` variant `warning`:
+`"Leverage increases liquidation risk"` — shown inline below the tab header,
+not as an alert that blocks interaction.
+
+---
+
+### Connecting `BorrowCard` to `LoopModal`
+
+`BorrowCard` currently calls `onSequence('deleverageAave', params)` or
+`router.push('/sequence?...')`. Change this so the "De-leverage" button
+opens `LoopModal` directly:
+
+```ts
+// BorrowCard.tsx — new prop
+interface BorrowCardProps {
+  position: Position
+  onSequence?: (template: TemplateId, params: Record<string, string>) => void
+  onOpenLoopModal?: (position: Position, collateralPosition?: Position) => void
+}
+```
+
+In `handleDeleverage`, call `onOpenLoopModal(position, collateralPosition)`
+if provided, else fall back to the existing `onSequence` path.
+
+`app/dashboard/page.tsx` manages both modals:
+```ts
+const { isBuilderOpen, builderPositionId, openBuilder, closeBuilder } = useSequenceBuilderModal()
+const { isLoopOpen, loopPosition, loopCollateral, openLoop, closeLoop } = useLoopModal()
+```
+
+Both modals are mounted at the dashboard level. `PositionList` receives
+`onOpenBuilder` and `onOpenLoop` callbacks and threads them to the cards.
+
+---
+
+## New files summary
+
+```
+lib/sequenceBuilder/types.ts          — BuilderStep, TokenState, ActionType, DepositDestination
+lib/sequenceBuilder/logic.ts          — getEligibleActions, canSubmit, canAddMore, computeTokenDelta
+lib/sequenceBuilder/destinations.ts   — DEPOSIT_DESTINATIONS, getDepositDestinations
+lib/sequenceBuilder/fixtures.ts       — DEMO_BRIDGE_QUOTES, estimateDemoSwapFee
+
+hooks/useSequenceBuilderModal.ts      — isOpen, open(opts?), close, builderPositionId
+hooks/useLoopModal.ts                 — isOpen, open(position, collateral?), close
+
+components/sequenceBuilder/SequenceBuilderModal.tsx
+components/sequenceBuilder/SourceCard.tsx
+components/sequenceBuilder/ActionSelectCard.tsx
+components/sequenceBuilder/DepositCard.tsx
+components/sequenceBuilder/RepayCard.tsx
+components/sequenceBuilder/RepayAndWithdrawCard.tsx
+components/sequenceBuilder/BridgeCard.tsx
+components/sequenceBuilder/SwapCard.tsx
+components/sequenceBuilder/WithdrawCard.tsx
+components/sequenceBuilder/SummaryBar.tsx
+
+components/loop/LoopModal.tsx
+```
+
+---
+
+## Files modified
+
+```
+components/positions/BorrowCard.tsx        — add onOpenLoopModal prop
+components/positions/PositionCard.tsx      — add onOpenBuilder prop, thread to non-borrow cards
+components/positions/PositionList.tsx      — thread onOpenBuilder and onOpenLoop callbacks
+app/dashboard/page.tsx                     — mount both modals, manage both modal states
+hooks/useSequenceModal.ts                  — add openBuilder method (or replace with useSequenceBuilderModal)
+```
+
+`SequenceModal.tsx` is NOT deleted — kept as fallback for the full-page
+`app/sequence/page.tsx` route.
+
+---
+
+## What is explicitly not built
+
+- No real swap quote fetching (1inch integration is future work) — use the stub fee
+- No live APY fetching for `DEPOSIT_DESTINATIONS` — static registry only
+- No real bridge quote fetching in the builder — use `DEMO_BRIDGE_QUOTES` fixtures
+- No `buildTx` wiring for any builder-composed sequence — the "Execute" button
+  creates a plan using the closest matching existing template where one exists
+  (deposit → `bridgeAndDeposit`, repay → `repayAndWithdraw`), or is a no-op stub
+  in demo mode for sequences without a template equivalent
+- No Solana positions as starting points in the builder — EVM only for now
+- No loop template (`leverageAave`) — Leverage tab stubs to a placeholder plan
 
 ---
 
 ## Acceptance checklist
 
-Before marking done, verify each item visually by running the dev server with
-`NEXT_PUBLIC_DEMO_MODE=true` and walking the full demo flow.
-
-- [ ] `tailwind.config.ts` contains the full `verdant` colour namespace
-- [ ] `globals.css` has no dark mode media query; body background is `#FAF9F6`
-- [ ] Landing page: light canvas background, moss Connect Wallet button
-- [ ] Dashboard: light header with surface-white sticky bar on canvas background
-- [ ] Dashboard: portfolio value and APY in `font-mono`
-- [ ] Position cards: white surface cards with organic shadow on canvas
-- [ ] Position cards: APY values in `text-verdant-profit font-mono`
-- [ ] BorrowCard: red-200 border, loss-coloured borrow APY
-- [ ] BorrowCard: De-leverage button in `bg-verdant-loss`
-- [ ] SequenceModal: light modal panel, moss Create button, teak-bordered selects
-- [ ] TemplateSelector: unselected/selected states use moss accent
-- [ ] SequenceStepCard: current step in surface-accent, moss sign button
-- [ ] CostPreview: surface card, profit-coloured yield gain, mono font on all numbers
-- [ ] SequenceComplete: profit-coloured success icon, moss Back button
-- [ ] No `bg-zinc-*`, `text-zinc-*`, `bg-emerald-*`, or `text-emerald-*`
-      classes anywhere in components or app pages
-- [ ] No `text-white` on any text that sits on a light background
-- [ ] All financial numbers in `font-mono`
+- [ ] `DEPOSIT_DESTINATIONS` covers Ethereum, Arbitrum, Base for USDC and WETH
+- [ ] `getEligibleActions` returns only `withdraw` for supply positions
+- [ ] `getEligibleActions` excludes repay/repayAndWithdraw when no matching borrow exists
+- [ ] `canSubmit` returns false until a terminal step is added
+- [ ] Builder modal opens from dashboard header button (no pre-fill)
+- [ ] Builder modal opens from PositionCard with source pre-filled
+- [ ] SourceCard groups wallet and supply positions, excludes borrow positions
+- [ ] Completed step cards render in compact summary view
+- [ ] Cards wrap at 4/3/2 per row on desktop/tablet/mobile
+- [ ] Arrow connectors render between cards
+- [ ] SummaryBar updates on each completed step
+- [ ] SummaryBar shows fee breakdown with bridge, swap, gas as line items
+- [ ] Execute button disabled until `canSubmit === true`
+- [ ] BorrowCard opens LoopModal, not SequenceBuilderModal
+- [ ] LoopModal Deleverage tab pre-fills from borrow position
+- [ ] LoopModal cycles selector defaults to `computeOptimalCycles` result
+- [ ] LoopModal Leverage tab shows "increases liquidation risk" warning badge
+- [ ] No `<form>` tags
+- [ ] No `as any`
+- [ ] All monetary values in `font-mono`
+- [ ] Design tokens used throughout — no `zinc`, `emerald`, or raw hex colours

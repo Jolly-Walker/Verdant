@@ -14,9 +14,17 @@ interface PositionListProps {
   positions: Position[]
   isLoading?: boolean
   onSequence?: (template: TemplateId, params: Record<string, string>) => void
+  onOpenBuilder?: (positionId: string) => void
+  onOpenLoop?: (position: Position, collateral?: Position) => void
 }
 
-export function PositionList({ positions, isLoading, onSequence }: PositionListProps) {
+export function PositionList({ 
+  positions, 
+  isLoading, 
+  onSequence,
+  onOpenBuilder,
+  onOpenLoop
+}: PositionListProps) {
   const [filter, setFilter] = useState<PositionType | 'all' | 'pendle'>('all')
   const { chainIds, getChainMetadata } = useChainMetadata()
 
@@ -191,7 +199,13 @@ export function PositionList({ positions, isLoading, onSequence }: PositionListP
                     </thead>
                     <tbody>
                       {protoGroup.positions.map((p) => (
-                        <PositionCard key={p.id} position={p} onSequence={onSequence} />
+                        <PositionCard 
+                          key={p.id} 
+                          position={p} 
+                          onSequence={onSequence} 
+                          onOpenBuilder={onOpenBuilder}
+                          onOpenLoopModal={onOpenLoop}
+                        />
                       ))}
                     </tbody>
                   </table>
