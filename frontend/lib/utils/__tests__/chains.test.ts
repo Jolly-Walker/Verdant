@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { isValidAddress } from '../chains';
+import { DEMO_WALLET_ADDRESS } from '../../demo/wallet';
 
 describe('isValidAddress', () => {
   it('identifies valid EVM addresses', () => {
     expect(isValidAddress('0x8ab71ad4037a06002fdcfbef051f2fa9799df240')).toBe(true);
     expect(isValidAddress('0x1234567890123456789012345678901234567890')).toBe(true);
+    expect(isValidAddress(DEMO_WALLET_ADDRESS)).toBe(true);
   });
 
   it('identifies valid Solana addresses', () => {

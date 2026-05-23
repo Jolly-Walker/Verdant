@@ -1,6 +1,7 @@
-import { ChainId } from '@/types/shared'
+import { ChainId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
 import { Position } from '@/types/position'
 import { ActionType, BuilderStep, TokenState } from './types'
+import { SequencePlan, SequenceStep } from '@/types/sequencer'
 
 // Returns which actions are valid given the current token state
 export function getEligibleActions(
@@ -116,4 +117,161 @@ export function computeTokenDelta(steps: BuilderStep[]): {
   } : null
 
   return { input, output, totalFeeUsd, feeBreakdown }
+}
+
+export function builderStepsToSequencePlan(
+  steps: BuilderStep[],
+  walletAddress: string,
+  positions: Position[]
+): SequencePlan {
+  const sequenceSteps: SequenceStep[] = []
+  let previousStepId: string | null = null
+
+  const source = steps[0]
+  const positionSizeUsd = source && source.kind === 'source' ? source.tokenOut.amountUsd : 0
+
+  steps.forEach((step, idx) => {
+    if (step.kind === 'source' || step.kind === 'action-select') return
+
+    const stepId = `${step.kind}-${idx}`
+    const dependsOn = previousStepId ? [previousStepId] : []
+
+    let label = ''
+    let pluginId: string = ''
+    let buildParams: Record<string, unknown> = {}
+
+    switch (step.kind) {
+      case 'withdraw': {
+        const pos = positions.find(p => p.id === step.sourcePositionId)
+        const protocol = pos?.protocol || 'aave'
+        label = `Withdraw ${step.tokenIn.token} from ${protocol === 'aave' ? 'Aave V3' : protocol === 'morpho' ? 'Morpho' : protocol} on ${step.tokenIn.chain}`
+        pluginId = protocol
+        buildParams = {
+          action: 'withdraw',
+          protocol,
+          chain: step.tokenIn.chain,
+          asset: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          userAddress: walletAddress
+        }
+        break
+      }
+      case 'repayAndWithdraw': {
+        const borrowPos = positions.find(p => p.id === step.targetPositionId)
+        const protocol = borrowPos?.protocol || 'aave'
+        const potentialCollaterals = positions.filter(
+          p => p.chain === step.tokenIn.chain &&
+               p.protocol === protocol &&
+               p.positionType === 'supply'
+        )
+        const collateralPos = potentialCollaterals.length > 0
+          ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
+          : undefined
+
+        label = `Repay ${step.tokenIn.token} and withdraw collateral on ${step.tokenIn.chain}`
+        pluginId = protocol
+        buildParams = {
+          action: 'repay',
+          protocol,
+          chain: step.tokenIn.chain,
+          asset: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          userAddress: walletAddress,
+          extraParams: {
+            collateralAsset: collateralPos?.asset || 'WETH',
+            collateralAmount: collateralPos?.amount.toString() || '0'
+          }
+        }
+        break
+      }
+      case 'bridge': {
+        label = `Bridge ${step.tokenIn.token} from ${step.tokenIn.chain} to ${step.toChain} via ${step.bridgeId}`
+        pluginId = step.bridgeId
+        buildParams = {
+          fromChain: step.tokenIn.chain,
+          toChain: step.toChain,
+          token: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          recipientAddress: walletAddress,
+          slippagePercent: 0.5
+        }
+        break
+      }
+      case 'swap': {
+        label = `Swap ${step.tokenIn.token} for ${step.toToken} on ${step.tokenIn.chain} via 1inch`
+        pluginId = '1inch'
+        buildParams = {
+          action: 'swap',
+          protocol: '1inch',
+          chain: step.tokenIn.chain,
+          asset: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          userAddress: walletAddress,
+          extraParams: {
+            toToken: step.toToken,
+            feeUsd: step.feeUsd
+          }
+        }
+        break
+      }
+      case 'deposit': {
+        label = `Deposit ${step.tokenIn.token} into ${step.destination.displayName}`
+        pluginId = step.destination.protocol
+        buildParams = {
+          action: 'supply',
+          protocol: step.destination.protocol,
+          chain: step.tokenIn.chain,
+          asset: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          userAddress: walletAddress
+        }
+        break
+      }
+      case 'repay': {
+        const borrowPos = positions.find(p => p.id === step.targetPositionId)
+        const protocol = borrowPos?.protocol || 'aave'
+        label = `Repay ${step.tokenIn.token} debt on ${step.tokenIn.chain}`
+        pluginId = protocol
+        buildParams = {
+          action: 'repay',
+          protocol,
+          chain: step.tokenIn.chain,
+          asset: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          userAddress: walletAddress
+        }
+        break
+      }
+    }
+
+    sequenceSteps.push({
+      id: stepId,
+      label,
+      chain: step.tokenIn.chain,
+      pluginId,
+      dependsOn,
+      status: 'pending',
+      buildParams: buildParams as unknown as TxBuildParams | BridgeQuoteParams
+    })
+
+    previousStepId = stepId
+  })
+
+  const activeStepKinds = steps
+    .filter(s => s.kind !== 'source' && s.kind !== 'action-select')
+    .map(s => s.kind)
+  
+  const desc = `Custom sequence: ${activeStepKinds.join(' → ')}`
+
+  return {
+    id: crypto.randomUUID(),
+    walletAddress,
+    createdAt: new Date(),
+    status: 'draft',
+    totalCostUsd: 0,
+    positionSizeUsd,
+    description: desc,
+    steps: sequenceSteps,
+    templateId: 'custom'
+  }
 }

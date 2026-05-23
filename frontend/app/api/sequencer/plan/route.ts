@@ -71,8 +71,9 @@ const ExitPendleParamsSchema = z.object({
 });
 
 const CreatePlanSchema = z.object({
-  templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave', 'exitPendle']),
-  params: z.record(z.string(), z.unknown()),
+  templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave', 'exitPendle', 'custom']),
+  params: z.record(z.string(), z.unknown()).optional(),
+  customPlan: z.any().optional(),
   walletAddress: z.string().refine(val => isValidAddress(val), {
     message: 'Invalid wallet address format for supported chains'
   })
@@ -107,11 +108,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request body', details: result.error.format() }, { status: 400 })
     }
 
-    const { templateId, params, walletAddress } = result.data
+    const { templateId, params, walletAddress, customPlan } = result.data
     let plan
     let amountUsd = 0
 
-    if (templateId === 'deleverageAave') {
+    if (templateId === 'custom') {
+      if (!customPlan) {
+        return NextResponse.json({ error: 'customPlan is required for templateId custom' }, { status: 400 })
+      }
+      plan = {
+        ...customPlan,
+        id: crypto.randomUUID(),
+        walletAddress,
+        createdAt: new Date(),
+        status: 'draft'
+      }
+    } else if (templateId === 'deleverageAave') {
       const result = DeleverageAaveParamsSchema.safeParse(params);
       if (!result.success) {
         return NextResponse.json({ 

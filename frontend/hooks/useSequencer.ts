@@ -52,10 +52,17 @@ function useRealSequencer() {
     if (!address) throw new Error('Wallet not connected')
 
     try {
+      const body: any = { templateId, walletAddress: address }
+      if (templateId === 'custom') {
+        body.customPlan = (params as any).customPlan
+      } else {
+        body.params = params
+      }
+
       const res = await fetchWithTimeout('/api/sequencer/plan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId, params, walletAddress: address })
+        body: JSON.stringify(body)
       });
       
       if (!res.ok) {

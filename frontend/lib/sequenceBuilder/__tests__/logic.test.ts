@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getEligibleActions, canSubmit, canAddMore, computeTokenDelta } from '../logic'
+import { getEligibleActions, canSubmit, canAddMore, computeTokenDelta, builderStepsToSequencePlan } from '../logic'
 import { TokenState, BuilderStep } from '../types'
 import { Position } from '@/types/position'
 
@@ -233,6 +233,108 @@ describe('Sequence Builder Logic', () => {
         { label: 'Bridge fee', feeUsd: 1.20 },
         { label: 'Swap fee', feeUsd: 0.40 }
       ])
+    })
+  })
+
+  describe('builderStepsToSequencePlan', () => {
+    it('should map builder steps to a full sequence plan with dependencies', () => {
+      const steps: BuilderStep[] = [
+        {
+          kind: 'source',
+          tokenOut: { token: 'USDC', chain: 'arbitrum', amount: 1000, amountUsd: 1000 }
+        },
+        {
+          kind: 'bridge',
+          tokenIn: { token: 'USDC', chain: 'arbitrum', amount: 1000, amountUsd: 1000 },
+          toChain: 'base',
+          bridgeId: 'across',
+          feeUsd: 1.20,
+          tokenOut: { token: 'USDC', chain: 'base', amount: 998.8, amountUsd: 998.8 }
+        },
+        {
+          kind: 'swap',
+          tokenIn: { token: 'USDC', chain: 'base', amount: 998.8, amountUsd: 998.8 },
+          toToken: 'WETH',
+          feeUsd: 0.40,
+          tokenOut: { token: 'WETH', chain: 'base', amount: 0.4, amountUsd: 998.4 }
+        },
+        {
+          kind: 'deposit',
+          tokenIn: { token: 'WETH', chain: 'base', amount: 0.4, amountUsd: 998.4 },
+          destination: {
+            id: 'euler-weth-base',
+            protocol: 'euler',
+            chain: 'base',
+            token: 'WETH',
+            apy: 0.024,
+            displayName: 'Euler V2 — WETH',
+            outputTokenSymbol: 'eWETH',
+            apyType: 'variable'
+          }
+        }
+      ]
+
+      const plan = builderStepsToSequencePlan(steps, '0xwallet', mockPositions)
+      expect(plan.walletAddress).toBe('0xwallet')
+      expect(plan.templateId).toBe('custom')
+      expect(plan.positionSizeUsd).toBe(1000)
+      expect(plan.description).toBe('Custom sequence: bridge → swap → deposit')
+      expect(plan.steps).toHaveLength(3)
+
+      expect(plan.steps[0]).toEqual({
+        id: 'bridge-1',
+        label: 'Bridge USDC from arbitrum to base via across',
+        chain: 'arbitrum',
+        pluginId: 'across',
+        dependsOn: [],
+        status: 'pending',
+        buildParams: {
+          fromChain: 'arbitrum',
+          toChain: 'base',
+          token: 'USDC',
+          amount: '1000',
+          recipientAddress: '0xwallet',
+          slippagePercent: 0.5
+        }
+      })
+
+      expect(plan.steps[1]).toEqual({
+        id: 'swap-2',
+        label: 'Swap USDC for WETH on base via 1inch',
+        chain: 'base',
+        pluginId: '1inch',
+        dependsOn: ['bridge-1'],
+        status: 'pending',
+        buildParams: {
+          action: 'swap',
+          protocol: '1inch',
+          chain: 'base',
+          asset: 'USDC',
+          amount: '998.8',
+          userAddress: '0xwallet',
+          extraParams: {
+            toToken: 'WETH',
+            feeUsd: 0.40
+          }
+        }
+      })
+
+      expect(plan.steps[2]).toEqual({
+        id: 'deposit-3',
+        label: 'Deposit WETH into Euler V2 — WETH',
+        chain: 'base',
+        pluginId: 'euler',
+        dependsOn: ['swap-2'],
+        status: 'pending',
+        buildParams: {
+          action: 'supply',
+          protocol: 'euler',
+          chain: 'base',
+          asset: 'WETH',
+          amount: '0.4',
+          userAddress: '0xwallet'
+        }
+      })
     })
   })
 })

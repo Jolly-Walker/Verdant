@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react'
 import { SequencePlan, SimulationResult, TemplateParams, SerializedSequencePlan, TemplateId } from '@/types/sequencer'
 import { getActiveStep, deserializeSequencePlan } from '@/lib/sequencer/engine'
+import { fetchWithTimeout } from '@/lib/utils/fetch'
 import {
   DEMO_WALLET_ADDRESS,
   buildDemoPlan,
@@ -23,7 +24,35 @@ export function useDemoSequencer() {
 
   const currentStep = useMemo(() => plan ? getActiveStep(plan) : null, [plan])
 
-  const createPlan = useCallback(async (_templateId: TemplateId, _params: TemplateParams) => {
+  const createPlan = useCallback(async (templateId: TemplateId, params: TemplateParams) => {
+    if (templateId === 'custom') {
+      try {
+        const body = {
+          templateId: 'custom',
+          customPlan: (params as any).customPlan,
+          walletAddress: DEMO_WALLET_ADDRESS
+        }
+        const res = await fetchWithTimeout('/api/sequencer/plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to create custom plan');
+        }
+
+        const { plan: serializedPlan } = await res.json();
+        const newPlan = deserializeSequencePlan(serializedPlan);
+        setPlan(newPlan)
+        return newPlan
+      } catch (err) {
+        console.error('Demo custom plan creation error:', err)
+        throw err
+      }
+    }
+
     // Ignore the actual params — always build the demo plan
     await delay(600)
     const newPlan = buildDemoPlan(DEMO_WALLET_ADDRESS)

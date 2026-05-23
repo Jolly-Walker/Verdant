@@ -4,8 +4,10 @@ import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { usePositions } from '@/hooks/usePositions'
 import { useSequencer } from '@/hooks/useSequencer'
+import { useWallet } from '@/hooks/useWallet'
+import { DEMO_WALLET_ADDRESS } from '@/lib/demo/wallet'
 import { BuilderStep, TokenState, ActionType, DepositDestination } from '@/lib/sequenceBuilder/types'
-import { canSubmit } from '@/lib/sequenceBuilder/logic'
+import { canSubmit, builderStepsToSequencePlan } from '@/lib/sequenceBuilder/logic'
 import { SourceCard } from './SourceCard'
 import { ActionSelectCard } from './ActionSelectCard'
 import { DepositCard } from './DepositCard'
@@ -16,7 +18,6 @@ import { SwapCard } from './SwapCard'
 import { WithdrawCard } from './WithdrawCard'
 import { SummaryBar } from './SummaryBar'
 import { ChainId, BridgeId } from '@/types/shared'
-import { TemplateId, TemplateParams } from '@/types/sequencer'
 
 interface SequenceBuilderModalProps {
   isOpen: boolean
@@ -32,6 +33,7 @@ export function SequenceBuilderModal({
   const router = useRouter()
   const { positions } = usePositions()
   const { createPlan } = useSequencer()
+  const { address } = useWallet()
   const [isExecuting, setIsExecuting] = useState(false)
 
   // Initialize steps array
@@ -189,64 +191,10 @@ export function SequenceBuilderModal({
     setIsExecuting(true)
 
     try {
-      const last = steps[steps.length - 1]
-      const first = steps[0]
-      let templateId: TemplateId = 'bridgeAndDeposit'
-      let params: TemplateParams = {}
+      const activeAddress = address || DEMO_WALLET_ADDRESS
+      const customPlan = builderStepsToSequencePlan(steps, activeAddress, positions)
 
-      if (last.kind === 'deposit' && first.kind === 'source') {
-        templateId = 'bridgeAndDeposit'
-        params = {
-          asset: first.tokenOut.token,
-          amount: first.tokenOut.amount.toString(),
-          amountUsd: first.tokenOut.amountUsd,
-          fromChain: first.tokenOut.chain,
-          toChain: last.tokenIn.chain,
-          fromProtocol: first.tokenOut.sourcePositionId ? 'aave' : 'wallet',
-          toProtocol: last.destination.protocol,
-          walletAddress: '',
-          slippagePercent: 0.5
-        }
-      } else if (last.kind === 'repay' && first.kind === 'source') {
-        templateId = 'repayAndWithdraw'
-        const matchedBorrow = positions.find(p => p.id === last.targetPositionId)
-        // Find corresponding supply position on the same protocol/chain
-        const matchedSupply = positions.find(
-          p => p.chain === last.tokenIn.chain &&
-               p.protocol === matchedBorrow?.protocol &&
-               p.positionType === 'supply'
-        )
-
-        params = {
-          borrowAsset: last.tokenIn.token,
-          borrowAmount: last.tokenIn.amount.toString(),
-          amountUsd: last.tokenIn.amountUsd,
-          collateralAsset: matchedSupply?.asset || 'WETH',
-          collateralAmount: matchedSupply?.amount.toString() || '0',
-          protocol: matchedBorrow?.protocol || 'aave',
-          chain: last.tokenIn.chain,
-          walletAddress: ''
-        }
-      } else {
-        // Fallback placeholder
-        templateId = 'crossChainRebalance'
-        if (first.kind === 'source') {
-          const toChain = (last.kind !== 'source' && 'tokenIn' in last) ? last.tokenIn.chain : first.tokenOut.chain
-          params = {
-            asset: first.tokenOut.token,
-            amount: first.tokenOut.amount.toString(),
-            amountUsd: first.tokenOut.amountUsd,
-            fromProtocol: first.tokenOut.sourcePositionId ? 'aave' : 'wallet',
-            fromChain: first.tokenOut.chain,
-            toProtocol: 'morpho',
-            toChain: toChain,
-            walletAddress: '',
-            slippagePercent: 0.5
-          }
-        }
-      }
-
-      const plan = await createPlan(templateId, params)
+      const plan = await createPlan('custom', { customPlan })
       if (plan) {
         onClose()
         router.push(`/sequence/${plan.id}`)

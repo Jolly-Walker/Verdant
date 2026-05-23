@@ -1,7 +1,7 @@
 import { ChainId, ProtocolId, BridgeId, UnsignedTx, TxBuildParams, BridgeQuoteParams } from './shared'
 import { Warning } from './quote'
 
-export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave' | 'exitPendle';
+export type TemplateId = 'bridgeAndDeposit' | 'repayAndWithdraw' | 'crossChainRebalance' | 'deleverageAave' | 'exitPendle' | 'custom';
 
 export type StepStatus = 'pending' | 'simulating' | 'ready' | 'signing' | 'confirmed' | 'failed'
 

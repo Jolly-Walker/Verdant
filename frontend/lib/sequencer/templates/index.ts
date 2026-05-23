@@ -1,7 +1,7 @@
 import { TemplateId } from '@/types/sequencer';
 
-export const TEMPLATE_REGISTRY: Record<TemplateId, {
-  id: TemplateId;
+export const TEMPLATE_REGISTRY: Record<Exclude<TemplateId, 'custom'>, {
+  id: Exclude<TemplateId, 'custom'>;
   displayName: string;
   description: string;
   requiredParams: string[];
