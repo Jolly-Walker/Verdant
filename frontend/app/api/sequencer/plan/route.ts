@@ -7,7 +7,8 @@ import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAav
 import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle'
 import { createSequencePlan } from '@/lib/data/sequencePlans'
 import { serializeSequencePlan } from '@/lib/sequencer/engine'
-import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/types/shared'
+import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS, ChainId, ProtocolId, BridgeId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
+import { SequencePlan, StepStatus } from '@/types/sequencer'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
@@ -122,7 +123,7 @@ export async function POST(req: Request) {
     }
 
     const { templateId, params, walletAddress, customPlan } = result.data
-    let plan
+    let plan: SequencePlan | undefined
     let amountUsd = 0
 
     if (templateId === 'custom') {
@@ -130,12 +131,23 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'customPlan is required for templateId custom' }, { status: 400 })
       }
       plan = {
-        ...customPlan,
         id: crypto.randomUUID(),
         walletAddress,
         createdAt: new Date(),
         status: 'draft',
-        templateId: 'custom'
+        totalCostUsd: customPlan.totalCostUsd ?? 0,
+        positionSizeUsd: customPlan.positionSizeUsd,
+        description: customPlan.description,
+        templateId: 'custom',
+        steps: customPlan.steps.map(step => ({
+          id: step.id,
+          label: step.label,
+          chain: step.chain as ChainId,
+          pluginId: step.pluginId as ProtocolId | BridgeId,
+          dependsOn: step.dependsOn,
+          status: step.status as StepStatus,
+          buildParams: step.buildParams as unknown as TxBuildParams | BridgeQuoteParams
+        }))
       }
     } else if (templateId === 'deleverageAave') {
       const result = DeleverageAaveParamsSchema.safeParse(params);

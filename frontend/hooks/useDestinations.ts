@@ -30,7 +30,7 @@ export function useDestinations(token: string, chain: ChainId): UseDestinationsR
 
     if (isDemo) {
       // Fall back to static fixture destinations from the old DEPOSIT_DESTINATIONS
-      import('@/lib/sequenceBuilder/destinations').then(m => {
+      import('@/lib/sequenceBuilder/destinations.mock').then(m => {
         if (!cancelled) {
           setDestinations(m.getDepositDestinations(token, chain))
           setIsLoading(false)

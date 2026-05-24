@@ -18,7 +18,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('filters by TVL floor ($1,000,000)', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'aave-v3',
@@ -67,7 +67,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('filters by audited pools', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'aave-v3',
@@ -100,7 +100,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('filters out LP exposure and LP categories', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'aave-v3',
@@ -145,7 +145,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('filters out protocols that do not support supply/deposit (like Pendle)', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'pendle', // Pendle is registered but doesn't support 'supply'
@@ -178,7 +178,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('filters out duplicated Aave V3 market pools (Umbrella, Horizon, etc.)', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'aave-v3',
@@ -222,7 +222,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('derives receipt token symbol (outputTokenSymbol) correctly', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'aave-v3',
@@ -274,7 +274,7 @@ describe('fetchDepositDestinations', () => {
   })
 
   it('correctly parses lock period days from poolMeta', async () => {
-    const mockPools: any[] = [
+    const mockPools: Partial<defillama.DefillamaPool>[] = [
       {
         pool: 'pool-1',
         project: 'morpho-blue',

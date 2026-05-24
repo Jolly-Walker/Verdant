@@ -94,7 +94,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Step not found' }, { status: 404 })
     }
 
-    const paramsError = validateBuildParams(step.pluginId, step.buildParams as Record<string, unknown>)
+    const paramsError = validateBuildParams(step.pluginId, step.buildParams as unknown as Record<string, unknown>)
     if (paramsError) {
       return NextResponse.json({ error: `Invalid step configuration: ${paramsError}` }, { status: 400 })
     }
