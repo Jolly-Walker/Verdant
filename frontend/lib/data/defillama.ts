@@ -67,8 +67,7 @@ export async function fetchPoolApys(): Promise<DefillamaPool[]> {
     totalSupplyUsd:   (p.totalSupplyUsd as number) ?? null,
     totalBorrowUsd:   (p.totalBorrowUsd as number) ?? null,
     stablecoin:       (p.stablecoin as boolean) || false,
-    // Safely map audits field with fallback for live API where audits is not present
-    audits:           (p.audits as string) ?? (p.audits === undefined ? "1" : null),
+    audits:           (p.audits as string | null) ?? null,
     exposure:         (p.exposure as 'single' | 'multi') ?? null,
     poolMeta:         (p.poolMeta as string) ?? null,
     underlyingTokens: (p.underlyingTokens as string[]) ?? null,

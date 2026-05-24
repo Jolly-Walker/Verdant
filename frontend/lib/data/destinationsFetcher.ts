@@ -137,9 +137,7 @@ function isEligible(pool: DefillamaPool): boolean {
   // Must have a parseable single-asset symbol
   if (extractInputToken(pool.symbol) === null) return false
 
-  // For Aave V3, filter out non-main pools (Umbrella, Horizon, etc.)
-  // We check for defillama slug 'aave-v3' and ensure poolMeta is null/undefined for the main pool.
-  if (pool.project === 'aave-v3' && pool.poolMeta !== null && pool.poolMeta !== undefined) return false
+
 
   return true
 }

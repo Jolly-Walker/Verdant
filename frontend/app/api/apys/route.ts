@@ -1,3 +1,4 @@
+import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { findPoolApy } from '@/lib/data/defillama'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'

@@ -177,49 +177,6 @@ describe('fetchDepositDestinations', () => {
     expect(result[0].id).toBe('pool-2')
   })
 
-  it('filters out duplicated Aave V3 market pools (Umbrella, Horizon, etc.)', async () => {
-    const mockPools: Partial<defillama.DefillamaPool>[] = [
-      {
-        pool: 'pool-1',
-        project: 'aave-v3',
-        chain: 'Ethereum',
-        symbol: 'USDC',
-        apy: 3.3,
-        tvlUsd: 160_000_000,
-        exposure: 'single',
-        audits: '1',
-        poolMeta: null, // main pool
-      },
-      {
-        pool: 'pool-2',
-        project: 'aave-v3',
-        chain: 'Ethereum',
-        symbol: 'USDC',
-        apy: 7.8,
-        tvlUsd: 46_000_000,
-        exposure: 'single',
-        audits: '1',
-        poolMeta: 'Umbrella', // Umbrella pool
-      },
-      {
-        pool: 'pool-3',
-        project: 'aave-v3',
-        chain: 'Ethereum',
-        symbol: 'USDC',
-        apy: 2.1,
-        tvlUsd: 4_400_000,
-        exposure: 'single',
-        audits: '1',
-        poolMeta: 'Aave Horizon Market', // Horizon pool
-      }
-    ]
-
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
-
-    const result = await fetchDepositDestinations('USDC', 'ethereum')
-    expect(result.length).toBe(1)
-    expect(result[0].id).toBe('pool-1')
-  })
 
   it('derives receipt token symbol (outputTokenSymbol) correctly', async () => {
     const mockPools: Partial<defillama.DefillamaPool>[] = [
