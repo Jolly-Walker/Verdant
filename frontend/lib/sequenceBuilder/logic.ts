@@ -136,6 +136,61 @@ export function builderStepsToSequencePlan(
     const stepId = `${step.kind}-${idx}`
     const dependsOn = previousStepId ? [previousStepId] : []
 
+    if (step.kind === 'repayAndWithdraw') {
+      const borrowPos = positions.find(p => p.id === step.targetPositionId)
+      const protocol = borrowPos?.protocol || 'aave'
+      const potentialCollaterals = positions.filter(
+        p => p.chain === step.tokenIn.chain &&
+             p.protocol === protocol &&
+             p.positionType === 'supply'
+      )
+      const collateralPos = potentialCollaterals.length > 0
+        ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
+        : undefined
+
+      const repayStepId = `repay-${idx}`
+      const withdrawStepId = `withdraw-${idx}`
+
+      // Step 1: Repay
+      sequenceSteps.push({
+        id: repayStepId,
+        label: `Repay ${step.tokenIn.token} debt on ${step.tokenIn.chain}`,
+        chain: step.tokenIn.chain,
+        pluginId: protocol,
+        dependsOn,
+        status: 'pending',
+        buildParams: {
+          action: 'repay',
+          protocol,
+          chain: step.tokenIn.chain,
+          asset: step.tokenIn.token,
+          amount: step.tokenIn.amount.toString(),
+          userAddress: walletAddress,
+        } as unknown as TxBuildParams | BridgeQuoteParams
+      })
+
+      // Step 2: Withdraw collateral (depends on repay)
+      sequenceSteps.push({
+        id: withdrawStepId,
+        label: `Withdraw ${collateralPos?.asset || 'collateral'} from ${protocol} on ${step.tokenIn.chain}`,
+        chain: step.tokenIn.chain,
+        pluginId: protocol,
+        dependsOn: [repayStepId],
+        status: 'pending',
+        buildParams: {
+          action: 'withdraw',
+          protocol,
+          chain: step.tokenIn.chain,
+          asset: collateralPos?.asset || 'WETH',
+          amount: collateralPos?.amount.toString() || 'max',
+          userAddress: walletAddress,
+        } as unknown as TxBuildParams | BridgeQuoteParams
+      })
+
+      previousStepId = withdrawStepId
+      return
+    }
+
     let label = ''
     let pluginId: string = ''
     let buildParams: Record<string, unknown> = {}
@@ -153,34 +208,6 @@ export function builderStepsToSequencePlan(
           asset: step.tokenIn.token,
           amount: step.tokenIn.amount.toString(),
           userAddress: walletAddress
-        }
-        break
-      }
-      case 'repayAndWithdraw': {
-        const borrowPos = positions.find(p => p.id === step.targetPositionId)
-        const protocol = borrowPos?.protocol || 'aave'
-        const potentialCollaterals = positions.filter(
-          p => p.chain === step.tokenIn.chain &&
-               p.protocol === protocol &&
-               p.positionType === 'supply'
-        )
-        const collateralPos = potentialCollaterals.length > 0
-          ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
-          : undefined
-
-        label = `Repay ${step.tokenIn.token} and withdraw collateral on ${step.tokenIn.chain}`
-        pluginId = protocol
-        buildParams = {
-          action: 'repay',
-          protocol,
-          chain: step.tokenIn.chain,
-          asset: step.tokenIn.token,
-          amount: step.tokenIn.amount.toString(),
-          userAddress: walletAddress,
-          extraParams: {
-            collateralAsset: collateralPos?.asset || 'WETH',
-            collateralAmount: collateralPos?.amount.toString() || '0'
-          }
         }
         break
       }

@@ -10,6 +10,7 @@ import { getRpcUrl } from '@/lib/server/rpc'
 import { ChainId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
+import { SWAP_REGISTRY } from '@/lib/plugins/swaps'
 import { detectWarnings } from '@/lib/utils/warnings'
 import { Warning } from '@/types/quote'
 
@@ -41,6 +42,32 @@ const getClient = (chain: ChainId) => {
   })
 }
 
+function validateBuildParams(pluginId: string, buildParams: Record<string, unknown>): string | null {
+  // Protocol steps
+  if (['aave', 'morpho', 'euler'].includes(pluginId)) {
+    if (!buildParams.action) return 'Missing action in buildParams'
+    if (!buildParams.chain) return 'Missing chain in buildParams'
+    if (!buildParams.asset) return 'Missing asset in buildParams'
+    if (!buildParams.amount || buildParams.amount === '0') return 'Missing or zero amount in buildParams'
+    if (!buildParams.userAddress) return 'Missing userAddress in buildParams'
+  }
+  // Bridge steps
+  if (['across', 'layerzero', 'nearIntents', 'chainlink'].includes(pluginId)) {
+    if (!buildParams.fromChain) return 'Missing fromChain in buildParams'
+    if (!buildParams.toChain) return 'Missing toChain in buildParams'
+    if (!buildParams.token) return 'Missing token in buildParams'
+    if (!buildParams.amount || buildParams.amount === '0') return 'Missing or zero amount in buildParams'
+    if (!buildParams.recipientAddress) return 'Missing recipientAddress in buildParams'
+  }
+  // Swap steps
+  if (pluginId === '1inch') {
+    if (!buildParams.extraParams) return 'Missing extraParams for swap'
+    const ep = buildParams.extraParams as Record<string, unknown>
+    if (!ep.toToken) return 'Missing toToken in swap extraParams'
+  }
+  return null
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -67,6 +94,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Step not found' }, { status: 404 })
     }
 
+    const paramsError = validateBuildParams(step.pluginId, step.buildParams as Record<string, unknown>)
+    if (paramsError) {
+      return NextResponse.json({ error: `Invalid step configuration: ${paramsError}` }, { status: 400 })
+    }
+
     if (!step.unsignedTx) {
       if (PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]) {
         const plugin = PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]
@@ -84,10 +116,27 @@ export async function POST(req: Request) {
           }
           step.unsignedTx = await plugin.buildBridgeTx(quote)
         }
+      } else if (SWAP_REGISTRY[step.pluginId]) {
+        // Swap plugin found — not yet implemented, return clear error
+        return NextResponse.json({
+          error: `Swap via '${step.pluginId}' is not yet available for on-chain execution. This feature is coming soon.`
+        }, { status: 400 })
       }
 
       if (!step.unsignedTx) {
-        return NextResponse.json({ error: 'Step has no transaction to simulate and failed to build one' }, { status: 400 })
+        // Check if plugin is known but has no tx built
+        const isKnownProtocol = !!PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]
+        const isKnownBridge = !!BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
+
+        if (!isKnownProtocol && !isKnownBridge) {
+          return NextResponse.json({
+            error: `Plugin '${step.pluginId}' is not registered. This action type is not yet supported for on-chain execution.`
+          }, { status: 400 })
+        }
+
+        return NextResponse.json({
+          error: 'Step has no transaction to simulate and failed to build one'
+        }, { status: 400 })
       }
     }
 

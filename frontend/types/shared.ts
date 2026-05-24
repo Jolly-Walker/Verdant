@@ -51,7 +51,7 @@ export interface UnsignedTx {
 }
 
 export interface TxBuildParams {
-  action: 'supply' | 'withdraw' | 'borrow' | 'repay' | 'stake' | 'unstake' | 'claim'
+  action: 'supply' | 'withdraw' | 'borrow' | 'repay' | 'stake' | 'unstake' | 'claim' | 'swap'
   protocol: ProtocolId
   chain: ChainId
   asset: string

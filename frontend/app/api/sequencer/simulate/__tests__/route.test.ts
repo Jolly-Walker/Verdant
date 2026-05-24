@@ -98,7 +98,13 @@ describe('Simulate API Route', () => {
       label: 'Test Step',
       chain: 'ethereum' as ChainId,
       pluginId: 'aave',
-      buildParams: {} as TxBuildParams,
+      buildParams: {
+        action: 'supply',
+        chain: 'ethereum',
+        asset: 'USDC',
+        amount: '100',
+        userAddress: '0xAuthorized'
+      } as unknown as TxBuildParams,
       status: 'pending',
       dependsOn: []
     };
@@ -164,7 +170,13 @@ describe('Simulate API Route', () => {
       label: 'Test Step',
       chain: 'ethereum' as ChainId,
       pluginId: 'aave',
-      buildParams: {} as TxBuildParams,
+      buildParams: {
+        action: 'supply',
+        chain: 'ethereum',
+        asset: 'USDC',
+        amount: '100',
+        userAddress: '0xAuthorized'
+      } as unknown as TxBuildParams,
       status: 'pending',
       dependsOn: [],
       unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' }
@@ -212,7 +224,13 @@ describe('Simulate API Route', () => {
         id: 'step-1',
         chain: 'ethereum',
         pluginId: 'aave',
-        buildParams: {} as TxBuildParams,
+        buildParams: {
+          action: 'supply',
+          chain: 'ethereum',
+          asset: 'USDC',
+          amount: '100',
+          userAddress: '0xAuthorized'
+        } as unknown as TxBuildParams,
         status: 'pending',
         dependsOn: []
       }],
@@ -273,7 +291,13 @@ describe('Simulate API Route', () => {
         id: 'step-1',
         chain: 'ethereum',
         pluginId: 'aave',
-        buildParams: {} as TxBuildParams,
+        buildParams: {
+          action: 'supply',
+          chain: 'ethereum',
+          asset: 'USDC',
+          amount: '100',
+          userAddress: '0xAuthorized'
+        } as unknown as TxBuildParams,
         status: 'pending',
         dependsOn: [],
         unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' }

@@ -26,31 +26,17 @@ export function useDemoSequencer() {
 
   const createPlan = useCallback(async (templateId: TemplateId, params: TemplateParams) => {
     if (templateId === 'custom') {
-      try {
-        const body = {
-          templateId: 'custom',
-          customPlan: (params as any).customPlan,
-          walletAddress: DEMO_WALLET_ADDRESS
-        }
-        const res = await fetchWithTimeout('/api/sequencer/plan', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-        
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'Failed to create custom plan');
-        }
-
-        const { plan: serializedPlan } = await res.json();
-        const newPlan = deserializeSequencePlan(serializedPlan);
-        setPlan(newPlan)
-        return newPlan
-      } catch (err) {
-        console.error('Demo custom plan creation error:', err)
-        throw err
+      await delay(600)
+      const customPlan = (params as { customPlan: SequencePlan }).customPlan
+      const newPlan: SequencePlan = {
+        ...customPlan,
+        id: crypto.randomUUID(),
+        walletAddress: DEMO_WALLET_ADDRESS,
+        createdAt: new Date(),
+        status: 'draft',
       }
+      setPlan(newPlan)
+      return newPlan
     }
 
     // Ignore the actual params — always build the demo plan

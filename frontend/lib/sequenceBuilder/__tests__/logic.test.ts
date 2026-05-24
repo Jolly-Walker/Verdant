@@ -336,5 +336,88 @@ describe('Sequence Builder Logic', () => {
         }
       })
     })
+
+    it('should map repayAndWithdraw step to repay followed by withdraw steps with correct dependencies', () => {
+      const steps: BuilderStep[] = [
+        {
+          kind: 'source',
+          tokenOut: { token: 'USDC', chain: 'arbitrum', amount: 500, amountUsd: 500 }
+        },
+        {
+          kind: 'repayAndWithdraw',
+          tokenIn: { token: 'USDC', chain: 'arbitrum', amount: 500, amountUsd: 500 },
+          targetPositionId: 'aave-borrow-usdc-arb',
+          tokenOut: { token: 'USDC', chain: 'arbitrum', amount: 500, amountUsd: 500 }
+        },
+        {
+          kind: 'deposit',
+          tokenIn: { token: 'USDC', chain: 'arbitrum', amount: 500, amountUsd: 500 },
+          destination: {
+            id: 'aave-usdc-arb',
+            protocol: 'aave',
+            chain: 'arbitrum',
+            token: 'USDC',
+            apy: 0.044,
+            displayName: 'Aave V3 — USDC',
+            outputTokenSymbol: 'aUSDC',
+            apyType: 'variable'
+          }
+        }
+      ]
+
+      const plan = builderStepsToSequencePlan(steps, '0xwallet', mockPositions)
+      expect(plan.steps).toHaveLength(3)
+
+      expect(plan.steps[0]).toEqual({
+        id: 'repay-1',
+        label: 'Repay USDC debt on arbitrum',
+        chain: 'arbitrum',
+        pluginId: 'aave',
+        dependsOn: [],
+        status: 'pending',
+        buildParams: {
+          action: 'repay',
+          protocol: 'aave',
+          chain: 'arbitrum',
+          asset: 'USDC',
+          amount: '500',
+          userAddress: '0xwallet'
+        }
+      })
+
+      expect(plan.steps[1]).toEqual({
+        id: 'withdraw-1',
+        label: 'Withdraw USDC from aave on arbitrum',
+        chain: 'arbitrum',
+        pluginId: 'aave',
+        dependsOn: ['repay-1'],
+        status: 'pending',
+        buildParams: {
+          action: 'withdraw',
+          protocol: 'aave',
+          chain: 'arbitrum',
+          asset: 'USDC',
+          amount: '1000',
+          userAddress: '0xwallet'
+        }
+      })
+
+      expect(plan.steps[2]).toEqual({
+        id: 'deposit-2',
+        label: 'Deposit USDC into Aave V3 — USDC',
+        chain: 'arbitrum',
+        pluginId: 'aave',
+        dependsOn: ['withdraw-1'],
+        status: 'pending',
+        buildParams: {
+          action: 'supply',
+          protocol: 'aave',
+          chain: 'arbitrum',
+          asset: 'USDC',
+          amount: '500',
+          userAddress: '0xwallet'
+        }
+      })
+    })
   })
 })

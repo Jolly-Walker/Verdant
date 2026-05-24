@@ -73,7 +73,20 @@ const ExitPendleParamsSchema = z.object({
 const CreatePlanSchema = z.object({
   templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave', 'exitPendle', 'custom']),
   params: z.record(z.string(), z.unknown()).optional(),
-  customPlan: z.any().optional(),
+  customPlan: z.object({
+    steps: z.array(z.object({
+      id: z.string(),
+      label: z.string(),
+      chain: z.enum(ALL_CHAINS),
+      pluginId: z.string(),
+      dependsOn: z.array(z.string()),
+      status: z.enum(['pending', 'simulating', 'ready', 'signing', 'confirmed', 'failed']),
+      buildParams: z.record(z.string(), z.unknown()),
+    })),
+    description: z.string(),
+    positionSizeUsd: z.number().optional(),
+    totalCostUsd: z.number().optional(),
+  }).optional(),
   walletAddress: z.string().refine(val => isValidAddress(val), {
     message: 'Invalid wallet address format for supported chains'
   })
@@ -121,7 +134,8 @@ export async function POST(req: Request) {
         id: crypto.randomUUID(),
         walletAddress,
         createdAt: new Date(),
-        status: 'draft'
+        status: 'draft',
+        templateId: 'custom'
       }
     } else if (templateId === 'deleverageAave') {
       const result = DeleverageAaveParamsSchema.safeParse(params);
