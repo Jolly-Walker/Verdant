@@ -5,6 +5,7 @@ import { Connection } from '@solana/web3.js'
 export const ethereumPlugin: ChainPlugin = {
   id: 'ethereum',
   displayName: 'Ethereum',
+  defillamaChain: 'Ethereum',
   chainIdOrNetwork: 1,
   family: 'evm',
   explorerUrl: 'https://etherscan.io',

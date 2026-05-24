@@ -4,6 +4,7 @@ import { ChainId } from '@/types/shared'
 export const solanaPlugin: ChainPlugin = {
   id: 'solana' as ChainId,
   displayName: 'Solana',
+  defillamaChain: 'Solana',
   chainIdOrNetwork: 'solana-mainnet',
   family: 'solana',
   explorerUrl: 'https://explorer.solana.com',

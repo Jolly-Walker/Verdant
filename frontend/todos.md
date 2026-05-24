@@ -1,517 +1,755 @@
-# Verdant — Sequence Builder Wiring Tickets
+# Verdant — Live Deposit Destinations via DeFi Llama
 
 Branch: `demo`
 
-These tickets complete the execution path for custom sequences built in
-`SequenceBuilderModal`, and add the swap infrastructure needed to make the
-Swap step work end-to-end. Execute in order — each ticket depends on the
-previous.
+This ticket replaces the static `DEPOSIT_DESTINATIONS` array in
+`lib/sequenceBuilder/destinations.ts` with live data from the DeFi Llama
+Yields API, extended with filtering, 30d APY, reward tokens, and lock period
+display. The existing `DepositCard` component is updated to fetch from a new
+`/api/destinations` route rather than calling `getDepositDestinations()`
+synchronously.
+
+Architecture rule: adding a new protocol to Verdant should require touching
+only one file — the protocol plugin. All DeFi Llama mapping, filtering, and
+display information derives from what is already declared on the plugin.
 
 ---
 
-## WIRE-01 — Fix demo sequencer custom plan path
+## Step 1 — Extend `DefillamaPool` type and fetcher
 
-**Problem:** In `useDemoSequencer`, the `custom` template path calls
-`fetchWithTimeout('/api/sequencer/plan', ...)` — a real network call. In
-demo mode there is no live Supabase, so the plan either fails to persist or
-returns a plan that cannot be fetched by the execution page. All other
-non-custom template paths in demo mode bypass the network entirely.
+**File:** `frontend/lib/data/defillama.ts`
 
-**File:** `frontend/hooks/useDemoSequencer.ts`
+### 1a — Extend the `DefillamaPool` interface
 
-Replace the entire `if (templateId === 'custom')` block inside `createPlan`:
+Replace the current interface with the full field set needed for filtering and
+display:
 
 ```ts
-if (templateId === 'custom') {
-  await delay(600)
-  const customPlan = (params as { customPlan: SequencePlan }).customPlan
-  const newPlan: SequencePlan = {
-    ...customPlan,
-    id: crypto.randomUUID(),
-    walletAddress: DEMO_WALLET_ADDRESS,
-    createdAt: new Date(),
-    status: 'draft',
-  }
-  setPlan(newPlan)
-  return newPlan
+export interface DefillamaPool {
+  pool: string               // pool UUID — use as stable ID
+  project: string            // e.g. 'aave-v3'
+  chain: string              // DeFi Llama chain name e.g. 'Ethereum'
+  symbol: string             // e.g. 'USDC', 'WETH-USDC' for LPs
+  apy: number                // current APY, percentage (not decimal)
+  apyBase: number | null     // base APY (lending rate), percentage
+  apyReward: number | null   // reward APY on top, percentage
+  apyMean30d: number | null  // 30-day mean APY, percentage
+  tvlUsd: number
+  totalSupplyUsd: number | null
+  totalBorrowUsd: number | null
+  stablecoin: boolean
+  // Filtering fields
+  audits: string | null      // null = not audited; any string = audited
+  exposure: 'single' | 'multi' | null  // 'multi' = LP, exclude
+  poolMeta: string | null    // free text, may contain lock/vesting info
+  underlyingTokens: string[] | null    // token contract addresses
+  rewardTokens: string[] | null        // reward token addresses
+  ilRisk: 'yes' | 'no' | null          // IL risk flag (LPs)
+  category: string | null    // 'Lending', 'Staking', 'CDP', etc.
 }
 ```
 
-Add the `SequencePlan` import if not already present.
+### 1b — Update `fetchPoolApys` to map all new fields
 
-**Acceptance:**
-- [ ] Opening `SequenceBuilderModal` in demo mode, completing a sequence, and
-      clicking "Execute Sequence →" navigates to `/sequence/[planId]`
-- [ ] The plan execution page loads with the correct steps from the builder
-- [ ] No network request to `/api/sequencer/plan` is made in demo mode for
-      custom plans (verify in browser Network tab)
-- [ ] The existing non-custom path (fixture plan) is unaffected
+In the `.map()` call inside `fetchPoolApys`, add the new fields:
+
+```ts
+const pools: DefillamaPool[] = (json.data || []).map((p: Record<string, unknown>) => ({
+  pool:             p.pool as string,
+  project:          p.project as string,
+  chain:            p.chain as string,
+  symbol:           p.symbol as string,
+  apy:              (p.apy as number) || 0,
+  apyBase:          (p.apyBase as number) ?? null,
+  apyReward:        (p.apyReward as number) ?? null,
+  apyMean30d:       (p.apyMean30d as number) ?? null,
+  tvlUsd:           (p.tvlUsd as number) || 0,
+  totalSupplyUsd:   (p.totalSupplyUsd as number) ?? null,
+  totalBorrowUsd:   (p.totalBorrowUsd as number) ?? null,
+  stablecoin:       (p.stablecoin as boolean) || false,
+  audits:           (p.audits as string) ?? null,
+  exposure:         (p.exposure as 'single' | 'multi') ?? null,
+  poolMeta:         (p.poolMeta as string) ?? null,
+  underlyingTokens: (p.underlyingTokens as string[]) ?? null,
+  rewardTokens:     (p.rewardTokens as string[]) ?? null,
+  ilRisk:           (p.ilRisk as 'yes' | 'no') ?? null,
+  category:         (p.category as string) ?? null,
+}))
+```
+
+### 1c — Extend cache TTL to 15 minutes
+
+```ts
+const CACHE_TTL_MS = 15 * 60 * 1000  // 15 minutes
+```
+
+### 1d — Remove the hardcoded `PROJECT_MAP` and `CHAIN_MAP`
+
+Delete both constants from `defillama.ts`. They are replaced by the protocol
+plugin's `defillamaSlug` field (already present on all four plugins) and a
+new chain map on the chain plugin (Step 2). The `findPoolApy` function still
+needs these mappings — update it to accept them as parameters:
+
+```ts
+export async function findPoolApy(
+  defillamaSlug: string,    // was: protocol string looked up in PROJECT_MAP
+  defillamaChain: string,   // was: chain string looked up in CHAIN_MAP
+  asset: string
+): Promise<{ apy: number; tvlUsd: number; utilisationDecimal: number | null } | null>
+```
+
+Update the `/api/apys` route to pass the right values. The route receives
+`protocol` and `chain` as query params. It needs to look up the plugin and
+pass `plugin.defillamaSlug` and `chainPlugin.defillamaChain`:
+
+```ts
+// app/api/apys/route.ts
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
+
+const protocolPlugin = PROTOCOL_REGISTRY[protocol as ProtocolId]
+const chainPlugin = CHAIN_REGISTRY[chain as ChainId]
+
+if (!protocolPlugin || !chainPlugin) {
+  return NextResponse.json({ error: 'Unknown protocol or chain' }, { status: 400 })
+}
+
+const result = await findPoolApy(
+  protocolPlugin.defillamaSlug,
+  chainPlugin.defillamaChain,
+  asset
+)
+```
 
 ---
 
-## WIRE-02 — Persist custom plans through the API route correctly
+## Step 2 — Add `defillamaChain` to chain plugins
 
-**Problem:** In the API route `POST /api/sequencer/plan`, the `custom` branch
-constructs `plan` in-memory but skips the minimum size validation that all
-other templates run. It then falls through to `createSequencePlan(plan,
-templateId)` at line 229, which persists it — so persistence works. But the
-custom plan object passed in has already had its `id` set by
-`builderStepsToSequencePlan` on the client. `createSequencePlan` inserts it
-into Supabase and the DB assigns a new UUID, then returns the DB-assigned ID.
-The client receives the correct ID. This flow is actually correct.
+Each chain plugin needs to declare its DeFi Llama chain name, which differs
+from Verdant's internal `ChainId`. This is the same pattern as
+`defillamaSlug` on protocol plugins.
 
-However, the custom plan's `steps` array uses `buildParams` typed as
-`TxBuildParams | BridgeQuoteParams`. When Supabase serialises this via
-`serializeSequenceStep`, it JSON-stringifies `bigint` values. Custom plans
-have no `unsignedTx` yet so there are no `bigint` values to serialize at plan
-creation time — this is fine.
+### 2a — Extend `ChainPlugin` type
 
-**The one real issue:** `createdAt: new Date()` is set both by the client in
-`builderStepsToSequencePlan` and overwritten in the route. The route's
-overwrite is correct — use the server timestamp. No code change needed here.
+**File:** `frontend/lib/plugins/types/chain-plugin.ts`
 
-**What does need fixing:** `z.any()` is used for `customPlan` in
-`CreatePlanSchema`. This bypasses all validation. Add a minimal Zod shape:
-
-**File:** `frontend/app/api/sequencer/plan/route.ts`
-
-Replace:
-```ts
-customPlan: z.any().optional(),
-```
-
-With:
-```ts
-customPlan: z.object({
-  steps: z.array(z.object({
-    id: z.string(),
-    label: z.string(),
-    chain: z.enum(ALL_CHAINS),
-    pluginId: z.string(),
-    dependsOn: z.array(z.string()),
-    status: z.enum(['pending', 'simulating', 'ready', 'signing', 'confirmed', 'failed']),
-    buildParams: z.record(z.string(), z.unknown()),
-  })),
-  description: z.string(),
-  positionSizeUsd: z.number().optional(),
-  totalCostUsd: z.number().optional(),
-}).optional(),
-```
-
-Import `ALL_CHAINS` from `@/types/shared` if not already imported.
-
-**Acceptance:**
-- [ ] `POST /api/sequencer/plan` with `templateId: 'custom'` and a valid
-      `customPlan` returns 200 with a persisted plan
-- [ ] `POST /api/sequencer/plan` with `templateId: 'custom'` and a malformed
-      `customPlan` (missing `steps`) returns 400
-- [ ] Existing template paths are unaffected
-
----
-
-## WIRE-03 — Handle unknown `pluginId` gracefully in simulate route
-
-**Problem:** The simulate route at `POST /api/sequencer/simulate` checks if
-`step.pluginId` is in `PROTOCOL_REGISTRY` or `BRIDGE_REGISTRY`. If it is in
-neither (e.g. `'1inch'` for swap steps, or any future plugin not yet
-registered), it falls through to:
+Add one field:
 
 ```ts
-return NextResponse.json({ error: 'Step has no transaction to simulate and failed to build one' }, { status: 400 })
-```
-
-This is the right failure mode for swap steps today — 1inch is not yet
-implemented. But the error message is confusing. Change it to be explicit:
-
-**File:** `frontend/app/api/sequencer/simulate/route.ts`
-
-After the two plugin lookup blocks and before the stub-data check, replace the
-generic error:
-
-```ts
-if (!step.unsignedTx) {
-  // Check if plugin is known but has no tx built
-  const isKnownProtocol = !!PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]
-  const isKnownBridge = !!BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
-
-  if (!isKnownProtocol && !isKnownBridge) {
-    return NextResponse.json({
-      error: `Plugin '${step.pluginId}' is not registered. This action type is not yet supported for on-chain execution.`
-    }, { status: 400 })
-  }
-
-  return NextResponse.json({
-    error: 'Step has no transaction to simulate and failed to build one'
-  }, { status: 400 })
-}
-```
-
-**Acceptance:**
-- [ ] Simulating a swap step returns 400 with the message containing `'1inch'`
-      and `'not registered'`
-- [ ] Simulating a valid Aave deposit step is unaffected
-
----
-
-## WIRE-04 — Add swap plugin interface and 1inch stub
-
-**Problem:** Swap steps use `pluginId: '1inch'` but `'1inch'` is not in
-`PROTOCOL_REGISTRY` or `BRIDGE_REGISTRY`. When the real simulate route is
-called, WIRE-03 returns a clear error. But for swap to work end-to-end in
-future, the plugin must exist. This ticket adds the stub — it will be wired
-to a real 1inch API in a future milestone.
-
-### Step 1 — Add swap plugin type
-
-**File:** `frontend/lib/plugins/types/swap-plugin.ts` (new file)
-
-```ts
-import 'server-only'
-import { ChainId, UnsignedTx } from '@/types/shared'
-
-export interface SwapQuoteParams {
-  fromChain: ChainId
-  fromToken: string
-  toToken: string
-  amount: string        // in human units
-  userAddress: string
-  slippagePercent: number
-}
-
-export interface SwapQuote {
-  aggregator: string
-  fromToken: string
-  toToken: string
-  fromAmount: string
-  toAmount: string      // expected output in human units
-  feeUsd: number
-  priceImpactPercent: number
-  expiresAt: Date
-  rawQuote: unknown
-}
-
-export interface SwapPlugin {
-  id: string
+export interface ChainPlugin {
+  id: ChainId
   displayName: string
-  supportedChains: ChainId[]
-  getQuote(params: SwapQuoteParams): Promise<SwapQuote | null>
-  buildSwapTx(quote: SwapQuote, userAddress: string): Promise<UnsignedTx>
-}
-```
-
-### Step 2 — Add 1inch stub plugin
-
-**File:** `frontend/lib/plugins/swaps/oneinch.ts` (new file)
-
-```ts
-import 'server-only'
-import { SwapPlugin, SwapQuote, SwapQuoteParams } from '../types/swap-plugin'
-import { UnsignedTx } from '@/types/shared'
-
-export const oneinchPlugin: SwapPlugin = {
-  id: '1inch',
-  displayName: '1inch',
-  supportedChains: ['ethereum', 'arbitrum', 'base'],
-
-  async getQuote(params: SwapQuoteParams): Promise<SwapQuote | null> {
-    // STUB: 1inch API integration not yet implemented
-    // Real implementation will call https://api.1inch.dev/swap/v6.0/{chainId}/quote
-    throw new Error('1inch swap quote not yet implemented')
-  },
-
-  async buildSwapTx(quote: SwapQuote, userAddress: string): Promise<UnsignedTx> {
-    // STUB: 1inch API integration not yet implemented
-    // Real implementation will call https://api.1inch.dev/swap/v6.0/{chainId}/swap
-    throw new Error('1inch swap tx build not yet implemented')
-  }
-}
-```
-
-### Step 3 — Add swap registry
-
-**File:** `frontend/lib/plugins/swaps/index.ts` (new file)
-
-```ts
-import { SwapPlugin } from '../types/swap-plugin'
-import { oneinchPlugin } from './oneinch'
-
-export const SWAP_REGISTRY: Record<string, SwapPlugin> = {
-  '1inch': oneinchPlugin,
-}
-```
-
-### Step 4 — Wire swap registry into simulate route
-
-**File:** `frontend/app/api/sequencer/simulate/route.ts`
-
-Add import:
-```ts
-import { SWAP_REGISTRY } from '@/lib/plugins/swaps'
-```
-
-Add swap handling block after the bridge block, before the "plugin not found"
-error check:
-
-```ts
-} else if (SWAP_REGISTRY[step.pluginId]) {
-  // Swap plugin found — not yet implemented, return clear error
-  return NextResponse.json({
-    error: `Swap via '${step.pluginId}' is not yet available for on-chain execution. This feature is coming soon.`
-  }, { status: 400 })
-}
-```
-
-When 1inch is implemented, this block will call `plugin.getQuote()` and
-`plugin.buildSwapTx()` instead of returning the error.
-
-### Step 5 — Add `'swap'` to `TxBuildParams.action`
-
-**File:** `frontend/types/shared.ts`
-
-```ts
-export interface TxBuildParams {
-  action: 'supply' | 'withdraw' | 'borrow' | 'repay' | 'stake' | 'unstake' | 'claim' | 'swap'
+  defillamaChain: string    // ADD — DeFi Llama's chain name string
   // ...rest unchanged
 }
 ```
 
-This removes the TypeScript error on the swap step's `buildParams` in
-`builderStepsToSequencePlan`.
+### 2b — Add `defillamaChain` to each chain plugin
 
-**Acceptance:**
-- [ ] `SWAP_REGISTRY` exports `oneinchPlugin` under key `'1inch'`
-- [ ] Simulating a swap step returns 400 with `'coming soon'` message (not
-      `'not registered'`)
-- [ ] `TxBuildParams.action` accepts `'swap'` without TypeScript error
-- [ ] `server-only` is the first import in `oneinch.ts` and `index.ts`
+**`frontend/lib/plugins/chains/ethereum.ts`:**
+```ts
+defillamaChain: 'Ethereum',
+```
+
+**`frontend/lib/plugins/chains/arbitrum.ts`:**
+```ts
+defillamaChain: 'Arbitrum',
+```
+
+**`frontend/lib/plugins/chains/base.ts`:**
+```ts
+defillamaChain: 'Base',
+```
+
+**`frontend/lib/plugins/chains/solana.ts`:**
+```ts
+defillamaChain: 'Solana',
+```
+
+DeFi Llama uses title-case chain names. These strings are the canonical
+values — do not use lowercase or abbreviated forms anywhere else in the
+codebase.
+
+---
+
+## Step 3 — Extend `DepositDestination` type
+
+**File:** `frontend/lib/sequenceBuilder/types.ts`
+
+Replace the current `DepositDestination` interface:
+
+```ts
+export interface DepositDestination {
+  id: string                  // DeFi Llama pool UUID — stable across fetches
+  protocol: ProtocolId
+  chain: ChainId
+  token: string               // input token symbol (matched from DeFi Llama symbol)
+  apy: number                 // current APY, decimal (e.g. 0.068)
+  apyMean30d: number | null   // 30-day mean APY, decimal — null if unavailable
+  apyBase: number | null      // base lending APY, decimal
+  apyReward: number | null    // reward APY on top, decimal
+  displayName: string         // e.g. 'Morpho — Gauntlet USDC'
+  outputTokenSymbol: string   // e.g. 'gauntletUSDC' — derived from DeFi Llama symbol
+  apyType: 'variable' | 'fixed'
+  tvlUsd: number
+  rewardTokens: string[]      // reward token addresses — for future zap feature
+  lockPeriodDays: number | null  // null = no lock; number = explicit lock duration
+  lockDescription: string | null // human-readable lock description if locked
+}
+```
+
+The `lockPeriodDays` and `rewardTokens` fields are populated at fetch time
+and carried through to `DepositCard` for display. They do not affect the
+sequencer engine.
+
+---
+
+## Step 4 — Build the destinations fetcher
+
+**File:** `frontend/lib/data/destinationsFetcher.ts` (new file)
+
+```ts
+import 'server-only'
+import { fetchPoolApys, DefillamaPool } from './defillama'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
+import { DepositDestination } from '@/lib/sequenceBuilder/types'
+import { ChainId, ProtocolId } from '@/types/shared'
+
+const MIN_TVL_USD = 1_000_000
+const EXCLUDED_CATEGORIES = ['Liquidity Pool', 'LP']
+const INCLUDED_EXPOSURE: Array<DefillamaPool['exposure']> = ['single', null]
+
+// DeFi Llama category strings that correspond to lending/supply/staking
+const INCLUDED_CATEGORIES = [
+  'Lending',
+  'CDP',
+  'Staking',
+  'Yield',
+  'Restaking',
+]
+
+/**
+ * Derives a Verdant ChainId from DeFi Llama's chain name string.
+ * Built from the chain registry — no hardcoding.
+ */
+function buildChainLookup(): Record<string, ChainId> {
+  const lookup: Record<string, ChainId> = {}
+  for (const plugin of Object.values(CHAIN_REGISTRY)) {
+    lookup[plugin.defillamaChain.toLowerCase()] = plugin.id
+  }
+  return lookup
+}
+
+/**
+ * Builds a lookup from DeFi Llama project slug → ProtocolId.
+ * Derived from the protocol registry — no hardcoding.
+ */
+function buildProtocolLookup(): Record<string, ProtocolId> {
+  const lookup: Record<string, ProtocolId> = {}
+  for (const plugin of Object.values(PROTOCOL_REGISTRY)) {
+    lookup[plugin.defillamaSlug.toLowerCase()] = plugin.id
+  }
+  return lookup
+}
+
+/**
+ * Extracts the primary input token symbol from a DeFi Llama pool symbol.
+ *
+ * DeFi Llama symbols are varied:
+ *   'USDC'               → 'USDC'
+ *   'USDC-WETH'          → null (LP, excluded by exposure filter already)
+ *   'WETH (Re7 WETH)'    → 'WETH'
+ *   'DAI+'               → 'DAI'
+ *
+ * Returns null if the symbol appears to be multi-asset.
+ */
+function extractInputToken(symbol: string): string | null {
+  if (symbol.includes('-')) return null  // LP pair
+  const cleaned = symbol
+    .replace(/\(.*?\)/g, '')   // remove parenthetical annotations
+    .replace(/[+*]/g, '')      // remove modifier characters
+    .trim()
+    .toUpperCase()
+  if (!cleaned) return null
+  return cleaned
+}
+
+/**
+ * Derives a display name from the pool data.
+ * Format: '{ProtocolDisplayName} — {poolMeta or symbol}'
+ */
+function buildDisplayName(
+  pool: DefillamaPool,
+  protocolDisplayName: string
+): string {
+  if (pool.poolMeta) {
+    // poolMeta contains vault-specific names like 'Gauntlet USDC Core'
+    return `${protocolDisplayName} — ${pool.poolMeta}`
+  }
+  // Fall back to cleaned symbol
+  const token = extractInputToken(pool.symbol) || pool.symbol
+  return `${protocolDisplayName} — ${token}`
+}
+
+/**
+ * Extracts lock period information from a pool.
+ *
+ * DeFi Llama does not have a structured lock field. We use poolMeta
+ * text analysis as the signal: pools with lock/vesting language in
+ * poolMeta have a non-null lockDescription. Exact day count is
+ * extracted if a number precedes 'day' or 'd' in the meta text.
+ */
+function extractLockInfo(pool: DefillamaPool): {
+  lockPeriodDays: number | null
+  lockDescription: string | null
+} {
+  if (!pool.poolMeta) return { lockPeriodDays: null, lockDescription: null }
+
+  const meta = pool.poolMeta.toLowerCase()
+  const lockKeywords = ['lock', 'vest', 'locked', 'vesting', 'unbonding', 'cooldown']
+  const hasLock = lockKeywords.some(kw => meta.includes(kw))
+
+  if (!hasLock) return { lockPeriodDays: null, lockDescription: null }
+
+  // Try to extract a day count: "90d", "90 days", "90-day"
+  const dayMatch = meta.match(/(\d+)\s*-?\s*d(ay)?s?/)
+  const lockPeriodDays = dayMatch ? parseInt(dayMatch[1], 10) : null
+
+  return {
+    lockPeriodDays,
+    lockDescription: pool.poolMeta,  // show the original text in the UI
+  }
+}
+
+/**
+ * Filters a DeFi Llama pool against Verdant's inclusion criteria.
+ */
+function isEligible(pool: DefillamaPool): boolean {
+  // Must be above TVL floor
+  if (pool.tvlUsd < MIN_TVL_USD) return false
+
+  // Must be audited
+  if (!pool.audits) return false
+
+  // Must be single-asset exposure (excludes LPs)
+  if (!INCLUDED_EXPOSURE.includes(pool.exposure)) return false
+
+  // Must not be an LP category even if exposure was null
+  if (pool.category && EXCLUDED_CATEGORIES.some(c =>
+    pool.category!.toLowerCase().includes(c.toLowerCase())
+  )) return false
+
+  // Must be a lending/supply/staking category (or null — include uncategorised)
+  if (pool.category && !INCLUDED_CATEGORIES.some(c =>
+    pool.category!.toLowerCase().includes(c.toLowerCase())
+  )) return false
+
+  // Must have a parseable single-asset symbol
+  if (extractInputToken(pool.symbol) === null) return false
+
+  return true
+}
+
+/**
+ * Fetches all deposit destinations across all registered protocols and chains.
+ * Cached at the DeFi Llama fetch layer (15 min).
+ *
+ * @param filterToken  Optional — filter to a specific token symbol (e.g. 'USDC')
+ * @param filterChain  Optional — filter to a specific chain
+ */
+export async function fetchDepositDestinations(
+  filterToken?: string,
+  filterChain?: ChainId
+): Promise<DepositDestination[]> {
+  const pools = await fetchPoolApys()
+  const chainLookup = buildChainLookup()
+  const protocolLookup = buildProtocolLookup()
+
+  const destinations: DepositDestination[] = []
+
+  for (const pool of pools) {
+    if (!isEligible(pool)) continue
+
+    // Match chain
+    const chainId = chainLookup[pool.chain.toLowerCase()]
+    if (!chainId) continue  // chain not supported by Verdant
+    if (filterChain && chainId !== filterChain) continue
+
+    // Match protocol
+    const protocolId = protocolLookup[pool.project.toLowerCase()]
+    if (!protocolId) continue  // protocol not registered
+    const protocolPlugin = PROTOCOL_REGISTRY[protocolId]
+
+    // Match token
+    const token = extractInputToken(pool.symbol)
+    if (!token) continue
+    if (filterToken && token !== filterToken.toUpperCase()) continue
+
+    const { lockPeriodDays, lockDescription } = extractLockInfo(pool)
+
+    destinations.push({
+      id: pool.pool,              // DeFi Llama UUID — stable
+      protocol: protocolId,
+      chain: chainId,
+      token,
+      apy: pool.apy / 100,       // DeFi Llama returns percentage, convert to decimal
+      apyMean30d: pool.apyMean30d != null ? pool.apyMean30d / 100 : null,
+      apyBase: pool.apyBase != null ? pool.apyBase / 100 : null,
+      apyReward: pool.apyReward != null ? pool.apyReward / 100 : null,
+      displayName: buildDisplayName(pool, protocolPlugin.displayName),
+      outputTokenSymbol: pool.symbol,  // DeFi Llama symbol is the receipt token
+      apyType: 'variable',
+      tvlUsd: pool.tvlUsd,
+      rewardTokens: pool.rewardTokens ?? [],
+      lockPeriodDays,
+      lockDescription,
+    })
+  }
+
+  // Sort: highest current APY first
+  return destinations.sort((a, b) => b.apy - a.apy)
+}
+```
+
+---
+
+## Step 5 — New `/api/destinations` route
+
+**File:** `frontend/app/api/destinations/route.ts` (new file)
+
+```ts
+import 'server-only'
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { fetchDepositDestinations } from '@/lib/data/destinationsFetcher'
+import { ALL_CHAINS, ChainId } from '@/types/shared'
+
+const QuerySchema = z.object({
+  token: z.string().optional(),
+  chain: z.enum(ALL_CHAINS).optional(),
+})
+
+export async function GET(request: NextRequest) {
+  const params = Object.fromEntries(request.nextUrl.searchParams.entries())
+  const result = QuerySchema.safeParse(params)
+
+  if (!result.success) {
+    return NextResponse.json(
+      { error: 'Invalid query params', details: result.error.format() },
+      { status: 400 }
+    )
+  }
+
+  const { token, chain } = result.data
+
+  try {
+    const destinations = await fetchDepositDestinations(token, chain as ChainId | undefined)
+    return NextResponse.json(
+      { destinations },
+      {
+        headers: {
+          // Cache at CDN/edge for 5 min, serve stale for up to 15 min while revalidating
+          'Cache-Control': 's-maxage=300, stale-while-revalidate=900',
+        },
+      }
+    )
+  } catch (error) {
+    console.error('Destinations fetch error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch deposit destinations' },
+      { status: 500 }
+    )
+  }
+}
+```
+
+---
+
+## Step 6 — Client-side hook
+
+**File:** `frontend/hooks/useDestinations.ts` (new file)
+
+```ts
+'use client'
+
+import { useState, useEffect } from 'react'
+import { DepositDestination } from '@/lib/sequenceBuilder/types'
+import { ChainId } from '@/types/shared'
+
+interface UseDestinationsResult {
+  destinations: DepositDestination[]
+  isLoading: boolean
+  error: string | null
+}
+
+export function useDestinations(token: string, chain: ChainId): UseDestinationsResult {
+  const [destinations, setDestinations] = useState<DepositDestination[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!token || !chain) return
+
+    let cancelled = false
+    setIsLoading(true)
+    setError(null)
+
+    const params = new URLSearchParams({ token, chain })
+    fetch(`/api/destinations?${params.toString()}`)
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        return res.json()
+      })
+      .then(data => {
+        if (!cancelled) {
+          setDestinations(data.destinations ?? [])
+          setIsLoading(false)
+        }
+      })
+      .catch(err => {
+        if (!cancelled) {
+          setError(err.message)
+          setIsLoading(false)
+        }
+      })
+
+    return () => { cancelled = true }
+  }, [token, chain])
+
+  return { destinations, isLoading, error }
+}
+```
+
+In demo mode, this hook still hits `/api/destinations` — and it works, because
+the API route calls `fetchPoolApys()` which hits DeFi Llama. Demo mode only
+mocks wallet and transaction execution, not read-only data fetching.
+
+If you want the demo to be fully offline, add a demo branch:
+
+```ts
+const isDemo = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+
+// At top of useEffect:
+if (isDemo) {
+  // Fall back to static fixture destinations from the old DEPOSIT_DESTINATIONS
+  import('@/lib/sequenceBuilder/destinations').then(m => {
+    if (!cancelled) {
+      setDestinations(m.getDepositDestinations(token, chain))
+      setIsLoading(false)
+    }
+  })
+  return
+}
+```
+
+This is optional — your call on whether demo needs to be fully offline.
+
+---
+
+## Step 7 — Update `DepositCard` to use the hook
+
+**File:** `frontend/components/sequenceBuilder/DepositCard.tsx`
+
+Replace the synchronous `getDepositDestinations()` call with `useDestinations`:
+
+```tsx
+import { useDestinations } from '@/hooks/useDestinations'
+
+export function DepositCard({ tokenIn, ... }) {
+  const { destinations, isLoading, error } = useDestinations(tokenIn.token, tokenIn.chain)
+  // ...
+}
+```
+
+### Loading state
+
+Replace the empty list with a loading skeleton while `isLoading`:
+
+```tsx
+{isLoading && (
+  <div className="space-y-2">
+    {[1, 2, 3].map(i => (
+      <div key={i} className="h-12 bg-verdant-surface-accent rounded animate-pulse" />
+    ))}
+  </div>
+)}
+```
+
+### Error state
+
+```tsx
+{error && !isLoading && (
+  <div className="text-xs text-verdant-loss text-center py-4">
+    Failed to load destinations. <button onClick={() => refetch()} className="underline">Retry</button>
+  </div>
+)}
+```
+
+Add a `refetch` mechanism to `useDestinations` by exposing a `refetch: () =>
+void` that increments a counter in the `useEffect` dep array.
+
+### Updated destination row
+
+Each row now shows current APY, 30d mean, reward tokens, and lock indicator:
+
+```tsx
+<div
+  key={dest.id}
+  onClick={() => handleRowClick(dest)}
+  className={`p-2 rounded text-xs cursor-pointer border transition-colors ${
+    isSel
+      ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
+      : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
+  }`}
+>
+  {/* Name row */}
+  <div className="font-medium text-verdant-text-primary leading-snug flex items-center gap-1">
+    {dest.displayName}
+    {dest.lockPeriodDays != null && (
+      <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200
+                       px-1 py-0.5 rounded font-semibold uppercase tracking-wide">
+        🔒 {dest.lockPeriodDays}d
+      </span>
+    )}
+    {dest.lockDescription && dest.lockPeriodDays == null && (
+      <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200
+                       px-1 py-0.5 rounded font-semibold uppercase tracking-wide">
+        🔒 Locked
+      </span>
+    )}
+  </div>
+
+  {/* APY row */}
+  <div className="flex items-center justify-between mt-1 text-[10px]">
+    <span className="text-verdant-text-muted capitalize">{dest.chain}</span>
+    <div className="flex items-center gap-1.5">
+      {dest.apyMean30d != null && (
+        <span className="text-verdant-text-muted font-mono">
+          {formatPercent(dest.apyMean30d)} 30d
+        </span>
+      )}
+      <span className="font-mono font-semibold text-verdant-profit">
+        {formatPercent(dest.apy)}
+      </span>
+    </div>
+  </div>
+
+  {/* Reward tokens */}
+  {dest.rewardTokens.length > 0 && (
+    <div className="flex gap-1 mt-1 flex-wrap">
+      {dest.rewardTokens.slice(0, 3).map((addr, i) => (
+        <span
+          key={i}
+          className="text-[9px] bg-verdant-surface-accent text-verdant-text-muted
+                     border border-[#D5E8E0] px-1 py-0.5 rounded font-mono"
+        >
+          +{addr.slice(0, 6)}
+        </span>
+      ))}
+    </div>
+  )}
+</div>
+```
+
+Note on reward token display: DeFi Llama returns contract addresses in
+`rewardTokens`, not symbols. For now, show the truncated address. A future
+token symbol resolution pass (via DeFi Llama's Coins API) can replace this
+without a type change — the `rewardTokens: string[]` field on
+`DepositDestination` is already the right shape for either addresses or
+symbols.
+
+### Updated completed (read-only) card
+
+Show both APY values and the lock badge in the compact summary:
+
+```tsx
+<div className="text-xs text-verdant-text-muted mt-1 capitalize">
+  {selectedDestination.chain} ·{' '}
+  <span className="font-mono font-semibold text-verdant-profit">
+    {formatPercent(selectedDestination.apy)}
+  </span>
+  {selectedDestination.apyMean30d != null && (
+    <span className="font-mono text-verdant-text-muted ml-1">
+      ({formatPercent(selectedDestination.apyMean30d)} 30d avg)
+    </span>
+  )}
+  {selectedDestination.lockPeriodDays != null && (
+    <span className="ml-1 text-amber-600">· 🔒 {selectedDestination.lockPeriodDays}d lock</span>
+  )}
+</div>
+```
+
+---
+
+## Step 8 — Remove static fallback
+
+**File:** `frontend/lib/sequenceBuilder/destinations.ts`
+
+The `DEPOSIT_DESTINATIONS` static array and `getDepositDestinations` function
+are replaced by the live fetcher. However:
+
+- Keep the file but replace its contents with a re-export of `fetchDepositDestinations`
+  so any future server-side callers have a clean import path:
+
+```ts
+// lib/sequenceBuilder/destinations.ts
+// Static DEPOSIT_DESTINATIONS removed — use fetchDepositDestinations from lib/data/destinationsFetcher
+// or useDestinations hook for client-side access.
+export { fetchDepositDestinations, } from '@/lib/data/destinationsFetcher'
+```
+
+- Keep `getDepositDestinations` as a function for demo mode only, if you chose
+  to implement the offline demo branch in Step 6. Move it inline into the
+  demo import rather than exporting it.
+
+---
+
+## Adding a new protocol — checklist
+
+When a new protocol is added to Verdant (e.g. Compound, Spark), these are
+the only changes needed to make it appear in the deposit dropdown:
+
+1. Create `lib/plugins/protocols/compound.ts` with `defillamaSlug: 'compound-v3'`
+2. Add `compound: compoundPlugin` to `PROTOCOL_REGISTRY` in
+   `lib/plugins/protocols/index.ts`
+3. Add `buildTx` for supply/deposit action
+
+No changes to `destinationsFetcher.ts`, `defillama.ts`, or any route. The
+registry lookup in `buildProtocolLookup()` picks it up automatically.
+
+---
+
+## Acceptance checklist
+
+- [ ] `DefillamaPool` type includes `apyMean30d`, `audits`, `exposure`,
+      `poolMeta`, `underlyingTokens`, `rewardTokens`, `ilRisk`, `category`
+- [ ] `fetchPoolApys` maps all new fields from the API response
+- [ ] Cache TTL is 15 minutes
+- [ ] `PROJECT_MAP` and `CHAIN_MAP` removed from `defillama.ts`
+- [ ] `findPoolApy` accepts `defillamaSlug` and `defillamaChain` directly
+- [ ] `/api/apys` route reads slug from plugin registry, not hardcoded map
+- [ ] `ChainPlugin` type has `defillamaChain: string`
+- [ ] All four chain plugins declare `defillamaChain`
+- [ ] `DepositDestination` type has `apyMean30d`, `apyBase`, `apyReward`,
+      `tvlUsd`, `rewardTokens`, `lockPeriodDays`, `lockDescription`
+- [ ] `fetchDepositDestinations` filters: TVL ≥ $1M, audited, single exposure,
+      registered protocol, registered chain, parseable symbol
+- [ ] `fetchDepositDestinations` excludes LP categories
+- [ ] Lock detection reads `poolMeta` for lock/vest/unbonding keywords
+- [ ] `buildChainLookup` and `buildProtocolLookup` are derived from registries,
+      no hardcoded strings
+- [ ] `/api/destinations` route uses `z.enum(ALL_CHAINS)` for chain param
+- [ ] `/api/destinations` returns `Cache-Control: s-maxage=300, stale-while-revalidate=900`
+- [ ] `useDestinations` hook cleans up on unmount (`cancelled = true`)
+- [ ] `DepositCard` shows loading skeleton while fetching
+- [ ] `DepositCard` shows error state with retry button on failure
+- [ ] Each destination row shows: current APY, 30d mean APY, lock badge if locked,
+      reward token badges if any
+- [ ] Lock badge uses amber colour, never blocks selection
+- [ ] Reward tokens show truncated address (first 6 chars) as placeholder
+- [ ] Completed (read-only) card shows both APY values and lock if present
+- [ ] `server-only` is the first import in `destinationsFetcher.ts`
 - [ ] No `as any` introduced
-
----
-
-## WIRE-05 — Validate `buildParams` completeness before simulate
-
-**Problem:** `builderStepsToSequencePlan` populates `buildParams` for each
-step, but some steps may have incomplete data if the builder's state machine
-allowed a submit before all fields were filled (e.g. a `bridge` step where
-`toChain` is empty string). The simulate route calls `plugin.builder.buildTx`
-with whatever is in `buildParams` — a malformed call will either throw
-uncaught or produce a garbage tx.
-
-Add a validation pass in the simulate route before attempting to build the tx.
-
-**File:** `frontend/app/api/sequencer/simulate/route.ts`
-
-Add a helper and call it before the plugin lookup:
-
-```ts
-function validateBuildParams(pluginId: string, buildParams: Record<string, unknown>): string | null {
-  // Protocol steps
-  if (['aave', 'morpho', 'euler'].includes(pluginId)) {
-    if (!buildParams.action) return 'Missing action in buildParams'
-    if (!buildParams.chain) return 'Missing chain in buildParams'
-    if (!buildParams.asset) return 'Missing asset in buildParams'
-    if (!buildParams.amount || buildParams.amount === '0') return 'Missing or zero amount in buildParams'
-    if (!buildParams.userAddress) return 'Missing userAddress in buildParams'
-  }
-  // Bridge steps
-  if (['across', 'layerzero', 'nearIntents', 'chainlink'].includes(pluginId)) {
-    if (!buildParams.fromChain) return 'Missing fromChain in buildParams'
-    if (!buildParams.toChain) return 'Missing toChain in buildParams'
-    if (!buildParams.token) return 'Missing token in buildParams'
-    if (!buildParams.amount || buildParams.amount === '0') return 'Missing or zero amount in buildParams'
-    if (!buildParams.recipientAddress) return 'Missing recipientAddress in buildParams'
-  }
-  // Swap steps
-  if (pluginId === '1inch') {
-    if (!buildParams.extraParams) return 'Missing extraParams for swap'
-    const ep = buildParams.extraParams as Record<string, unknown>
-    if (!ep.toToken) return 'Missing toToken in swap extraParams'
-  }
-  return null
-}
-```
-
-Call it after the step lookup:
-```ts
-const paramsError = validateBuildParams(step.pluginId, step.buildParams as Record<string, unknown>)
-if (paramsError) {
-  return NextResponse.json({ error: `Invalid step configuration: ${paramsError}` }, { status: 400 })
-}
-```
-
-**Acceptance:**
-- [ ] Simulating a step with `amount: '0'` returns 400 with a clear message
-- [ ] Simulating a bridge step with missing `toChain` returns 400
-- [ ] Valid steps are unaffected
-
----
-
-## WIRE-06 — Thread `repayAndWithdraw` through simulate route
-
-**Problem:** `repayAndWithdraw` steps in the builder produce a single
-`SequenceStep` with `action: 'repay'` and `extraParams.collateralAsset` /
-`extraParams.collateralAmount`. The Aave plugin's `buildTx` handles `repay`
-and produces the repay tx. But the "withdraw collateral" part has no
-corresponding `SequenceStep` — the builder collapses both into one step.
-
-This is a known design gap. The options are:
-
-**Option A (current behaviour, acceptable for demo):** The `repayAndWithdraw`
-builder step maps to a single repay tx. After signing, the collateral remains
-locked until the user manually withdraws in a separate sequence. This is
-technically incorrect but safe.
-
-**Option B (correct behaviour):** `builderStepsToSequencePlan` emits *two*
-`SequenceStep` entries for a `repayAndWithdraw` builder step: one `repay` step
-and one `withdraw` step that depends on the repay.
-
-Implement Option B.
-
-**File:** `frontend/lib/sequenceBuilder/logic.ts`, inside
-`builderStepsToSequencePlan`, the `repayAndWithdraw` case:
-
-Replace the single `sequenceSteps.push(...)` call with two pushes:
-
-```ts
-case 'repayAndWithdraw': {
-  const borrowPos = positions.find(p => p.id === step.targetPositionId)
-  const protocol = borrowPos?.protocol || 'aave'
-  const potentialCollaterals = positions.filter(
-    p => p.chain === step.tokenIn.chain &&
-         p.protocol === protocol &&
-         p.positionType === 'supply'
-  )
-  const collateralPos = potentialCollaterals.length > 0
-    ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
-    : undefined
-
-  const repayStepId = `repay-${idx}`
-  const withdrawStepId = `withdraw-${idx}`
-
-  // Step 1: Repay
-  sequenceSteps.push({
-    id: repayStepId,
-    label: `Repay ${step.tokenIn.token} debt on ${step.tokenIn.chain}`,
-    chain: step.tokenIn.chain,
-    pluginId: protocol,
-    dependsOn,
-    status: 'pending',
-    buildParams: {
-      action: 'repay',
-      protocol,
-      chain: step.tokenIn.chain,
-      asset: step.tokenIn.token,
-      amount: step.tokenIn.amount.toString(),
-      userAddress: walletAddress,
-    } as unknown as TxBuildParams | BridgeQuoteParams
-  })
-
-  // Step 2: Withdraw collateral (depends on repay)
-  sequenceSteps.push({
-    id: withdrawStepId,
-    label: `Withdraw ${collateralPos?.asset || 'collateral'} from ${protocol} on ${step.tokenIn.chain}`,
-    chain: step.tokenIn.chain,
-    pluginId: protocol,
-    dependsOn: [repayStepId],
-    status: 'pending',
-    buildParams: {
-      action: 'withdraw',
-      protocol,
-      chain: step.tokenIn.chain,
-      asset: collateralPos?.asset || 'WETH',
-      amount: collateralPos?.amount.toString() || 'max',
-      userAddress: walletAddress,
-    } as unknown as TxBuildParams | BridgeQuoteParams
-  })
-
-  previousStepId = withdrawStepId
-  break
-}
-```
-
-Note: `previousStepId = withdrawStepId` instead of `repayStepId` so that
-any subsequent step (if the user added more after `repayAndWithdraw`) depends
-on the withdraw completing, not just the repay.
-
-Update the `description` computation at the end of the function — the
-`activeStepKinds` filter already skips `source` and `action-select`, so
-`repayAndWithdraw` will appear once. That's fine; the description is
-informational only.
-
-Also update the test in `logic.test.ts` for `repayAndWithdraw` sequences to
-assert two emitted steps instead of one.
-
-**Acceptance:**
-- [ ] A `repayAndWithdraw` builder step produces two `SequenceStep` entries:
-      `repay-{idx}` and `withdraw-{idx}`
-- [ ] `withdraw-{idx}` has `dependsOn: ['repay-{idx}']`
-- [ ] Any step after `repayAndWithdraw` depends on `withdraw-{idx}`
-- [ ] Logic test for `repayAndWithdraw` updated and passing
-- [ ] `computeTokenDelta` in `logic.ts` is unaffected (it reads `BuilderStep[]`,
-      not `SequenceStep[]`)
-
----
-
-## WIRE-07 — End-to-end demo smoke test checklist
-
-This is not a code ticket — it is a manual verification checklist to run
-after WIRE-01 through WIRE-06 are complete. Run it with
-`NEXT_PUBLIC_DEMO_MODE=true`.
-
-**Flow A — Wallet deposit (Example 1 from spec):**
-1. Open dashboard. Confirm 7 fixture positions load.
-2. Click "Sequence" in the header. `SequenceBuilderModal` opens with blank
-   `SourceCard`.
-3. Select the "ETH (wallet, Ethereum)" position. Amount defaults to full
-   balance. `ActionSelectCard` appears.
-4. Select "Deposit". `DepositCard` appears. Confirms destinations for ETH on
-   Ethereum are shown (Aave WETH, Morpho Re7 WETH, Euler WETH).
-5. Select "Aave V3 — WETH". `SummaryBar` updates: `−22 ETH (ethereum) →
-   +22 aWETH (ethereum)`. Fees: `Gas ~$1.30`.
-6. Click "Execute Sequence →". Modal closes, navigates to
-   `/sequence/[planId]`.
-7. Plan page loads with 1 step: "Deposit WETH into Aave V3 — WETH".
-8. Click "Simulate". 1.4s delay. Step turns green. "Sign Transaction" appears.
-9. Click "Sign Transaction". 0.8s delay. Step confirmed with `0xdemo...` hash.
-10. `SequenceComplete` renders.
-
-**Flow B — Cross-chain rebalance (Example 2 from spec):**
-1. Click the "Sequence" button on the Aave USDC supply card (Arbitrum,
-   $180,000). `SequenceBuilderModal` opens with source pre-filled and locked.
-2. `ActionSelectCard` is the active card. Select "Bridge".
-3. Select destination chain "Base". Select "Across V3 — $0.90". Next
-   `ActionSelectCard` appears.
-4. Select "Deposit". `DepositCard` shows Base USDC destinations.
-5. Select "Morpho — Gauntlet USDC". `SummaryBar` updates.
-6. Execute → navigate → simulate all steps → sign all steps → complete.
-
-**Flow C — LoopModal deleverage:**
-1. On dashboard, click "De-leverage" on the Aave USDC borrow card.
-   `LoopModal` opens on Deleverage tab.
-2. Cycles default to `computeOptimalCycles` result.
-3. Click "Execute Deleverage →". Navigates to `/sequence/[planId]`.
-4. Simulate and sign all cycles.
-
-**Flow D — Swap step (should fail gracefully):**
-1. Open builder. Select USDC wallet position. Select "Swap". Select WETH.
-2. Execute. Navigate to `/sequence/[planId]`.
-3. Simulate the swap step. Should return error: `"Swap via '1inch' is not yet
-   available..."` rendered in the step card's error state.
-4. Step shows failed state. User can see the reason. No crash.
-
----
-
-## Architecture rules reminder
-
-All new files must follow these invariants — do not regress:
-
-- `server-only` must be the first import in `oneinch.ts`, `swaps/index.ts`,
-  and any other server-side plugin or data file
-- No `as any` — the `as unknown as TxBuildParams | BridgeQuoteParams` cast
-  in `builderStepsToSequencePlan` is the one accepted exception, documented
-  with a comment
-- No `<form>` tags
-- `SWAP_REGISTRY` must follow the same pattern as `PROTOCOL_REGISTRY` and
-  `BRIDGE_REGISTRY` — named exports, never inline definitions
-- Any new route handler must use `z.enum(ALL_CHAINS)` for chain params, not
-  `z.string()`
+- [ ] Adding a new protocol to `PROTOCOL_REGISTRY` with a `defillamaSlug`
+      causes it to appear in the dropdown with no other changes

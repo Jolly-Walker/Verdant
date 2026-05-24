@@ -7,6 +7,8 @@ export interface ChainPlugin {
   id: ChainId
   /** Human-readable name */
   displayName: string
+  /** DeFi Llama's chain name string */
+  defillamaChain: string
   /** EIP-155 chain ID for EVM; 'solana-mainnet' string for Solana */
   chainIdOrNetwork: number | string
   /** Chain family — determines which wallet adapters apply */

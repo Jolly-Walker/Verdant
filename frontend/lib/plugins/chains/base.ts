@@ -5,6 +5,7 @@ import { Connection } from '@solana/web3.js'
 export const basePlugin: ChainPlugin = {
   id: 'base',
   displayName: 'Base',
+  defillamaChain: 'Base',
   chainIdOrNetwork: 8453,
   family: 'evm',
   explorerUrl: 'https://basescan.org',

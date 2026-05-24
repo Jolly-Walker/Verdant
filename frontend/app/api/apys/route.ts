@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { findPoolApy } from '@/lib/data/defillama'
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
+import { ChainId, ProtocolId } from '@/types/shared'
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams
@@ -14,8 +17,19 @@ export async function GET(request: NextRequest) {
     )
   }
 
+  const protocolPlugin = PROTOCOL_REGISTRY[protocol as ProtocolId]
+  const chainPlugin = CHAIN_REGISTRY[chain as ChainId]
+
+  if (!protocolPlugin || !chainPlugin) {
+    return NextResponse.json({ error: 'Unknown protocol or chain' }, { status: 400 })
+  }
+
   try {
-    const result = await findPoolApy(protocol, chain, asset)
+    const result = await findPoolApy(
+      protocolPlugin.defillamaSlug,
+      chainPlugin.defillamaChain,
+      asset
+    )
 
     if (!result) {
       return NextResponse.json(

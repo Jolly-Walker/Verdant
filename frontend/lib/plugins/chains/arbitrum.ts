@@ -5,6 +5,7 @@ import { Connection } from '@solana/web3.js'
 export const arbitrumPlugin: ChainPlugin = {
   id: 'arbitrum',
   displayName: 'Arbitrum One',
+  defillamaChain: 'Arbitrum',
   chainIdOrNetwork: 42161,
   family: 'evm',
   explorerUrl: 'https://arbiscan.io',

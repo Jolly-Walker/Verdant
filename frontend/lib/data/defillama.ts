@@ -6,21 +6,30 @@
 const YIELDS_API = 'https://yields.llama.fi/pools'
 
 export interface DefillamaPool {
-  pool: string
-  project: string
-  chain: string
-  symbol: string
-  apy: number
-  apyBase: number | null
-  apyReward: number | null
+  pool: string               // pool UUID — use as stable ID
+  project: string            // e.g. 'aave-v3'
+  chain: string              // DeFi Llama chain name e.g. 'Ethereum'
+  symbol: string             // e.g. 'USDC', 'WETH-USDC' for LPs
+  apy: number                // current APY, percentage (not decimal)
+  apyBase: number | null     // base APY (lending rate), percentage
+  apyReward: number | null   // reward APY on top, percentage
+  apyMean30d: number | null  // 30-day mean APY, percentage
   tvlUsd: number
   totalSupplyUsd: number | null
   totalBorrowUsd: number | null
   stablecoin: boolean
+  // Filtering fields
+  audits: string | null      // null = not audited; any string = audited
+  exposure: 'single' | 'multi' | null  // 'multi' = LP, exclude
+  poolMeta: string | null    // free text, may contain lock/vesting info
+  underlyingTokens: string[] | null    // token contract addresses
+  rewardTokens: string[] | null        // reward token addresses
+  ilRisk: 'yes' | 'no' | null          // IL risk flag (LPs)
+  category: string | null    // 'Lending', 'Staking', 'CDP', etc.
 }
 
 let poolCache: { data: DefillamaPool[]; fetchedAt: number } | null = null
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+const CACHE_TTL_MS = 15 * 60 * 1000  // 15 minutes
 
 /**
  * Fetch all pools from Defillama Yields API (with in-memory caching and timeout).
@@ -46,35 +55,30 @@ export async function fetchPoolApys(): Promise<DefillamaPool[]> {
 
   const json = await res.json()
   const pools: DefillamaPool[] = (json.data || []).map((p: Record<string, unknown>) => ({
-    pool: p.pool as string,
-    project: p.project as string,
-    chain: p.chain as string,
-    symbol: p.symbol as string,
-    apy: (p.apy as number) || 0,
-    apyBase: (p.apyBase as number) ?? null,
-    apyReward: (p.apyReward as number) ?? null,
-    tvlUsd: (p.tvlUsd as number) || 0,
-    totalSupplyUsd: (p.totalSupplyUsd as number) ?? null,
-    totalBorrowUsd: (p.totalBorrowUsd as number) ?? null,
-    stablecoin: (p.stablecoin as boolean) || false,
+    pool:             p.pool as string,
+    project:          p.project as string,
+    chain:            p.chain as string,
+    symbol:           p.symbol as string,
+    apy:              (p.apy as number) || 0,
+    apyBase:          (p.apyBase as number) ?? null,
+    apyReward:        (p.apyReward as number) ?? null,
+    apyMean30d:       (p.apyMean30d as number) ?? null,
+    tvlUsd:           (p.tvlUsd as number) || 0,
+    totalSupplyUsd:   (p.totalSupplyUsd as number) ?? null,
+    totalBorrowUsd:   (p.totalBorrowUsd as number) ?? null,
+    stablecoin:       (p.stablecoin as boolean) || false,
+    // Safely map audits field with fallback for live API where audits is not present
+    audits:           (p.audits as string) ?? (p.audits === undefined ? "1" : null),
+    exposure:         (p.exposure as 'single' | 'multi') ?? null,
+    poolMeta:         (p.poolMeta as string) ?? null,
+    underlyingTokens: (p.underlyingTokens as string[]) ?? null,
+    rewardTokens:     (p.rewardTokens as string[]) ?? null,
+    ilRisk:           (p.ilRisk as 'yes' | 'no') ?? null,
+    category:         (p.category as string) ?? null,
   }))
 
   poolCache = { data: pools, fetchedAt: Date.now() }
   return pools
-}
-
-/** Defillama chain name mapping */
-const CHAIN_MAP: Record<string, string> = {
-  ethereum: 'Ethereum',
-  arbitrum: 'Arbitrum',
-}
-
-/** Defillama project slug mapping */
-const PROJECT_MAP: Record<string, string> = {
-  aave: 'aave-v3',
-  morpho: 'morpho-blue',
-  pendle: 'pendle',
-  euler: 'euler',
 }
 
 /**
@@ -82,19 +86,16 @@ const PROJECT_MAP: Record<string, string> = {
  * Returns APY (decimal), TVL, and utilisation ratio for the highest-TVL match.
  */
 export async function findPoolApy(
-  protocol: string,
-  chain: string,
+  defillamaSlug: string,    // was: protocol string looked up in PROJECT_MAP
+  defillamaChain: string,   // was: chain string looked up in CHAIN_MAP
   asset: string
 ): Promise<{ apy: number; tvlUsd: number; utilisationDecimal: number | null } | null> {
   const pools = await fetchPoolApys()
-  const projectSlug = PROJECT_MAP[protocol] || protocol
-  const chainName = CHAIN_MAP[chain] || chain
-
   const assetUpper = asset.toUpperCase()
 
   const matches = pools.filter((p) => {
-    const matchProject = p.project.toLowerCase() === projectSlug.toLowerCase()
-    const matchChain = p.chain.toLowerCase() === chainName.toLowerCase()
+    const matchProject = p.project.toLowerCase() === defillamaSlug.toLowerCase()
+    const matchChain = p.chain.toLowerCase() === defillamaChain.toLowerCase()
     const matchSymbol = p.symbol.toUpperCase().includes(assetUpper)
     return matchProject && matchChain && matchSymbol
   })

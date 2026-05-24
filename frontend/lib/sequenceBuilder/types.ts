@@ -18,14 +18,21 @@ export type TokenState = {
 }
 
 export interface DepositDestination {
-  id: string              // unique — e.g. 'morpho-gauntlet-usdc-base'
+  id: string                  // DeFi Llama pool UUID — stable across fetches
   protocol: ProtocolId
   chain: ChainId
-  token: string           // input token symbol
-  apy: number             // decimal, e.g. 0.068 for 6.8%
-  displayName: string     // e.g. 'Morpho — Gauntlet USDC'
-  outputTokenSymbol: string // e.g. 'gauntletUSDC'
+  token: string               // input token symbol (matched from DeFi Llama symbol)
+  apy: number                 // current APY, decimal (e.g. 0.068)
+  apyMean30d: number | null   // 30-day mean APY, decimal — null if unavailable
+  apyBase: number | null      // base lending APY, decimal
+  apyReward: number | null    // reward APY on top, decimal
+  displayName: string         // e.g. 'Morpho — Gauntlet USDC'
+  outputTokenSymbol: string   // e.g. 'gauntletUSDC' — derived from DeFi Llama symbol
   apyType: 'variable' | 'fixed'
+  tvlUsd: number
+  rewardTokens: string[]      // reward token addresses — for future zap feature
+  lockPeriodDays: number | null  // null = no lock; number = explicit lock duration
+  lockDescription: string | null // human-readable lock description if locked
 }
 
 export type BuilderStep =
