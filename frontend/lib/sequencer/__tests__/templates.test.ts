@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+
 import { buildBridgeAndDepositPlan } from '../templates/bridgeAndDeposit';
 import { buildRepayAndWithdrawPlan } from '../templates/repayAndWithdraw';
 import { buildCrossChainRebalancePlan } from '../templates/crossChainRebalance';
@@ -176,10 +177,10 @@ describe('Sequencer Templates', () => {
       expect(plan.steps.length).toBe(3);
       expect(plan.steps[0].id).toBe('redeem');
       expect(plan.steps[0].dependsOn).toEqual([]);
-      
+
       expect(plan.steps[1].id).toBe('bridge');
       expect(plan.steps[1].dependsOn).toEqual(['redeem']);
-      
+
       expect(plan.steps[2].id).toBe('deposit');
       expect(plan.steps[2].dependsOn).toEqual(['bridge']);
     });
@@ -202,6 +203,52 @@ describe('Sequencer Templates', () => {
       expect(plan.steps[0].id).toBe('redeem');
       expect(plan.steps[1].id).toBe('deposit');
       expect(plan.steps[1].dependsOn).toEqual(['redeem']);
+    });
+
+    it('falls back to the PT amount for downstream steps when no preview is given', () => {
+      const plan = buildExitPendlePlan({
+        ptAsset: 'PT-eETH',
+        ptAddress: '0xabc',
+        amount: '950000000000000000',
+        amountUsd: 3000,
+        underlyingAsset: 'WETH',
+        fromChain: 'ethereum',
+        toChain: 'arbitrum',
+        toProtocol: 'aave',
+        walletAddress: '0x123',
+        slippagePercent: 0.5
+      });
+      // No redemptionOutput → downstream steps reuse the PT amount.
+      const bridge = plan.steps.find(s => s.id === 'bridge');
+      const deposit = plan.steps.find(s => s.id === 'deposit');
+      expect((bridge!.buildParams as { amount: string }).amount).toBe('950000000000000000');
+      expect((deposit!.buildParams as { amount: string }).amount).toBe('950000000000000000');
+    });
+
+    it('threads the previewed redemption output (with slippage floor) into downstream steps', () => {
+      const plan = buildExitPendlePlan({
+        ptAsset: 'PT-eETH',
+        ptAddress: '0x35D1A6fD38F0839e3F9329C356391d4e0258B0A8',
+        amount: '950000000000000000', // PT amount differs from underlying output
+        amountUsd: 3000,
+        underlyingAsset: 'WETH',
+        fromChain: 'ethereum',
+        toChain: 'arbitrum',
+        toProtocol: 'aave',
+        walletAddress: '0x123',
+        slippagePercent: 0.5
+      }, '1000000000000000000'); // 1 WETH previewed out from redeeming the PT
+
+      // 1e18 * (10000 - 50) / 10000 = 0.995e18
+      const expectedAmount = '995000000000000000';
+      const bridge = plan.steps.find(s => s.id === 'bridge');
+      const deposit = plan.steps.find(s => s.id === 'deposit');
+      expect(bridge).toBeDefined();
+      expect(deposit).toBeDefined();
+      expect((bridge!.buildParams as { amount: string }).amount).toBe(expectedAmount);
+      expect((deposit!.buildParams as { amount: string }).amount).toBe(expectedAmount);
+      // The redeem step still uses the original PT amount.
+      expect((plan.steps[0].buildParams as { amount: string }).amount).toBe('950000000000000000');
     });
   });
 });

@@ -1,53 +1,48 @@
 import 'server-only'
 import { NextResponse } from 'next/server'
+import {
+  getRateLimitStore,
+  rateLimitSync,
+  clearMemoryHits,
+  resetRateLimitStore,
+  type RateLimitResult,
+} from './rateLimitStore'
 
 /**
- * In-memory sliding-window rate limiter (SPECS §19).
+ * Sliding-window rate limiter (SPECS §19) over a PLUGGABLE backend.
  *
- * NOTE: this is per-process. On a single instance it is exact; across a
- * multi-instance serverless deployment (e.g. Vercel) each instance keeps its
- * own window, so the effective global limit scales with instance count. For
- * strict global limits, swap the `hits` store for a shared backend (e.g.
- * Upstash Redis) behind the same `rateLimit()` signature.
+ * The actual window check lives in a `RateLimitStore` (see `rateLimitStore.ts`),
+ * selected at runtime from the environment:
+ *
+ *  - DEFAULT (zero-config): an in-memory, per-process store. Exact on a single
+ *    instance; across a multi-instance serverless deploy each instance keeps its
+ *    own window, so the effective global limit scales with instance count.
+ *  - SHARED: an Upstash Redis store enforcing a strict GLOBAL limit, activated
+ *    when both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set.
+ *    It runs a single atomic sorted-set Lua script and FAILS OPEN on error.
+ *
+ * `enforceRateLimit` is async because the store check is async. The synchronous
+ * `rateLimit()` helper below operates directly on the in-memory store and is
+ * retained for tests and any caller that wants the per-process semantics.
  */
 
-type Timestamps = number[]
-const hits = new Map<string, Timestamps>()
-
-export interface RateLimitResult {
-  ok: boolean
-  remaining: number
-  /** Seconds until the caller may retry (only meaningful when !ok). */
-  retryAfterSeconds: number
-}
+export type { RateLimitResult }
 
 /**
- * Records a hit for `key` and reports whether it is within `limit` requests per
- * `windowMs`. Pure aside from the module-level store and Date.now().
+ * Synchronous sliding-window check against the in-memory store. Records a hit
+ * for `key` and reports whether it is within `limit` requests per `windowMs`.
+ * Pure aside from the module-level store and Date.now(). Note: this always uses
+ * the in-memory backend regardless of env — use `enforceRateLimit` to honor the
+ * configured (possibly shared) store.
  */
 export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
-  const now = Date.now()
-  const windowStart = now - windowMs
-  const recent = (hits.get(key) ?? []).filter((t) => t > windowStart)
-
-  if (recent.length >= limit) {
-    hits.set(key, recent)
-    const oldest = recent[0]
-    return {
-      ok: false,
-      remaining: 0,
-      retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - now) / 1000)),
-    }
-  }
-
-  recent.push(now)
-  hits.set(key, recent)
-  return { ok: true, remaining: limit - recent.length, retryAfterSeconds: 0 }
+  return rateLimitSync(key, limit, windowMs)
 }
 
-/** Clears all recorded hits — for tests. */
+/** Clears all recorded hits and the cached store selection — for tests. */
 export function resetRateLimits(): void {
-  hits.clear()
+  clearMemoryHits()
+  resetRateLimitStore()
 }
 
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
@@ -67,16 +62,20 @@ export interface EnforceOptions {
 }
 
 /**
- * Enforces a per-IP rate limit for a request. Returns a ready 429 response when
- * the limit is exceeded, or null to proceed. Usage:
+ * Enforces a per-IP rate limit for a request against the configured store.
+ * Returns a ready 429 response when the limit is exceeded, or null to proceed.
+ * Usage:
  *
- *   const limited = enforceRateLimit(req, { bucket: 'positions', limit: 60 })
+ *   const limited = await enforceRateLimit(req, { bucket: 'positions', limit: 60 })
  *   if (limited) return limited
  */
-export function enforceRateLimit(req: Request, opts: EnforceOptions): NextResponse | null {
+export async function enforceRateLimit(
+  req: Request,
+  opts: EnforceOptions
+): Promise<NextResponse | null> {
   const windowMs = opts.windowMs ?? 60_000
   const ip = getClientIp(req)
-  const result = rateLimit(`${opts.bucket}:${ip}`, opts.limit, windowMs)
+  const result = await getRateLimitStore().hit(`${opts.bucket}:${ip}`, opts.limit, windowMs)
   if (result.ok) return null
 
   return NextResponse.json(

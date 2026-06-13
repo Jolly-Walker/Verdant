@@ -3,6 +3,7 @@
 import React from 'react'
 import { AggregatedReward } from '@/hooks/useRewards'
 import { Badge } from '@/components/ui/Badge'
+import { formatUsd } from '@/lib/utils/formatting'
 
 const PROTOCOL_LABELS: Record<string, string> = {
   aave: 'Aave V3',
@@ -39,7 +40,7 @@ function RewardRow({ reward }: { reward: AggregatedReward }) {
       </div>
       <div className="text-right">
         <p className="text-verdant-profit font-semibold text-sm font-mono">{Number(reward.amount).toFixed(6)}</p>
-        <p className="text-verdant-text-muted text-xs font-mono">${reward.amountUsd.toFixed(2)}</p>
+        <p className="text-verdant-text-muted text-xs font-mono">{formatUsd(reward.amountUsd)}</p>
       </div>
     </div>
   )

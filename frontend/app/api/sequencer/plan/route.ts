@@ -5,6 +5,7 @@ import { buildRepayAndWithdrawPlan } from '@/lib/sequencer/templates/repayAndWit
 import { buildCrossChainRebalancePlan } from '@/lib/sequencer/templates/crossChainRebalance'
 import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAave'
 import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle'
+import { previewPendleRedemption } from '@/lib/plugins/protocols/pendle'
 import { createSequencePlan } from '@/lib/data/sequencePlans'
 import { serializeSequencePlan } from '@/lib/sequencer/engine'
 import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS, ChainId, ProtocolId, BridgeId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
@@ -117,7 +118,7 @@ async function validateMinimumSize(asset: string, amount: string): Promise<{ ok:
 
 export async function POST(req: Request) {
   // SPECS §19: 10 req/min per IP for sequencer plan creation.
-  const limited = enforceRateLimit(req, { bucket: 'sequencer-plan', limit: 10 })
+  const limited = await enforceRateLimit(req, { bucket: 'sequencer-plan', limit: 10 })
   if (limited) return limited
 
   const parsed = await parseJson(req, CreatePlanSchema)
@@ -249,7 +250,23 @@ export async function POST(req: Request) {
       } else if (templateId === 'crossChainRebalance') {
         plan = buildCrossChainRebalancePlan({ ...CrossChainRebalanceParamsSchema.parse(params), walletAddress, amountUsd });
       } else if (templateId === 'exitPendle') {
-        plan = buildExitPendlePlan({ ...ExitPendleParamsSchema.parse(params), walletAddress, amountUsd });
+        const exitParams = { ...ExitPendleParamsSchema.parse(params), walletAddress, amountUsd };
+        // Preview the REAL underlying output of the PT redemption (server-only
+        // network call) so the downstream deposit/bridge steps are sized off the
+        // actual redemption proceeds rather than the stale PT amount. Returns null
+        // (→ builder falls back to the PT amount) for unsupported tokens / API failure.
+        const underlyingAddress = SUPPORTED_TOKENS[exitParams.underlyingAsset]?.addresses[exitParams.fromChain];
+        const redemptionOutput = underlyingAddress
+          ? await previewPendleRedemption({
+              chain: exitParams.fromChain,
+              receiver: exitParams.walletAddress,
+              ptAddress: exitParams.ptAddress,
+              amountIn: exitParams.amount,
+              underlyingAddress,
+              slippagePercent: exitParams.slippagePercent,
+            })
+          : null;
+        plan = buildExitPendlePlan(exitParams, redemptionOutput);
       }
     }
 

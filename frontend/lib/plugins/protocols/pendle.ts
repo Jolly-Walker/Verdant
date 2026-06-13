@@ -136,6 +136,43 @@ async function fetchPendleConvert(opts: {
   }
 }
 
+/**
+ * Previews the underlying output of a PT → underlying redemption using Pendle's
+ * real Convert API (the same `/v2/sdk/{chainId}/convert` endpoint `buildTx` uses).
+ * Returns the expected output in the token's smallest units, or `null` when the
+ * chain/tokens are unsupported or the API does not report `amountOut`.
+ *
+ * Callers must treat this as an estimate: actual redemption output can drift with
+ * market price near maturity, so apply a slippage buffer before relying on it and
+ * let the mandatory simulation gate re-validate at execution.
+ */
+export async function previewPendleRedemption(opts: {
+  chain: ChainId
+  receiver: string
+  ptAddress: string
+  amountIn: string // PT amount in smallest units
+  underlyingAddress: string
+  slippagePercent: number
+}): Promise<string | null> {
+  const chainId = PENDLE_CHAIN_IDS[opts.chain]
+  if (!chainId) return null
+  if (!opts.ptAddress || !opts.underlyingAddress) return null
+
+  try {
+    const result = await fetchPendleConvert({
+      chainId,
+      receiver: opts.receiver,
+      slippage: opts.slippagePercent / 100,
+      tokenIn: opts.ptAddress,
+      amountIn: opts.amountIn,
+      tokenOut: opts.underlyingAddress,
+    })
+    return result.amountOut ?? null
+  } catch {
+    return null
+  }
+}
+
 export const pendlePlugin: ProtocolPlugin = {
   id: 'pendle',
   displayName: 'Pendle',

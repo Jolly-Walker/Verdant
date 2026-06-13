@@ -5,6 +5,7 @@ import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
 import { findPoolApy } from '@/lib/data/defillama'
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
 import { encodeFunctionData, parseAbi } from 'viem'
 import { fetchMerklClaims, MERKL_DISTRIBUTOR_ADDRESS } from '@/lib/data/merkl'
 
@@ -78,7 +79,7 @@ export const eulerPlugin: ProtocolPlugin = {
 
           // Real APYs from Defillama (the app's canonical yield source), with a
           // safe fallback to 0 if the pool can't be matched.
-          const poolData = await findPoolApy(eulerPlugin.defillamaSlug, 'Ethereum', token.symbol).catch(
+          const poolData = await findPoolApy(eulerPlugin.defillamaSlug, CHAIN_REGISTRY[chain].defillamaChain, token.symbol).catch(
             () => null
           )
           const supplyApy = poolData?.apy ?? 0

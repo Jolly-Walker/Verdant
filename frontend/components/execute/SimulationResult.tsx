@@ -3,6 +3,7 @@
 import React from 'react'
 import { SimulationResult } from '@/types/sequencer'
 import { Badge } from '@/components/ui/Badge'
+import { formatUsd } from '@/lib/utils/formatting'
 
 interface SimulationResultViewProps {
   result: SimulationResult
@@ -40,7 +41,7 @@ export function SimulationResultView({ result }: SimulationResultViewProps) {
           </div>
           {result.gasCostUsd !== undefined && (
             <div className="text-xs text-verdant-text-muted">
-              Est. Gas: <span className="text-verdant-text-primary font-mono font-semibold">${result.gasCostUsd.toFixed(2)}</span>
+              Est. Gas: <span className="text-verdant-text-primary font-mono font-semibold">{formatUsd(result.gasCostUsd)}</span>
             </div>
           )}
         </div>

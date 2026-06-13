@@ -1,5 +1,6 @@
 'use client'
 
+import { motion } from 'framer-motion'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { formatUsd, formatPercent } from '@/lib/utils/formatting'
@@ -92,101 +93,135 @@ export function CostPreview({
   const hasSubtotals = result.totalGasUsd !== undefined
 
   return (
-    <Card className="p-6 bg-verdant-surface border border-[#E5E0D8] shadow-organic relative overflow-hidden">
+    <Card className="p-0 bg-verdant-surface border border-[#E5E0D8] shadow-organic relative overflow-hidden">
       {isLoading && (
         <div className="absolute inset-0 bg-[#1A1614]/5 backdrop-blur-[1px] flex items-center justify-center z-10">
           <Spinner />
         </div>
       )}
 
-      <div className="flex justify-between items-start mb-6">
-        <h2 className="text-xl font-semibold text-verdant-text-primary">Cost & Yield Preview</h2>
-        {isStale ? (
-          <Badge variant="warning" className="cursor-pointer" onClick={refetch}>
-            Stale ({quoteAge}s) • Refresh
-          </Badge>
-        ) : (
-          <span className="text-[10px] text-verdant-text-muted uppercase tracking-widest font-bold">
-            Updated {quoteAge}s ago
-          </span>
-        )}
+      {/* ── Receipt header ──────────────────────────────────────────────── */}
+      <div className="px-6 pt-6 pb-5">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-xl font-semibold text-verdant-text-primary tracking-tight">Cost & Yield Preview</h2>
+            <p className="text-[10px] text-verdant-text-muted uppercase tracking-[0.2em] font-bold mt-1">
+              Verdant · Transaction Receipt
+            </p>
+          </div>
+          {isStale ? (
+            <Badge variant="warning" className="cursor-pointer" onClick={refetch}>
+              Stale ({quoteAge}s) • Refresh
+            </Badge>
+          ) : (
+            <span className="text-[10px] text-verdant-text-muted uppercase tracking-widest font-bold">
+              Updated {quoteAge}s ago
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-8">
-        {/* ── Itemized Step Costs ───────────────────────────────────────── */}
+      {/* perforated tear-line */}
+      <div
+        className="h-px mx-6 border-t border-dashed border-[#D8D2C8]"
+        aria-hidden="true"
+      />
+
+      <div className="px-6 py-6 space-y-8">
+        {/* ── Itemized Step Costs (receipt / timeline) ──────────────────── */}
         <section>
-          <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-4">
+          <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-5">
             Itemized Switching Costs
           </h3>
-          <div className="space-y-3">
-            {result.steps.map((step, i) => {
-              const stepId = stepIds?.[i]
-              const isStepStale = stepId ? staleStepIds?.has(stepId) : false
-              const isStepExpired = stepId ? expiredStepIds?.has(stepId) : false
-              const hasBridgeFee = step.bridgeFeeUsd != null && step.bridgeFeeUsd > 0
+          <div className="relative">
+            {/* vertical timeline rail */}
+            <div
+              className="absolute left-[5px] top-2 bottom-2 w-px bg-[#E5E0D8]"
+              aria-hidden="true"
+            />
 
-              return (
-                <div key={i} className="space-y-1">
-                  <div className="flex justify-between text-sm items-start">
-                    <div className="flex items-center gap-2">
-                      <span className="text-verdant-text-primary font-medium">{step.stepLabel}</span>
-                      {hasBridgeFee && isStepExpired && (
-                        <span className="text-[10px] bg-verdant-loss/10 text-verdant-loss border border-verdant-loss/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                          Quote Expired
-                        </span>
+            <div className="space-y-5">
+              {result.steps.map((step, i) => {
+                const stepId = stepIds?.[i]
+                const isStepStale = stepId ? staleStepIds?.has(stepId) : false
+                const isStepExpired = stepId ? expiredStepIds?.has(stepId) : false
+                const hasBridgeFee = step.bridgeFeeUsd != null && step.bridgeFeeUsd > 0
+
+                return (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25, delay: i * 0.04, ease: 'easeOut' }}
+                    className="relative pl-7 space-y-1"
+                  >
+                    {/* timeline marker */}
+                    <span
+                      className="absolute left-0 top-1 w-[11px] h-[11px] rounded-full bg-verdant-surface border-2 border-verdant-moss"
+                      aria-hidden="true"
+                    />
+                    <div className="flex justify-between text-sm items-start gap-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-verdant-text-primary font-medium">{step.stepLabel}</span>
+                        {hasBridgeFee && isStepExpired && (
+                          <span className="text-[10px] bg-verdant-loss/10 text-verdant-loss border border-verdant-loss/20 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            Quote Expired
+                          </span>
+                        )}
+                        {hasBridgeFee && isStepStale && !isStepExpired && (
+                          <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                            Stale Quote
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-verdant-text-primary font-mono tabular-nums tracking-tight shrink-0">
+                        {formatUsd(step.gasCostUsd + (step.bridgeFeeUsd || 0) + (step.slippageUsd || 0))}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-verdant-text-muted">
+                      <span className="bg-verdant-surface-accent border border-[#E5E0D8] px-1.5 rounded uppercase tracking-wide">{step.chain}</span>
+                      <span className="font-mono tabular-nums">Gas: {formatUsd(step.gasCostUsd)}</span>
+                      {step.bridgeFeeUsd != null && step.bridgeFeeUsd > 0 && (
+                        <span className="font-mono tabular-nums">• Fee: {formatUsd(step.bridgeFeeUsd)}</span>
                       )}
-                      {hasBridgeFee && isStepStale && !isStepExpired && (
-                        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
-                          Stale Quote
-                        </span>
+                      {step.slippageUsd != null && step.slippageUsd > 0 && (
+                        <span className="font-mono tabular-nums">• Slippage: {formatUsd(step.slippageUsd)}</span>
                       )}
                     </div>
-                    <span className="text-verdant-text-primary font-mono tabular-nums">
-                      {formatUsd(step.gasCostUsd + (step.bridgeFeeUsd || 0) + (step.slippageUsd || 0))}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-[11px] text-verdant-text-muted">
-                    <span className="bg-verdant-surface-accent border border-[#E5E0D8] px-1.5 rounded uppercase">{step.chain}</span>
-                    <span>Gas: {formatUsd(step.gasCostUsd)}</span>
-                    {step.bridgeFeeUsd != null && step.bridgeFeeUsd > 0 && (
-                      <span>• Fee: {formatUsd(step.bridgeFeeUsd)}</span>
-                    )}
-                    {step.slippageUsd != null && step.slippageUsd > 0 && (
-                      <span>• Slippage: {formatUsd(step.slippageUsd)}</span>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Subtotals — shown for multi-step plans */}
-            {hasMultipleSteps && hasSubtotals && (
-              <div className="mt-4 pt-4 border-t border-[#E5E0D8] space-y-2">
-                {result.totalGasUsd > 0 && (
-                  <div className="flex justify-between text-xs text-verdant-text-muted">
-                    <span>Total Gas</span>
-                    <span className="font-mono tabular-nums">{formatUsd(result.totalGasUsd)}</span>
-                  </div>
-                )}
-                {result.totalBridgeFeeUsd > 0 && (
-                  <div className="flex justify-between text-xs text-verdant-text-muted">
-                    <span>Total Bridge Fees</span>
-                    <span className="font-mono tabular-nums">{formatUsd(result.totalBridgeFeeUsd)}</span>
-                  </div>
-                )}
-                {result.totalSlippageUsd > 0 && (
-                  <div className="flex justify-between text-xs text-verdant-text-muted">
-                    <span>Total Slippage</span>
-                    <span className="font-mono tabular-nums">{formatUsd(result.totalSlippageUsd)}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="pt-4 border-t border-[#E5E0D8] flex justify-between items-baseline">
-              <span className="text-verdant-text-muted font-semibold uppercase text-xs">Total Cost</span>
-              <span className="text-xl font-bold text-verdant-text-primary font-mono">{formatUsd(result.totalCostUsd)}</span>
+                  </motion.div>
+                )
+              })}
             </div>
+          </div>
+
+          {/* Subtotals — shown for multi-step plans */}
+          {hasMultipleSteps && hasSubtotals && (
+            <div className="mt-5 pt-4 border-t border-dashed border-[#D8D2C8] space-y-2">
+              {result.totalGasUsd > 0 && (
+                <div className="flex justify-between text-xs text-verdant-text-muted">
+                  <span>Total Gas</span>
+                  <span className="font-mono tabular-nums">{formatUsd(result.totalGasUsd)}</span>
+                </div>
+              )}
+              {result.totalBridgeFeeUsd > 0 && (
+                <div className="flex justify-between text-xs text-verdant-text-muted">
+                  <span>Total Bridge Fees</span>
+                  <span className="font-mono tabular-nums">{formatUsd(result.totalBridgeFeeUsd)}</span>
+                </div>
+              )}
+              {result.totalSlippageUsd > 0 && (
+                <div className="flex justify-between text-xs text-verdant-text-muted">
+                  <span>Total Slippage</span>
+                  <span className="font-mono tabular-nums">{formatUsd(result.totalSlippageUsd)}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Running total — prominent receipt footer */}
+          <div className="mt-5 pt-4 border-t-2 border-[#1A1614]/15 flex justify-between items-baseline">
+            <span className="text-verdant-text-muted font-semibold uppercase text-xs tracking-wider">Total Cost</span>
+            <span className="text-2xl font-bold text-verdant-text-primary font-mono tabular-nums tracking-tight">{formatUsd(result.totalCostUsd)}</span>
           </div>
         </section>
 

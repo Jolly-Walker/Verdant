@@ -55,20 +55,52 @@ live-tested against mainnet/keys.
 - NOTE: `StepOneBridge` and `useHarvest` were previously suspected legacy/dead; verified **live**
   (`SequenceStepCard` and `PositionCard`/`HarvestButton` import them). Do not remove.
 
-## 4. UI Design Tasks (Pending)
-The user has requested a shift toward visual polish. The following components are ready for a design upgrade now that they are backed by real data:
-1.  **`HealthFactor.tsx`**: Needs a visual "Risk Meter" or Gauge instead of a simple dot.
-2.  **`BorrowCard.tsx`**: Needs "Liquidation Price" display and better tactical button styling.
-3.  **`CostPreview.tsx`**: Needs a "Receipt/Timeline" aesthetic for itemized steps.
-4.  **`SequenceProgress.tsx`**: Needs Framer Motion animations for state transitions between sequence steps.
+## 4. UI Design Tasks — 2026-06-13 update (DONE)
+The visual-polish pass is complete; all four components are backed by real data. `framer-motion@12.40.0` was added as a dependency for the animation work. Verified together: `tsc --noEmit` clean, `lint` clean, 245/245 tests pass, production build succeeds.
+1.  **`HealthFactor.tsx`** — DONE. Now a compact "Risk Meter" gauge (segmented bar + sliding
+    indicator, zones <1.2 danger / 1.2–2.0 caution / ≥2.0 healthy; clamps large/∞ HF; `role="meter"`).
+    Public API unchanged (`{ value: number }`) and now actually consumed (see PositionCard below).
+2.  **`PositionCard.tsx`** (the borrow row — there is no `BorrowCard.tsx`) — DONE. Wired in the new
+    `<HealthFactor>` gauge (replacing the inline "Health: X.XX" span + dead `getHealthFactorColor`),
+    restyled the De-leverage/Repay buttons (hierarchy, press feedback). **Liquidation price:** real
+    Aave positions do NOT carry `liquidationPrice`/`liquidationThreshold`/collateral price (only
+    `healthFactor`); the field is set only in the demo fixture. Rather than fabricate a number, the
+    card shows a real derived metric — "−X.X% to liquidation" = `(1 − 1/HF)·100` — and prefers a true
+    `position.liquidationPrice` only if the pipeline ever supplies one (>0).
+3.  **`CostPreview.tsx`** — DONE. Receipt/timeline aesthetic (perforated header, vertical rail with
+    markers, mono tabular amounts, promoted Total). All data bindings, conditional sections, and
+    stale/expired/loading/error/empty states preserved.
+4.  **`SequenceProgress.tsx`** — DONE. Framer Motion transitions (connector-line fill, node pop +
+    checkmark draw-in, active-step pulse, label transitions), honors `prefers-reduced-motion`.
 
 ## 5. Next Agent Action Items (Priority Order)
-Safety/correctness + protocol-coverage tracks are complete (see §3). Remaining:
-1.  **Live verification**: exercise the new bridge/protocol/swap integrations against
-    real RPC/keys (Circle IRIS, 1Click, CCIP, Morpho/Pendle APIs, `ONEINCH_API_KEY`).
-2.  **Visual polish (§4)**: HealthFactor gauge, BorrowCard liquidation price, CostPreview
-    receipt aesthetic, SequenceProgress animations — now all backed by real data.
-3.  **Rate-limit store**: the in-memory limiter (`lib/server/rateLimit.ts`) is per-instance;
-    swap in a shared store (e.g. Upstash Redis) for strict global limits on multi-instance deploys.
-4.  **exitPendle amounts**: deposit/bridge steps still use the pre-redemption amount
-    (see TODOs in `lib/sequencer/templates/exitPendle.ts`) — recompute between steps.
+Safety/correctness, protocol-coverage (§3) and visual-polish (§4) tracks are complete. Also done this round:
+- **Rate-limit store** — DONE. `lib/server/rateLimit.ts` now delegates to a pluggable
+  `RateLimitStore` (`lib/server/rateLimitStore.ts`): in-memory by default (single-instance behavior
+  and the sync `rateLimit()`/tests unchanged), or a shared Upstash Redis store when
+  `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` are set. Upstash uses an atomic sorted-set
+  sliding-window Lua `EVAL` over the REST API via `fetch` (no new npm dependency), and **fails open**
+  on error. `enforceRateLimit` is now async; all 4 route callers `await` it.
+- **exitPendle amounts** — DONE (Option A: plan-creation preview). The **server route**
+  `app/api/sequencer/plan/route.ts` calls the real Pendle Convert API
+  (`previewPendleRedemption` → `/v2/sdk/{chainId}/convert`, in the server-only `pendle.ts`) and passes
+  the previewed underlying output into `buildExitPendlePlan(params, redemptionOutput)`. The builder
+  applies a `slippagePercent` BigInt floor and sizes the downstream bridge/deposit steps off that
+  output instead of the raw PT amount (falls back to the PT amount when the preview is `null`); the
+  stale TODOs are removed. Also fixed a latent re-scaling bug (`isWei: true` on the redeem step).
+  IMPORTANT: the builder stays **pure/synchronous with no `'server-only'` import** — it is re-exported
+  through the `templates/index.ts` barrel that the client hook `useSequencer` imports, so importing a
+  server-only module into it poisons the client bundle and breaks `next build` (caught here; the
+  server-only preview must live in the route, not the template). `tsc`/`lint`/unit tests do NOT catch
+  this class of bug — only `bun run build` does, so run it after touching template/plugin imports.
+
+Remaining:
+1.  **Live verification** (still pending — needs real RPC/keys): exercise the bridge/protocol/swap
+    integrations against Circle IRIS, 1Click, CCIP, Morpho/Pendle APIs, `ONEINCH_API_KEY`.
+2.  **exitPendle realized output (Option B)**: the deposit/bridge amount is a *plan-creation-time*
+    estimate; if the PT→underlying rate moves between plan creation and execution it can drift (the
+    slippage floor + simulation gate mitigate, and it falls back to the PT amount if the Convert API
+    returns null). A hard fix needs a post-confirmation realized-balance read plumbed into the
+    execution path (`app/api/sequencer/simulate/route.ts`), which the current simulate-only flow lacks.
+3.  **Upstash store live-test**: the shared rate-limit store is unit-tested on the in-memory path only;
+    exercise the Upstash path against a real instance before relying on it for global limits.

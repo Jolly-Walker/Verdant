@@ -3,7 +3,7 @@
 import React from 'react'
 import { Position } from '@/types/position'
 import { Card } from '@/components/ui/Card'
-import { formatUsd, formatToken } from '@/lib/utils/formatting'
+import { formatUsd, formatToken, formatPercent } from '@/lib/utils/formatting'
 import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 
 interface AssetSelectorProps {
@@ -137,7 +137,7 @@ function PositionGroup({
                 <span className="text-sm font-semibold font-mono text-verdant-text-primary">{formatUsd(p.amountUsd)}</span>
               </div>
               <p className="text-xs text-verdant-text-muted mt-1 font-mono">
-                {formatToken(p.amount)} {p.asset} • <span className="text-verdant-profit font-semibold">{(p.currentApy * 100).toFixed(2)}% APY</span>
+                {formatToken(p.amount)} {p.asset} • <span className="text-verdant-profit font-semibold">{formatPercent(p.currentApy)} APY</span>
               </p>
             </button>
           )

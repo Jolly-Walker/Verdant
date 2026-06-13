@@ -77,7 +77,7 @@ function validateBuildParams(
 
 export async function POST(req: Request) {
   // SPECS §19: 10 req/min per IP for step simulation.
-  const limited = enforceRateLimit(req, { bucket: 'simulate', limit: 10 })
+  const limited = await enforceRateLimit(req, { bucket: 'simulate', limit: 10 })
   if (limited) return limited
 
   const parsed = await parseJson(req, SimulateStepSchema)

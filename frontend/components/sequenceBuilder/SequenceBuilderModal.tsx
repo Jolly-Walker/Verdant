@@ -83,6 +83,16 @@ export function SequenceBuilderModal({
     setSteps(updated)
   }
 
+  // Commits the active step, appends a fresh action-select fed by its output
+  // token, and advances focus to it.
+  const commitStepAndAdvance = (updatedStep: BuilderStep, tokenOut: TokenState) => {
+    const updated = steps.slice(0, activeStepIndex + 1)
+    updated[activeStepIndex] = updatedStep
+    updated.push({ kind: 'action-select', tokenIn: tokenOut })
+    setSteps(updated)
+    setActiveStepIndex(activeStepIndex + 1)
+  }
+
   // Step event handlers
   const handleSourceSelect = (tokenOut: TokenState) => {
     const newStep: BuilderStep = { kind: 'source', tokenOut }
@@ -142,48 +152,28 @@ export function SequenceBuilderModal({
     const currentStep = steps[activeStepIndex]
     if (currentStep.kind !== 'withdraw') return
 
-    const updatedStep: BuilderStep = { ...currentStep, tokenOut }
-    const updated = steps.slice(0, activeStepIndex + 1)
-    updated[activeStepIndex] = updatedStep
-    updated.push({ kind: 'action-select', tokenIn: tokenOut })
-    setSteps(updated)
-    setActiveStepIndex(activeStepIndex + 1)
+    commitStepAndAdvance({ ...currentStep, tokenOut }, tokenOut)
   }
 
   const handleRepayAndWithdrawSelect = (targetPositionId: string, tokenOut: TokenState) => {
     const currentStep = steps[activeStepIndex]
     if (currentStep.kind !== 'repayAndWithdraw') return
 
-    const updatedStep: BuilderStep = { ...currentStep, targetPositionId, tokenOut }
-    const updated = steps.slice(0, activeStepIndex + 1)
-    updated[activeStepIndex] = updatedStep
-    updated.push({ kind: 'action-select', tokenIn: tokenOut })
-    setSteps(updated)
-    setActiveStepIndex(activeStepIndex + 1)
+    commitStepAndAdvance({ ...currentStep, targetPositionId, tokenOut }, tokenOut)
   }
 
   const handleBridgeSelect = (toChain: ChainId, bridgeId: BridgeId, feeUsd: number, tokenOut: TokenState) => {
     const currentStep = steps[activeStepIndex]
     if (currentStep.kind !== 'bridge') return
 
-    const updatedStep: BuilderStep = { ...currentStep, toChain, bridgeId, feeUsd, tokenOut }
-    const updated = steps.slice(0, activeStepIndex + 1)
-    updated[activeStepIndex] = updatedStep
-    updated.push({ kind: 'action-select', tokenIn: tokenOut })
-    setSteps(updated)
-    setActiveStepIndex(activeStepIndex + 1)
+    commitStepAndAdvance({ ...currentStep, toChain, bridgeId, feeUsd, tokenOut }, tokenOut)
   }
 
   const handleSwapSelect = (toToken: string, feeUsd: number, tokenOut: TokenState) => {
     const currentStep = steps[activeStepIndex]
     if (currentStep.kind !== 'swap') return
 
-    const updatedStep: BuilderStep = { ...currentStep, toToken, feeUsd, tokenOut }
-    const updated = steps.slice(0, activeStepIndex + 1)
-    updated[activeStepIndex] = updatedStep
-    updated.push({ kind: 'action-select', tokenIn: tokenOut })
-    setSteps(updated)
-    setActiveStepIndex(activeStepIndex + 1)
+    commitStepAndAdvance({ ...currentStep, toToken, feeUsd, tokenOut }, tokenOut)
   }
 
   const handleExecute = async () => {

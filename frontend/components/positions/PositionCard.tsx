@@ -6,6 +6,7 @@ import { usePositions } from "@/hooks/usePositions"
 import { Tooltip } from "../ui/Tooltip"
 import { DEFAULT_MIN_USD_THRESHOLD } from "@/constants/settings"
 import { TokenIcon } from "./TokenIcon"
+import { HealthFactor } from "@/components/ui/HealthFactor"
 import { formatUsd, formatToken, formatPercent } from "@/lib/utils/formatting"
 import { useRouter } from "next/navigation"
 
@@ -53,6 +54,25 @@ export function PositionCard({
     ? maturityDate!.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : 'Unknown'
 
+  // Liquidation risk for borrow positions.
+  //
+  // Aave's aggregate health factor is HF = (collateralUsd × liquidationThreshold) / debtUsd
+  // and liquidation triggers at HF = 1.0. Holding debt and threshold constant, collateral
+  // value scales linearly with the collateral asset's price, so HF reaches 1.0 once the
+  // collateral's USD value falls to (1 / HF) of its current level. The fractional price
+  // drop the portfolio can absorb before liquidation is therefore:
+  //     priceDropToLiquidation = 1 − (1 / HF)
+  // This is derived purely from `position.healthFactor`, the one risk field the real Aave
+  // fetcher reliably populates on borrow positions. A per-position TRUE liquidation price
+  // is NOT shown unless the upstream pipeline actually provides `position.liquidationPrice`
+  // (it currently does not for live data), so we never fabricate one.
+  const hasRealLiquidationPrice =
+    isBorrow && typeof position.liquidationPrice === 'number' && position.liquidationPrice > 0
+  const priceDropToLiquidationPct =
+    isBorrow && position.healthFactor !== undefined && position.healthFactor > 1
+      ? (1 - 1 / position.healthFactor) * 100
+      : undefined
+
   // Identify Aave/Morpho/Euler collateral for borrow positions
   const potentialCollaterals = positions.filter(
     p => p.chain === position.chain &&
@@ -76,6 +96,15 @@ export function PositionCard({
       alert("An error occurred during harvest")
     } finally {
       setIsHarvesting(false)
+    }
+  }
+
+  // Route a template either to the in-page sequence handler or the /sequence page.
+  const dispatchTemplate = (template: TemplateId, params: Record<string, string>) => {
+    if (onSequence) {
+      onSequence(template, params)
+    } else {
+      router.push(`/sequence?${new URLSearchParams(params).toString()}`)
     }
   }
 
@@ -105,12 +134,7 @@ export function PositionCard({
       params.healthFactor = position.healthFactor.toString()
     }
 
-    if (onSequence) {
-      onSequence('deleverageAave', params)
-    } else {
-      const query = new URLSearchParams(params)
-      router.push(`/sequence?${query.toString()}`)
-    }
+    dispatchTemplate('deleverageAave', params)
   }
 
   // Handler for Repay action
@@ -133,12 +157,7 @@ export function PositionCard({
       params.collateralAmount = collateralPosition.amount.toString()
     }
 
-    if (onSequence) {
-      onSequence('repayAndWithdraw', params)
-    } else {
-      const query = new URLSearchParams(params)
-      router.push(`/sequence?${query.toString()}`)
-    }
+    dispatchTemplate('repayAndWithdraw', params)
   }
 
   // Handler for Exit Pendle action
@@ -156,12 +175,7 @@ export function PositionCard({
       chain: position.chain,
     }
 
-    if (onSequence) {
-      onSequence('exitPendle', params)
-    } else {
-      const query = new URLSearchParams(params)
-      router.push(`/sequence?${query.toString()}`)
-    }
+    dispatchTemplate('exitPendle', params)
   }
 
   // Handler for Manage/Rebalance action (Supply positions)
@@ -180,12 +194,7 @@ export function PositionCard({
       fromChain: position.chain,
     }
 
-    if (onSequence) {
-      onSequence('crossChainRebalance', params)
-    } else {
-      const query = new URLSearchParams(params)
-      router.push(`/sequence?${query.toString()}`)
-    }
+    dispatchTemplate('crossChainRebalance', params)
   }
 
   // Handler for Wallet Deposit action
@@ -203,23 +212,11 @@ export function PositionCard({
       fromChain: position.chain,
     }
 
-    if (onSequence) {
-      onSequence('bridgeAndDeposit', params)
-    } else {
-      const query = new URLSearchParams(params)
-      router.push(`/sequence?${query.toString()}`)
-    }
+    dispatchTemplate('bridgeAndDeposit', params)
   }
 
   const currentStep = plan?.steps[0]
   const isReady = currentStep?.status === 'ready'
-
-  // CSS for health factor colors
-  const getHealthFactorColor = (hf: number) => {
-    if (hf < 1.5) return 'text-verdant-loss'
-    if (hf < 2.0) return 'text-amber-600'
-    return 'text-verdant-profit'
-  }
 
   return (
     <tr className="border-b border-[#E5E0D8]/40 hover:bg-[#FAF9F6]/50 transition-colors last:border-b-0">
@@ -288,10 +285,27 @@ export function PositionCard({
                 {isBorrow ? '-' : '+'}{formatPercent(position.currentApy)}
               </span>
               
-              {/* Contextual subtext under APY */}
+              {/* Contextual subtext under APY: visual health-factor gauge + liquidation risk */}
               {isBorrow && position.healthFactor !== undefined && (
-                <span className={`font-mono text-[10px] font-medium mt-0.5 ${getHealthFactorColor(position.healthFactor)}`}>
-                  Health: {position.healthFactor.toFixed(2)}
+                <div className="mt-1">
+                  <HealthFactor value={position.healthFactor} />
+                </div>
+              )}
+
+              {/*
+                Liquidation risk line. Prefer a TRUE liquidation price only when the
+                upstream pipeline actually supplies one; otherwise fall back to the
+                real, HF-derived buffer (price drop the collateral can absorb before
+                HF hits 1.0). Never fabricate a number.
+              */}
+              {hasRealLiquidationPrice && (
+                <span className="font-mono text-[10px] font-medium mt-0.5 text-verdant-text-muted">
+                  Liq. price: {formatUsd(position.liquidationPrice!)}
+                </span>
+              )}
+              {!hasRealLiquidationPrice && priceDropToLiquidationPct !== undefined && (
+                <span className="font-mono text-[10px] font-medium mt-0.5 text-verdant-text-muted">
+                  −{priceDropToLiquidationPct.toFixed(1)}% to liquidation
                 </span>
               )}
 
@@ -322,16 +336,16 @@ export function PositionCard({
           {isBorrow && (
             <>
               {position.healthFactor !== undefined && (
-                <button 
+                <button
                   onClick={handleDeleverage}
-                  className="text-xs bg-verdant-loss hover:bg-red-700 text-white px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
+                  className="text-xs font-semibold tracking-wide bg-verdant-loss text-white px-3.5 py-1.5 rounded-md shadow-sm ring-1 ring-inset ring-verdant-loss/60 hover:bg-red-700 hover:shadow active:scale-[0.97] transition-all cursor-pointer"
                 >
                   De-leverage
                 </button>
               )}
-              <button 
+              <button
                 onClick={handleRepay}
-                className="text-xs border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
+                className="text-xs font-semibold tracking-wide border border-verdant-teak text-verdant-teak bg-transparent px-3.5 py-1.5 rounded-md hover:bg-verdant-teak hover:text-white hover:shadow-sm active:scale-[0.97] transition-all cursor-pointer"
               >
                 Repay
               </button>

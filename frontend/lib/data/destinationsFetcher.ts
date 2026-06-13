@@ -70,15 +70,21 @@ function extractInputToken(symbol: string): string | null {
  */
 function buildDisplayName(
   pool: DefillamaPool,
-  protocolDisplayName: string
+  protocolDisplayName: string,
+  token: string
 ): string {
   if (pool.poolMeta) {
     // poolMeta contains vault-specific names like 'Gauntlet USDC Core'
     return `${protocolDisplayName} — ${pool.poolMeta}`
   }
-  // Fall back to cleaned symbol
-  const token = extractInputToken(pool.symbol) || pool.symbol
+  // Fall back to the already-extracted token symbol
   return `${protocolDisplayName} — ${token}`
+}
+
+// Receipt-token symbol prefix per protocol (e.g. aUSDC, eUSDC)
+const RECEIPT_TOKEN_PREFIX: Partial<Record<ProtocolId, string>> = {
+  aave: 'a',
+  euler: 'e',
 }
 
 /**
@@ -124,20 +130,15 @@ function isEligible(pool: DefillamaPool): boolean {
   // Must be single-asset exposure (excludes LPs)
   if (!INCLUDED_EXPOSURE.includes(pool.exposure)) return false
 
-  // Must not be an LP category even if exposure was null
-  if (pool.category && EXCLUDED_CATEGORIES.some(c =>
-    pool.category!.toLowerCase().includes(c.toLowerCase())
-  )) return false
+  const category = pool.category?.toLowerCase()
+  if (category) {
+    // Must not be an LP category even if exposure was null
+    if (EXCLUDED_CATEGORIES.some(c => category.includes(c.toLowerCase()))) return false
+    // Must be a lending/supply/staking category (uncategorised pools pass)
+    if (!INCLUDED_CATEGORIES.some(c => category.includes(c.toLowerCase()))) return false
+  }
 
-  // Must be a lending/supply/staking category (or null — include uncategorised)
-  if (pool.category && !INCLUDED_CATEGORIES.some(c =>
-    pool.category!.toLowerCase().includes(c.toLowerCase())
-  )) return false
-
-  // Must have a parseable single-asset symbol
-  if (extractInputToken(pool.symbol) === null) return false
-
-
+  // Parseable single-asset symbol is re-checked in the main loop (extractInputToken)
 
   return true
 }
@@ -182,13 +183,9 @@ export async function fetchDepositDestinations(
 
     const { lockPeriodDays, lockDescription } = extractLockInfo(pool)
 
-    // Derive receipt token outputTokenSymbol
-    let outputTokenSymbol = pool.symbol
-    if (protocolId === 'aave') {
-      outputTokenSymbol = `a${token}`
-    } else if (protocolId === 'euler') {
-      outputTokenSymbol = `e${token}`
-    }
+    // Derive receipt token outputTokenSymbol (e.g. aUSDC, eUSDC)
+    const receiptPrefix = RECEIPT_TOKEN_PREFIX[protocolId]
+    const outputTokenSymbol = receiptPrefix ? `${receiptPrefix}${token}` : pool.symbol
 
     destinations.push({
       id: pool.pool,              // DeFi Llama UUID — stable
@@ -199,7 +196,7 @@ export async function fetchDepositDestinations(
       apyMean30d: pool.apyMean30d != null ? pool.apyMean30d / 100 : null,
       apyBase: pool.apyBase != null ? pool.apyBase / 100 : null,
       apyReward: pool.apyReward != null ? pool.apyReward / 100 : null,
-      displayName: buildDisplayName(pool, protocolPlugin.displayName),
+      displayName: buildDisplayName(pool, protocolPlugin.displayName, token),
       outputTokenSymbol,
       apyType: 'variable',
       tvlUsd: pool.tvlUsd,

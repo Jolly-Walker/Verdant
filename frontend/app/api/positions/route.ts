@@ -20,7 +20,7 @@ const PositionsQuerySchema = z.object({
 
 export async function GET(req: NextRequest) {
   // SPECS §19: 60 req/min per IP for position fetches.
-  const limited = enforceRateLimit(req, { bucket: 'positions', limit: 60 })
+  const limited = await enforceRateLimit(req, { bucket: 'positions', limit: 60 })
   if (limited) return limited
 
   const { searchParams } = new URL(req.url)

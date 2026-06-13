@@ -10,6 +10,14 @@ import { Badge } from '../ui/Badge'
 import { TemplateId } from '@/types/sequencer'
 import { formatUsd } from '@/lib/utils/formatting'
 
+const PROTOCOL_NAMES: Record<string, string> = {
+  aave: 'Aave V3',
+  morpho: 'Morpho',
+  pendle: 'Pendle',
+  euler: 'Euler',
+  wallet: 'Wallet Balances'
+}
+
 interface PositionListProps {
   positions: Position[]
   isLoading?: boolean
@@ -58,14 +66,6 @@ export function PositionList({
       }
       groupedByProtocol[proto].push(p)
     })
-
-    const PROTOCOL_NAMES: Record<string, string> = {
-      aave: 'Aave V3',
-      morpho: 'Morpho',
-      pendle: 'Pendle',
-      euler: 'Euler',
-      wallet: 'Wallet Balances'
-    }
 
     // Map each protocol group to summary info
     const protocolGroups = Object.entries(groupedByProtocol).map(([protocolId, protocolPositions]) => {

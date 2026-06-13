@@ -99,6 +99,12 @@ export const layerzeroBridgePlugin: BridgePlugin = {
     const destDomain = CIRCLE_DOMAIN_MAP[toChain]
     if (srcDomain === undefined || destDomain === undefined) return null
 
+    // Kick off the USDC price lookup up front — it's independent of the fee
+    // query, so the two network calls run concurrently.
+    const pricePromise = fetchTokenPrices(['coingecko:usd-coin']).catch(
+      () => ({} as Record<string, number>)
+    )
+
     // Query the real CCTP fee for this route. Standard transfers are typically
     // 0 bps; we still query so the number reflects Circle's live schedule.
     let minimumFeeBps = 0
@@ -125,14 +131,11 @@ export const layerzeroBridgePlugin: BridgePlugin = {
     const maxFeeAtomic = (amountBI * BigInt(Math.round(minimumFeeBps))) / 10000n
     const decimals = SUPPORTED_TOKENS['USDC']?.decimals ?? 6
 
-    let feeUsd = Number(formatUnits(maxFeeAtomic, decimals))
-    try {
-      const priceData = await fetchTokenPrices(['coingecko:usd-coin'])
-      const price = priceData['coingecko:usd-coin']
-      if (price) feeUsd = Number(formatUnits(maxFeeAtomic, decimals)) * price
-    } catch {
-      // USDC ≈ $1; the unpriced fee is already a good approximation.
-    }
+    const feeTokens = Number(formatUnits(maxFeeAtomic, decimals))
+    // USDC ≈ $1, so the unpriced fee is already a good approximation if the
+    // price lookup came back empty.
+    const price = (await pricePromise)['coingecko:usd-coin']
+    const feeUsd = price ? feeTokens * price : feeTokens
 
     return {
       bridgeId: 'layerzero',

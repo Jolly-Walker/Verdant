@@ -15,7 +15,7 @@ const SimulateSchema = z.object({
 
 export async function POST(request: NextRequest) {
   // SPECS §19: 10 req/min per IP for simulation.
-  const limited = enforceRateLimit(request, { bucket: 'simulate', limit: 10 })
+  const limited = await enforceRateLimit(request, { bucket: 'simulate', limit: 10 })
   if (limited) return limited
 
   const parsed = await parseJson(request, SimulateSchema)
