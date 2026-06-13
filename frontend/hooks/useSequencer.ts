@@ -52,9 +52,14 @@ function useRealSequencer() {
     if (!address) throw new Error('Wallet not connected')
 
     try {
-      const body: any = { templateId, walletAddress: address }
+      const body: {
+        templateId: TemplateId
+        walletAddress: string
+        customPlan?: unknown
+        params?: TemplateParams
+      } = { templateId, walletAddress: address }
       if (templateId === 'custom') {
-        body.customPlan = (params as any).customPlan
+        body.customPlan = (params as { customPlan?: unknown }).customPlan
       } else {
         body.params = params
       }

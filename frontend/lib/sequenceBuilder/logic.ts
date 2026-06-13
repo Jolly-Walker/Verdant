@@ -166,7 +166,7 @@ export function builderStepsToSequencePlan(
           asset: step.tokenIn.token,
           amount: step.tokenIn.amount.toString(),
           userAddress: walletAddress,
-        } as unknown as TxBuildParams | BridgeQuoteParams
+        },
       })
 
       // Step 2: Withdraw collateral (depends on repay)
@@ -184,7 +184,7 @@ export function builderStepsToSequencePlan(
           asset: collateralPos?.asset || 'WETH',
           amount: collateralPos?.amount.toString() || 'max',
           userAddress: walletAddress,
-        } as unknown as TxBuildParams | BridgeQuoteParams
+        },
       })
 
       previousStepId = withdrawStepId
@@ -278,7 +278,10 @@ export function builderStepsToSequencePlan(
       pluginId,
       dependsOn,
       status: 'pending',
-      buildParams: buildParams as unknown as TxBuildParams | BridgeQuoteParams
+      // buildParams is assembled per-action as a generic record above; it is
+      // narrowed to the named build-param union here and validated at execution
+      // time by validateBuildParams (/api/sequencer/simulate).
+      buildParams: buildParams as unknown as TxBuildParams | BridgeQuoteParams,
     })
 
     previousStepId = stepId
