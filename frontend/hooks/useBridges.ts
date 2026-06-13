@@ -12,6 +12,7 @@ interface UseBridgesReturn {
     txHash: string
     fromChain: ChainId
     bridgeId: BridgeId
+    depositAddress?: string
   }) => Promise<BridgeStatus>
 }
 
@@ -64,6 +65,8 @@ export function useBridges(): UseBridgesReturn {
     txHash: string
     fromChain: ChainId
     bridgeId: BridgeId
+    /** Required for NEAR Intents, which tracks delivery by deposit address. */
+    depositAddress?: string
   }): Promise<BridgeStatus> => {
     try {
       const searchParams = new URLSearchParams({
@@ -71,6 +74,7 @@ export function useBridges(): UseBridgesReturn {
         fromChain: params.fromChain,
         bridgeId: params.bridgeId,
       })
+      if (params.depositAddress) searchParams.set('depositAddress', params.depositAddress)
 
       const res = await fetchWithTimeout(`/api/bridges/status?${searchParams.toString()}`, {
         timeout: 12000

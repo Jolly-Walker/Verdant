@@ -1,12 +1,15 @@
 import 'server-only'
-import { BridgePlugin } from '../types/bridge-plugin'
+import { BridgePlugin, BridgeStatusContext } from '../types/bridge-plugin'
 import { BridgeQuoteParams, BridgeQuote, UnsignedTx, BridgeStatus, ChainId } from '@/types/shared'
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
-import { encodeFunctionData, Hex } from 'viem'
+import { encodeFunctionData, formatUnits, Hex } from 'viem'
 import { fetchWithTimeout } from '@/lib/utils/fetch'
+import { fetchTokenPrices } from '@/lib/data/prices'
 
 const DEFUSE_RPC_URL = 'https://bridge.chaindefuser.com/rpc'
+// 1Click is the documented REST surface for NEAR Intents swap status.
+const ONECLICK_API = 'https://1click.chaindefuser.com'
 
 const CHAIN_MAP: Partial<Record<ChainId, string>> = {
   ethereum: 'eth:1',
@@ -19,6 +22,13 @@ const EVM_CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {
   arbitrum: 42161,
   base: 8453,
 }
+
+/**
+ * Estimated NEAR Intents solver spread (basis points). The deposit-address RPC
+ * does not return a per-quote fee, so this is a conservative size-scaled
+ * estimate — surfaced as an estimate in the cost preview, not a guaranteed fee.
+ */
+const NEAR_INTENTS_FEE_BPS = 30 // 0.30%
 
 const ERC20_ABI = [
   {
@@ -78,14 +88,26 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
 
       const depositAddress = data.result
 
-      // Placeholder fee as per requirements
-      const feeUsd = 2.0
+      // Size-scaled fee estimate priced in USD (see NEAR_INTENTS_FEE_BPS).
+      const tokenConfig = SUPPORTED_TOKENS[token]
+      const decimals = tokenConfig?.decimals ?? 18
+      const feeAtomic = (BigInt(amount) * BigInt(NEAR_INTENTS_FEE_BPS)) / 10000n
+      let feeUsd = Number(formatUnits(feeAtomic, decimals))
+      if (tokenConfig?.coingeckoId) {
+        try {
+          const prices = await fetchTokenPrices([`coingecko:${tokenConfig.coingeckoId}`])
+          const price = prices[`coingecko:${tokenConfig.coingeckoId}`]
+          if (price) feeUsd = Number(formatUnits(feeAtomic, decimals)) * price
+        } catch {
+          // Fall back to the token-denominated estimate.
+        }
+      }
 
       return {
         bridgeId: 'nearIntents',
         feeUsd,
         estimatedTimeSeconds: 60,
-        expectedOutputAmount: amount, // Defuse handles exact output, simplified for quote
+        expectedOutputAmount: (BigInt(amount) - feeAtomic).toString(),
         slippagePercent: params.slippagePercent,
         expiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
         rawQuote: {
@@ -137,24 +159,43 @@ export const nearIntentsBridgePlugin: BridgePlugin = {
     }
   },
 
-  async pollStatus(_txHash: string, _fromChain: ChainId): Promise<BridgeStatus> {
-    // Note: To fully implement recent_deposits, we need account_id (Solana address).
-    // The current BridgePlugin interface only provides txHash and fromChain.
-    // In a production environment, we would either:
-    // 1. Update the interface to pass the recipientAddress/account_id.
-    // 2. Extract the account_id from a mapping of txHash to account_id stored during execution.
-    // 3. Look up the transaction on-chain to find the deposit address and map it back.
-    
-    // For now, we return pending as we cannot call recent_deposits without account_id.
-    // When complete, we would return:
-    // return { 
-    //   status: 'complete', 
-    //   destinationTxHash: '...', 
-    //   trackingUrl: `https://solscan.io/tx/${destinationTxHash}` 
-    // }
-    return { 
-      status: 'pending',
-      trackingUrl: 'https://bridge.chaindefuser.com'
+  async pollStatus(
+    _txHash: string,
+    _fromChain: ChainId,
+    context?: BridgeStatusContext
+  ): Promise<BridgeStatus> {
+    const trackingUrl = 'https://explorer.near-intents.org'
+    const depositAddress = context?.depositAddress
+
+    // NEAR Intents tracks delivery by deposit address, not the source tx hash.
+    // Without it we cannot query status, so report pending.
+    if (!depositAddress) return { status: 'pending', trackingUrl }
+
+    try {
+      const res = await fetchWithTimeout(
+        `${ONECLICK_API}/v0/status?depositAddress=${encodeURIComponent(depositAddress)}`,
+        { timeout: 8000, cache: 'no-store' }
+      )
+      if (!res.ok) return { status: 'pending', trackingUrl }
+
+      const data = await res.json()
+      switch (data?.status) {
+        case 'SUCCESS': {
+          const destHash =
+            data.swapDetails?.destinationChainTxHashes?.[0]?.hash ??
+            data.swapDetails?.destinationTxHash
+          return { status: 'complete', destinationTxHash: destHash, trackingUrl }
+        }
+        case 'FAILED':
+          return { status: 'failed', errorMessage: 'NEAR Intents swap failed', trackingUrl }
+        case 'REFUNDED':
+          return { status: 'failed', errorMessage: 'NEAR Intents swap was refunded to origin', trackingUrl }
+        default:
+          return { status: 'pending', trackingUrl }
+      }
+    } catch (e) {
+      console.error('[nearIntents] pollStatus failed:', e)
+      return { status: 'pending', trackingUrl }
     }
   },
 }

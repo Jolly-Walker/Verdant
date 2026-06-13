@@ -4,10 +4,24 @@ import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 import { ALL_BRIDGES, ALL_CHAINS, ChainId, BridgeQuote } from '@/types/shared'
 import { SerializedUnsignedTx } from '@/types/sequencer'
 import { simulateTransaction } from '@/lib/simulation/simulate'
+import { parseJson } from '@/lib/validation/http'
+
+// The client posts back a quote it received from /api/bridges/quote, where
+// `expiresAt` has been JSON-serialised to a string. Validate that shape, then
+// rehydrate the Date before handing it to the bridge plugin.
+const SerializedBridgeQuoteSchema = z.object({
+  bridgeId: z.enum(ALL_BRIDGES),
+  feeUsd: z.number(),
+  estimatedTimeSeconds: z.number(),
+  expectedOutputAmount: z.string(),
+  slippagePercent: z.number(),
+  expiresAt: z.union([z.string(), z.number()]),
+  rawQuote: z.record(z.string(), z.unknown()),
+})
 
 const BuildBridgeTxSchema = z.object({
   bridgeId: z.enum(ALL_BRIDGES),
-  quote: z.any(),
+  quote: SerializedBridgeQuoteSchema,
   walletAddress: z.string(),
 })
 
@@ -23,21 +37,13 @@ function getChainIdFromRawQuote(bridgeId: string, rawQuote: Record<string, unkno
 }
 
 export async function POST(req: NextRequest) {
+  const parsed = await parseJson(req, BuildBridgeTxSchema)
+  if (!parsed.ok) return parsed.response
+
+  const { bridgeId, quote, walletAddress } = parsed.data
+
   try {
-    const body = await req.json()
-    const result = BuildBridgeTxSchema.safeParse(body)
-    
-    if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body: ' + result.error.message }, { status: 400 })
-    }
-
-    const { bridgeId, quote, walletAddress } = result.data
-
-    const rawQuote = quote.rawQuote as Record<string, unknown>
-    if (!rawQuote) {
-      return NextResponse.json({ error: 'Missing rawQuote in quote payload' }, { status: 400 })
-    }
-
+    const rawQuote = quote.rawQuote
     const recipientAddress = rawQuote.recipientAddress
     if (!recipientAddress || typeof recipientAddress !== 'string') {
       return NextResponse.json({ error: 'Missing recipientAddress in rawQuote' }, { status: 400 })
@@ -57,7 +63,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid bridge ID' }, { status: 400 })
     }
 
-    const unsignedTx = await bridge.buildBridgeTx(quote as unknown as BridgeQuote) // BridgeQuote cast needed because of Date type mismatch in JSON
+    // Rehydrate the serialised quote into a real BridgeQuote (expiresAt → Date).
+    const bridgeQuote: BridgeQuote = { ...quote, expiresAt: new Date(quote.expiresAt) }
+    const unsignedTx = await bridge.buildBridgeTx(bridgeQuote)
 
     // Simulate transaction
     const simResult = await simulateTransaction({

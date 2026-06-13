@@ -10,9 +10,14 @@ vi.mock('@/lib/server/rpc', () => ({
   getPublicClient: vi.fn(),
 }))
 
+vi.mock('@/lib/data/prices', () => ({
+  getNativeAssetPrice: vi.fn().mockResolvedValue(3000), // ETH @ $3000
+}))
+
 describe('chainlinkBridgePlugin', () => {
   const mockPublicClient = {
     readContract: vi.fn(),
+    getTransactionReceipt: vi.fn(),
   }
 
   beforeEach(() => {
@@ -29,14 +34,18 @@ describe('chainlinkBridgePlugin', () => {
     slippagePercent: 0.1,
   }
 
-  it('should return a quote correctly', async () => {
+  it('should return a quote with a real on-chain fee priced in USD', async () => {
     const quote = await chainlinkBridgePlugin.getQuote(mockQuoteParams)
 
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('chainlink')
-    expect(quote?.feeUsd).toBe(2.5)
+    // 0.001 ETH fee × $3000 = $3.00
+    expect(quote?.feeUsd).toBeCloseTo(3.0, 6)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.destSelector).toBe(4949039107694359620n)
+    expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: 'getFee' })
+    )
 
     const now = Date.now()
     expect(quote?.expiresAt.getTime()).toBeGreaterThanOrEqual(now + 89000)
@@ -53,11 +62,23 @@ describe('chainlinkBridgePlugin', () => {
 
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('chainlink')
-    expect(quote?.feeUsd).toBe(2.5)
+    expect(quote?.feeUsd).toBeCloseTo(3.0, 6)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.token).toBe('LINK')
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.amount).toBe('1000000000000000000')
+  })
+
+  it('should return null when the on-chain fee query fails', async () => {
+    mockPublicClient.readContract.mockRejectedValueOnce(new Error('rpc down'))
+    const quote = await chainlinkBridgePlugin.getQuote(mockQuoteParams)
+    expect(quote).toBeNull()
+  })
+
+  it('should report failed when the source send reverted', async () => {
+    mockPublicClient.getTransactionReceipt.mockResolvedValueOnce({ status: 'reverted' })
+    const status = await chainlinkBridgePlugin.pollStatus('0x123', 'ethereum')
+    expect(status.status).toBe('failed')
   })
 
   it('should build a bridge transaction for ERC20 correctly', async () => {

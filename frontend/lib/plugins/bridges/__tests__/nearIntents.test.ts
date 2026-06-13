@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
+vi.mock('@/lib/data/prices', () => ({
+  fetchTokenPrices: vi.fn().mockResolvedValue({ 'coingecko:usd-coin': 1.0 }),
+}))
+
 import { nearIntentsBridgePlugin } from '../nearIntents'
 import { BridgeQuoteParams, BridgeQuote } from '@/types/shared'
 import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges'
@@ -45,8 +49,9 @@ describe('nearIntentsBridgePlugin', () => {
 
     expect(quote).not.toBeNull()
     expect(quote?.bridgeId).toBe('nearIntents')
-    expect(quote?.expectedOutputAmount).toBe('100000000')
-    expect(quote?.feeUsd).toBe(2.0)
+    // 0.30% of 100 USDC = 0.3 USDC fee → output 99.7 USDC, fee $0.30
+    expect(quote?.expectedOutputAmount).toBe('99700000')
+    expect(quote?.feeUsd).toBeCloseTo(0.3, 6)
     // @ts-expect-error - accessing rawQuote
     expect(quote?.rawQuote.depositAddress).toBe('0x1234567890123456789012345678901234567890')
     
@@ -136,10 +141,40 @@ describe('nearIntentsBridgePlugin', () => {
     expect(tx.description).toContain('Bridge ETH')
   })
 
-  it('should return pending status with tracking URL', async () => {
+  it('should return pending when no deposit address is available', async () => {
     const status = await nearIntentsBridgePlugin.pollStatus('0x123', 'ethereum')
     expect(status.status).toBe('pending')
-    expect(status.trackingUrl).toBe('https://bridge.chaindefuser.com')
+    expect(status.trackingUrl).toBe('https://explorer.near-intents.org')
+  })
+
+  it('should report complete when 1Click status is SUCCESS', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        status: 'SUCCESS',
+        swapDetails: { destinationChainTxHashes: [{ hash: 'soltx123' }] },
+      }),
+    })
+
+    const status = await nearIntentsBridgePlugin.pollStatus('0x123', 'ethereum', {
+      depositAddress: '0xdeposit',
+    })
+    expect(status.status).toBe('complete')
+    expect(status.destinationTxHash).toBe('soltx123')
+  })
+
+  it('should report failed when 1Click status is REFUNDED', async () => {
+    // @ts-expect-error - mocking fetch
+    ;(global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'REFUNDED' }),
+    })
+
+    const status = await nearIntentsBridgePlugin.pollStatus('0x123', 'ethereum', {
+      depositAddress: '0xdeposit',
+    })
+    expect(status.status).toBe('failed')
   })
 
   it('should return null for unsupported toChain', async () => {

@@ -194,6 +194,158 @@ const AAVE_REWARDS_CONTROLLER: Partial<Record<ChainId, string>> = {
 }
 
 /**
+ * Aave V3 AaveOracle addresses per chain. Returns asset prices in the pool's
+ * base currency (USD, 8 decimals) — the same unit as getUserAccountData totals.
+ * Source: https://github.com/bgd-labs/aave-address-book
+ */
+const AAVE_ORACLE: Partial<Record<ChainId, string>> = {
+  ethereum: '0x54586bE62E3c3580375aE3723C145253060Ca0C2',
+  arbitrum: '0xb56c2F0B653B2e0b10C9b928C8580Ac5Df02C7C7',
+  base: '0x2Cc0Fc26eD4563A5ce5e8bdcfe1A2878676Ae156',
+}
+
+const AAVE_ORACLE_ABI = [
+  {
+    name: 'getAssetPrice',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'asset', type: 'address' }],
+    outputs: [{ type: 'uint256' }],
+  },
+] as const
+
+/**
+ * Minimum health factor Verdant will allow a built transaction to leave the
+ * user at. Aave itself only reverts below 1.0; this 1.05 buffer is a Verdant
+ * safety constraint (SPECS §6.2 / §19) enforced before the sign prompt.
+ */
+export const MIN_HEALTH_FACTOR = 1.05
+
+/**
+ * Pure projection of the health factor that an action would leave the user at,
+ * given their current Aave account state. All monetary inputs are in the pool's
+ * base currency (8-decimal USD), matching getUserAccountData.
+ *
+ * HF = (collateral × liquidationThreshold) / debt. Returns Infinity when the
+ * action leaves no outstanding debt (no liquidation risk).
+ */
+export function projectHealthFactor(opts: {
+  totalCollateralBase: bigint
+  totalDebtBase: bigint
+  liquidationThreshold: bigint // basis points, e.g. 8000 = 80%
+  deltaBase: bigint // base-currency value of the asset moved by the action
+  action: 'withdraw' | 'borrow' | 'supply' | 'repay'
+}): number {
+  let collateral = opts.totalCollateralBase
+  let debt = opts.totalDebtBase
+
+  switch (opts.action) {
+    case 'withdraw':
+      collateral = collateral > opts.deltaBase ? collateral - opts.deltaBase : 0n
+      break
+    case 'supply':
+      collateral = collateral + opts.deltaBase
+      break
+    case 'borrow':
+      debt = debt + opts.deltaBase
+      break
+    case 'repay':
+      debt = debt > opts.deltaBase ? debt - opts.deltaBase : 0n
+      break
+  }
+
+  if (debt === 0n) return Infinity
+  return (Number(collateral) / Number(debt)) * (Number(opts.liquidationThreshold) / 10000)
+}
+
+/**
+ * Guards withdraw/borrow builds against the 1.05 health-factor floor by reading
+ * the user's live Aave account data and the asset's oracle price.
+ *
+ * Fails open on infrastructure errors (RPC/oracle unavailable): the mandatory
+ * simulation gate is the backstop, and we must not block legitimate flows on a
+ * transient read failure. A computed HF below the floor, however, throws.
+ */
+async function assertActionKeepsHealthy(opts: {
+  chain: ChainId
+  action: 'withdraw' | 'borrow'
+  assetAddress: string
+  amountBigInt: bigint
+  decimals: number
+  isMax: boolean
+  userAddress: string
+}): Promise<void> {
+  const { chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress } = opts
+  const poolAddress = aavePlugin.addresses[chain]?.poolAddress
+  const oracle = AAVE_ORACLE[chain]
+  if (!poolAddress || !oracle) return
+
+  let totalCollateralBase: bigint
+  let totalDebtBase: bigint
+  let liquidationThreshold: bigint
+  let assetPrice: bigint
+
+  try {
+    const client = getPublicClient(chain)
+    const accountData = await client.readContract({
+      address: poolAddress as `0x${string}`,
+      abi: AAVE_POOL_ABI,
+      functionName: 'getUserAccountData',
+      args: [userAddress as `0x${string}`],
+    })
+    totalCollateralBase = accountData[0]
+    totalDebtBase = accountData[1]
+    liquidationThreshold = accountData[3]
+
+    // Defend against malformed RPC responses — only act on a well-formed tuple.
+    if (
+      typeof totalCollateralBase !== 'bigint' ||
+      typeof totalDebtBase !== 'bigint' ||
+      typeof liquidationThreshold !== 'bigint'
+    ) {
+      return
+    }
+
+    // No outstanding debt ⇒ no liquidation risk; nothing to guard.
+    if (totalDebtBase === 0n) return
+
+    assetPrice = await client.readContract({
+      address: oracle as `0x${string}`,
+      abi: AAVE_ORACLE_ABI,
+      functionName: 'getAssetPrice',
+      args: [assetAddress as `0x${string}`],
+    })
+    if (typeof assetPrice !== 'bigint' || assetPrice === 0n) return
+  } catch (e) {
+    console.warn(`[aave] HF guard could not verify ${action} on ${chain}; allowing build (simulation will still gate):`, e)
+    return
+  }
+
+  // A max withdraw against an unknown remaining balance cannot be projected
+  // against the 1.05 floor — refuse rather than risk it while debt is open.
+  if (isMax && action === 'withdraw') {
+    throw new Error(
+      'Cannot safely build a max withdraw while a borrow position is open. Specify an explicit amount so the health factor can be verified.'
+    )
+  }
+
+  const deltaBase = (amountBigInt * assetPrice) / 10n ** BigInt(decimals)
+  const projectedHf = projectHealthFactor({
+    totalCollateralBase,
+    totalDebtBase,
+    liquidationThreshold,
+    deltaBase,
+    action,
+  })
+
+  if (projectedHf < MIN_HEALTH_FACTOR) {
+    throw new Error(
+      `This ${action} would bring your Aave health factor to ${projectedHf.toFixed(2)}, below the safe minimum of ${MIN_HEALTH_FACTOR}. Reduce the amount and try again.`
+    )
+  }
+}
+
+/**
  * Minimum claimable USD value to surface a reward to the user.
  * Prevents noisy sub-cent rewards from showing up.
  */
@@ -479,6 +631,9 @@ export const aavePlugin: ProtocolPlugin = {
           description: `Supply ${amount} ${asset} to Aave V3`,
         })
       } else if (action === 'withdraw') {
+        await assertActionKeepsHealthy({
+          chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress,
+        })
         const withdrawData = encodeFunctionData({
           abi: AAVE_POOL_ABI,
           functionName: 'withdraw',
@@ -492,6 +647,9 @@ export const aavePlugin: ProtocolPlugin = {
           description: `Withdraw ${isMax ? 'all' : `${amount} ${asset}`} from Aave V3`,
         })
       } else if (action === 'borrow') {
+        await assertActionKeepsHealthy({
+          chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress,
+        })
         const borrowData = encodeFunctionData({
           abi: AAVE_POOL_ABI,
           functionName: 'borrow',

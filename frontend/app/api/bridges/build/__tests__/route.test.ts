@@ -35,15 +35,21 @@ describe('Bridge Build API Route', () => {
     });
   };
 
+  // Builds a fully-formed serialized bridge quote (as the client would post it).
+  const fullQuote = (rawQuote: Record<string, unknown>) => ({
+    bridgeId: 'across',
+    feeUsd: 1.0,
+    estimatedTimeSeconds: 120,
+    expectedOutputAmount: '1000000',
+    slippagePercent: 0.5,
+    expiresAt: new Date().toISOString(),
+    rawQuote,
+  });
+
   it('returns 400 if validation fails due to missing walletAddress', async () => {
     const req = createMockRequest({
       bridgeId: 'across',
-      quote: {
-        rawQuote: {
-          recipientAddress: '0x123',
-          originChainId: 1
-        }
-      }
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
     });
 
     const res = await POST(req);
@@ -56,12 +62,7 @@ describe('Bridge Build API Route', () => {
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0xMismatch',
-      quote: {
-        rawQuote: {
-          recipientAddress: '0x123',
-          originChainId: 1
-        }
-      }
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
     });
 
     const res = await POST(req);
@@ -74,12 +75,7 @@ describe('Bridge Build API Route', () => {
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0x123',
-      quote: {
-        rawQuote: {
-          recipientAddress: '0x123',
-          originChainId: 999999 // Unsupported chain ID
-        }
-      }
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 999999 }) // Unsupported chain ID
     });
 
     const res = await POST(req);
@@ -98,12 +94,7 @@ describe('Bridge Build API Route', () => {
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0x123',
-      quote: {
-        rawQuote: {
-          recipientAddress: '0x123',
-          originChainId: 1
-        }
-      }
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
     });
 
     const res = await POST(req);
@@ -123,12 +114,7 @@ describe('Bridge Build API Route', () => {
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0x123',
-      quote: {
-        rawQuote: {
-          recipientAddress: '0x123',
-          originChainId: 1
-        }
-      }
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
     });
 
     const res = await POST(req);

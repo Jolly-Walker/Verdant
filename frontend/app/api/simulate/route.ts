@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { ALL_CHAINS } from '@/types/shared'
 import { simulateTransaction } from '@/lib/simulation/simulate'
+import { chainSchema } from '@/lib/validation/primitives'
+import { parseJson } from '@/lib/validation/http'
+import { enforceRateLimit } from '@/lib/server/rateLimit'
 
 const SimulateSchema = z.object({
-  chain: z.enum(ALL_CHAINS),
+  chain: chainSchema,
   to: z.string(),
   from: z.string(),
   data: z.string().optional(),
@@ -12,19 +14,16 @@ const SimulateSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
+  // SPECS §19: 10 req/min per IP for simulation.
+  const limited = enforceRateLimit(request, { bucket: 'simulate', limit: 10 })
+  if (limited) return limited
+
+  const parsed = await parseJson(request, SimulateSchema)
+  if (!parsed.ok) return parsed.response
+
+  const { chain, to, from, data, value } = parsed.data
+
   try {
-    const body = await request.json()
-    const result = SimulateSchema.safeParse(body)
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: 'Invalid request body', details: result.error.format() },
-        { status: 400 }
-      )
-    }
-
-    const { chain, to, from, data, value } = result.data
-
     const simResult = await simulateTransaction({
       chain,
       to,

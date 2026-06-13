@@ -14,6 +14,8 @@ import { fetchTokenPrices } from '@/lib/data/prices'
 import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 
 import { isValidAddress } from '@/lib/utils/chains'
+import { parseJson } from '@/lib/validation/http'
+import { enforceRateLimit } from '@/lib/server/rateLimit'
 
 const BridgeAndDepositParamsSchema = z.object({
   asset: z.string(),
@@ -114,15 +116,15 @@ async function validateMinimumSize(asset: string, amount: string): Promise<{ ok:
 }
 
 export async function POST(req: Request) {
-  try {
-    const body = await req.json()
-    const result = CreatePlanSchema.safeParse(body)
-    
-    if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body', details: result.error.format() }, { status: 400 })
-    }
+  // SPECS §19: 10 req/min per IP for sequencer plan creation.
+  const limited = enforceRateLimit(req, { bucket: 'sequencer-plan', limit: 10 })
+  if (limited) return limited
 
-    const { templateId, params, walletAddress, customPlan } = result.data
+  const parsed = await parseJson(req, CreatePlanSchema)
+  if (!parsed.ok) return parsed.response
+
+  try {
+    const { templateId, params, walletAddress, customPlan } = parsed.data
     let plan: SequencePlan | undefined
     let amountUsd = 0
 
@@ -146,6 +148,9 @@ export async function POST(req: Request) {
           pluginId: step.pluginId as ProtocolId | BridgeId,
           dependsOn: step.dependsOn,
           status: step.status as StepStatus,
+          // Custom-plan buildParams arrive as a schema-validated generic record;
+          // narrowed to the named union here and re-validated by validateBuildParams
+          // (/api/sequencer/simulate) before any tx is built.
           buildParams: step.buildParams as unknown as TxBuildParams | BridgeQuoteParams
         }))
       }

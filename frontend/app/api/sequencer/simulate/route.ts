@@ -13,9 +13,11 @@ import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
 import { SWAP_REGISTRY } from '@/lib/plugins/swaps'
 import { detectWarnings } from '@/lib/utils/warnings'
 import { Warning } from '@/types/quote'
+import { parseJson } from '@/lib/validation/http'
+import { enforceRateLimit } from '@/lib/server/rateLimit'
 
 const SimulateStepSchema = z.object({
-  planId: z.string().uuid(),
+  planId: z.uuid(),
   stepId: z.string(),
   walletAddress: z.string()
 })
@@ -42,43 +44,48 @@ const getClient = (chain: ChainId) => {
   })
 }
 
-function validateBuildParams(pluginId: string, buildParams: Record<string, unknown>): string | null {
+function validateBuildParams(
+  pluginId: string,
+  buildParams: TxBuildParams | BridgeQuoteParams
+): string | null {
+  // Spread into a plain record so the shared field checks work across the union.
+  const p: Record<string, unknown> = { ...buildParams }
   // Protocol steps
   if (['aave', 'morpho', 'euler'].includes(pluginId)) {
-    if (!buildParams.action) return 'Missing action in buildParams'
-    if (!buildParams.chain) return 'Missing chain in buildParams'
-    if (!buildParams.asset) return 'Missing asset in buildParams'
-    if (!buildParams.amount || buildParams.amount === '0') return 'Missing or zero amount in buildParams'
-    if (!buildParams.userAddress) return 'Missing userAddress in buildParams'
+    if (!p.action) return 'Missing action in buildParams'
+    if (!p.chain) return 'Missing chain in buildParams'
+    if (!p.asset) return 'Missing asset in buildParams'
+    if (!p.amount || p.amount === '0') return 'Missing or zero amount in buildParams'
+    if (!p.userAddress) return 'Missing userAddress in buildParams'
   }
   // Bridge steps
   if (['across', 'layerzero', 'nearIntents', 'chainlink'].includes(pluginId)) {
-    if (!buildParams.fromChain) return 'Missing fromChain in buildParams'
-    if (!buildParams.toChain) return 'Missing toChain in buildParams'
-    if (!buildParams.token) return 'Missing token in buildParams'
-    if (!buildParams.amount || buildParams.amount === '0') return 'Missing or zero amount in buildParams'
-    if (!buildParams.recipientAddress) return 'Missing recipientAddress in buildParams'
+    if (!p.fromChain) return 'Missing fromChain in buildParams'
+    if (!p.toChain) return 'Missing toChain in buildParams'
+    if (!p.token) return 'Missing token in buildParams'
+    if (!p.amount || p.amount === '0') return 'Missing or zero amount in buildParams'
+    if (!p.recipientAddress) return 'Missing recipientAddress in buildParams'
   }
   // Swap steps
   if (pluginId === '1inch') {
-    if (!buildParams.extraParams) return 'Missing extraParams for swap'
-    const ep = buildParams.extraParams as Record<string, unknown>
+    if (!p.extraParams) return 'Missing extraParams for swap'
+    const ep = p.extraParams as Record<string, unknown>
     if (!ep.toToken) return 'Missing toToken in swap extraParams'
   }
   return null
 }
 
 export async function POST(req: Request) {
+  // SPECS §19: 10 req/min per IP for step simulation.
+  const limited = enforceRateLimit(req, { bucket: 'simulate', limit: 10 })
+  if (limited) return limited
+
+  const parsed = await parseJson(req, SimulateStepSchema)
+  if (!parsed.ok) return parsed.response
+
+  const { planId, stepId, walletAddress } = parsed.data
+
   try {
-    const body = await req.json()
-    const result = SimulateStepSchema.safeParse(body)
-    
-    if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-    }
-
-    const { planId, stepId, walletAddress } = result.data
-
     const plan = await getSequencePlan(planId)
     if (!plan) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
@@ -94,7 +101,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Step not found' }, { status: 404 })
     }
 
-    const paramsError = validateBuildParams(step.pluginId, step.buildParams as unknown as Record<string, unknown>)
+    const paramsError = validateBuildParams(step.pluginId, step.buildParams)
     if (paramsError) {
       return NextResponse.json({ error: `Invalid step configuration: ${paramsError}` }, { status: 400 })
     }

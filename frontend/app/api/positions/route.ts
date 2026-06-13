@@ -6,9 +6,12 @@ import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
 import { RawPosition } from '@/types/shared'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { evmAddressSchema } from '@/lib/validation/primitives'
+import { parse } from '@/lib/validation/http'
+import { enforceRateLimit } from '@/lib/server/rateLimit'
 
 const PositionsQuerySchema = z.object({
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address').optional(),
+  address: evmAddressSchema.optional(),
   solana: z.string().refine(
     addr => isValidAddress(addr, 'solana'),
     { message: 'Invalid Solana address' }
@@ -16,22 +19,19 @@ const PositionsQuerySchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
+  // SPECS §19: 60 req/min per IP for position fetches.
+  const limited = enforceRateLimit(req, { bucket: 'positions', limit: 60 })
+  if (limited) return limited
+
   const { searchParams } = new URL(req.url)
-  const query = {
+  const parsed = parse(PositionsQuerySchema, {
     address: searchParams.get('address') || undefined,
     solana: searchParams.get('solana') || undefined,
-  }
+  })
 
-  const result = PositionsQuerySchema.safeParse(query)
+  if (!parsed.ok) return parsed.response
 
-  if (!result.success) {
-    return NextResponse.json(
-      { error: result.error.issues[0].message },
-      { status: 400 }
-    )
-  }
-
-  const { address, solana } = result.data
+  const { address, solana } = parsed.data
 
   try {
     const protocolPositionsPromises: Promise<RawPosition[]>[] = []

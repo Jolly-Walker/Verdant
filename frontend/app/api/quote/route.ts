@@ -1,34 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { CostPreviewInput } from '@/types/quote'
+import { z } from 'zod'
 import { calculateCostPreview } from '@/lib/costPreview/calculator'
+import { parseJson, jsonError } from '@/lib/validation/http'
+import { chainSchema } from '@/lib/validation/primitives'
+
+const QuoteSchema = z.object({
+  asset: z.string().min(1, 'asset is required'),
+  amountUsd: z.number().positive('amountUsd must be a positive number'),
+  sourceProtocol: z.string().min(1, 'sourceProtocol is required'),
+  sourceChain: chainSchema,
+  destProtocol: z.string().min(1, 'destProtocol is required'),
+  destChain: chainSchema,
+  pendleMaturityMs: z.number().int().positive().optional(),
+})
 
 export async function POST(request: NextRequest) {
+  const parsed = await parseJson(request, QuoteSchema)
+  if (!parsed.ok) return parsed.response
+
+  const { asset, amountUsd, sourceProtocol, sourceChain, destProtocol, destChain, pendleMaturityMs } =
+    parsed.data
+
+  // No-op detection
+  if (sourceProtocol === destProtocol && sourceChain === destChain) {
+    return jsonError('Source and destination are the same — nothing to move')
+  }
+
   try {
-    const body = await request.json()
-
-    // Validate required fields
-    const { asset, amountUsd, sourceProtocol, sourceChain, destProtocol, destChain } =
-      body as CostPreviewInput
-
-    if (!asset || !amountUsd || !sourceProtocol || !sourceChain || !destProtocol || !destChain) {
-      return NextResponse.json(
-        { error: 'Missing required fields: asset, amountUsd, sourceProtocol, sourceChain, destProtocol, destChain' },
-        { status: 400 }
-      )
-    }
-
-    // No-op detection
-    if (sourceProtocol === destProtocol && sourceChain === destChain) {
-      return NextResponse.json(
-        { error: 'Source and destination are the same — nothing to move' },
-        { status: 400 }
-      )
-    }
-
-    // Calculate with timeout
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 10000)
-
     const result = await calculateCostPreview({
       asset,
       amountUsd,
@@ -36,9 +34,8 @@ export async function POST(request: NextRequest) {
       sourceChain,
       destProtocol,
       destChain,
+      pendleMaturityMs,
     })
-
-    clearTimeout(timeoutId)
 
     // Serialize Date for JSON
     return NextResponse.json({
