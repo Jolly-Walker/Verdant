@@ -1,6 +1,7 @@
 import 'server-only'
 import { ProtocolPlugin, RewardFetcher, ClaimParams } from '../types/protocol-plugin'
-import { ChainId, Reward, UnsignedTx } from '@/types/shared'
+import { ChainId, Reward, UnsignedTx, RawPosition, TxBuildParams } from '@/types/shared'
+import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { encodeFunctionData, parseAbi } from 'viem'
 
 /**
@@ -18,6 +19,7 @@ const PENDLE_YT_ABI = parseAbi([
  * Source: https://api-v2.pendle.finance/core/docs
  */
 const PENDLE_API_BASE = 'https://api-v2.pendle.finance/core/v1'
+const PENDLE_API_CORE = 'https://api-v2.pendle.finance/core'
 
 /** Chain ID numeric mapping for Pendle API */
 const PENDLE_CHAIN_IDS: Record<string, number> = {
@@ -88,6 +90,52 @@ async function fetchPendleUserRewards(
   }
 }
 
+interface PendleConvertResult {
+  to: string
+  data: string
+  value: string
+  amountOut?: string
+}
+
+/**
+ * Calls Pendle's universal Convert API to build a swap/redeem transaction
+ * (e.g. PT → underlying). Returns the unsigned tx and expected output.
+ * Source: https://docs.pendle.finance/Developers/Backend/HostedSdk
+ */
+async function fetchPendleConvert(opts: {
+  chainId: number
+  receiver: string
+  slippage: number // decimal, e.g. 0.01 = 1%
+  tokenIn: string
+  amountIn: string // smallest units
+  tokenOut: string
+}): Promise<PendleConvertResult> {
+  const qs = new URLSearchParams({
+    receiver: opts.receiver,
+    slippage: String(opts.slippage),
+    tokensIn: opts.tokenIn,
+    amountsIn: opts.amountIn,
+    tokensOut: opts.tokenOut,
+    enableAggregator: 'true',
+  })
+  const url = `${PENDLE_API_CORE}/v2/sdk/${opts.chainId}/convert?${qs.toString()}`
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) })
+  if (!res.ok) throw new Error(`Pendle convert API error: ${res.status}`)
+
+  const json = await res.json()
+  // The Convert API returns { tx: { to, data, value }, data: { amountOut } }.
+  const tx = json.tx ?? json.transactions?.[0]
+  if (!tx?.to || !tx?.data) {
+    throw new Error('Pendle convert API returned no transaction')
+  }
+  return {
+    to: tx.to,
+    data: tx.data,
+    value: String(tx.value ?? '0'),
+    amountOut: json.data?.amountOut != null ? String(json.data.amountOut) : undefined,
+  }
+}
+
 export const pendlePlugin: ProtocolPlugin = {
   id: 'pendle',
   displayName: 'Pendle',
@@ -99,19 +147,110 @@ export const pendlePlugin: ProtocolPlugin = {
     arbitrum: { poolAddress: '0x888888888889758F76e7103c6CbF23ABbF58F946' },
   },
   fetcher: {
-    fetchPositions: async () => [],
+    // Best-effort: derives PT/YT positions from the same user-balances endpoint
+    // the rewards path uses. Field availability varies by market; entries are
+    // mapped defensively and unknown shapes are skipped rather than guessed.
+    fetchPositions: async (address: string, chain: ChainId): Promise<RawPosition[]> => {
+      const chainId = PENDLE_CHAIN_IDS[chain]
+      if (!chainId) return []
+
+      try {
+        const res = await fetch(`${PENDLE_API_BASE}/${chainId}/user-balances/${address}`, {
+          next: { revalidate: 60 },
+          signal: AbortSignal.timeout(15_000),
+        })
+        if (!res.ok) return []
+        const data = await res.json()
+        const balances: PendleBalance[] = data.balances ?? data.results ?? []
+
+        const positions: RawPosition[] = []
+        for (const b of balances) {
+          const ytBalance = Number(b.ytBalance ?? 0)
+          if (ytBalance <= 0) continue
+          const marketAddress = b.market?.address ?? b.marketAddress ?? ''
+          const ytAddress = b.yt?.address ?? b.ytAddress ?? ''
+          positions.push({
+            id: `pendle-yt-${chain}-${marketAddress || ytAddress}`,
+            protocol: 'pendle',
+            chain,
+            asset: b.underlyingAsset ?? b.pendingYield?.token?.symbol ?? 'YT',
+            assetAddress: ytAddress,
+            amount: ytBalance,
+            amountUsd: Number(b.pendingYield?.amountUsd ?? 0),
+            currentApy: 0,
+            positionType: 'pendle-yt',
+            claimableRewards: [],
+            metadata: { marketAddress, ytAddress },
+          })
+        }
+        return positions
+      } catch {
+        return []
+      }
+    },
   },
   builder: {
-    buildTx: async (params) => {
-      // Mock implementation: in a real app, this would use Pendle SDK to build a redemption tx
+    // Builds a real redeem/swap transaction via Pendle's Convert API. The caller
+    // supplies the PT/SY token (extraParams.tokenIn) and the desired output
+    // token (extraParams.tokenOut, or resolved from `asset`). Amounts are wei.
+    buildTx: async (params: TxBuildParams): Promise<UnsignedTx[]> => {
+      const chainId = PENDLE_CHAIN_IDS[params.chain]
+      const evmChainId = EVM_CHAIN_IDS[params.chain]
+      if (!chainId || !evmChainId) {
+        throw new Error(`Pendle is not supported on ${params.chain}`)
+      }
+
+      // Accept either tokenIn or the template's ptAddress for the input token.
+      const tokenIn =
+        (params.extraParams?.tokenIn as string | undefined) ??
+        (params.extraParams?.ptAddress as string | undefined)
+
+      // Output token: an explicit address, else resolve the underlyingAsset /
+      // asset symbol against the token registry.
+      const resolveAddress = (value?: string): string | undefined => {
+        if (!value) return undefined
+        if (/^0x[a-fA-F0-9]{40}$/.test(value)) return value
+        return SUPPORTED_TOKENS[value.toUpperCase()]?.addresses[params.chain]
+      }
+      const underlyingSymbol = params.extraParams?.underlyingAsset as string | undefined
+      const tokenOut =
+        (params.extraParams?.tokenOut as string | undefined) ??
+        resolveAddress(underlyingSymbol) ??
+        resolveAddress(params.asset)
+
+      if (!tokenIn || !tokenOut) {
+        throw new Error(
+          'Pendle buildTx requires extraParams.tokenIn/ptAddress and a resolvable output token'
+        )
+      }
+
+      const decimals =
+        SUPPORTED_TOKENS[(underlyingSymbol ?? params.asset).toUpperCase()]?.decimals ?? 18
+      const isWei = params.extraParams?.isWei === true
+      const amountIn = isWei
+        ? params.amount
+        : BigInt(Math.floor(Number(params.amount) * Math.pow(10, decimals))).toString()
+      const slippage = (params.extraParams?.slippagePercent as number | undefined)
+        ? (params.extraParams!.slippagePercent as number) / 100
+        : 0.01
+
+      const result = await fetchPendleConvert({
+        chainId,
+        receiver: params.userAddress,
+        slippage,
+        tokenIn,
+        amountIn,
+        tokenOut,
+      })
+
       return [
         {
-          chainId: params.chain,
-          to: '0x0000000000000000000000000000000000000000', // Router address would go here
-          data: '0x', // redemption data
-          value: 0n,
+          chainId: evmChainId,
+          to: result.to,
+          data: result.data,
+          value: BigInt(result.value),
           description: `Redeem ${params.amount} ${params.asset} on Pendle`,
-        }
+        },
       ]
     },
     describeAction: (params) => {

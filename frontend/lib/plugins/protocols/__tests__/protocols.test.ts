@@ -22,10 +22,14 @@ vi.mock('@/lib/data/aaveSubgraph', () => ({
   fetchAaveUserData: vi.fn(),
 }))
 
+vi.mock('@/lib/data/morphoApi', () => ({
+  fetchMorphoVaultPositions: vi.fn().mockResolvedValue([]),
+}))
+
 // Mock fetch for Pendle API and DeFiLlama
 global.fetch = vi.fn()
 
-import { aavePlugin } from '../aave'
+import { aavePlugin, projectHealthFactor, MIN_HEALTH_FACTOR } from '../aave'
 import { eulerPlugin, EULER_CURATED_VAULTS } from '../euler'
 import { morphoPlugin } from '../morpho'
 import { pendlePlugin } from '../pendle'
@@ -178,6 +182,114 @@ describe('Aave V3 Protocol Plugin', () => {
       expect(txs.length).toBe(2)
       expect(txs[0].description).toContain('Approve Aave V3 Pool')
       expect(txs[1].description).toContain('Repay 100 USDC')
+    })
+  })
+
+  // ─── Health-factor guard (SPECS §6.2 / §19) ─────────────────────────────────
+  describe('buildTx health-factor guard', () => {
+    const USER = '0x1234567890123456789012345678901234567890'
+
+    // $10,000 collateral, $5,000 debt, 80% liquidation threshold, USDC @ $1 (8-dec base).
+    function mockAccount(collateralBase: bigint, debtBase: bigint, ltBps: bigint) {
+      mockPublicClient.readContract.mockImplementation(
+        async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getUserAccountData') {
+            return [collateralBase, debtBase, 0n, ltBps, 0n, 0n]
+          }
+          if (functionName === 'getAssetPrice') return 100000000n // $1.00, 8 decimals
+          return 0n
+        }
+      )
+    }
+
+    it('allows a borrow that keeps HF above 1.05', async () => {
+      // Borrowing $1,000 more against $10k collateral / $5k debt @ 80% LT → HF ≈ 1.33
+      mockAccount(1_000_000_000_000n, 500_000_000_000n, 8000n)
+      const txs = await aavePlugin.builder.buildTx({
+        action: 'borrow', protocol: 'aave', chain: 'ethereum',
+        asset: 'USDC', amount: '1000', userAddress: USER,
+      })
+      expect(txs[0].description).toContain('Borrow 1000 USDC')
+    })
+
+    it('refuses a borrow that would drop HF below 1.05', async () => {
+      // $10k collateral, $5k debt, 80% LT. Borrowing another $3k → debt $8k → HF = 0.8*10000/8000 = 1.0
+      mockAccount(1_000_000_000_000n, 500_000_000_000n, 8000n)
+      await expect(
+        aavePlugin.builder.buildTx({
+          action: 'borrow', protocol: 'aave', chain: 'ethereum',
+          asset: 'USDC', amount: '3000', userAddress: USER,
+        })
+      ).rejects.toThrow(/health factor/i)
+    })
+
+    it('refuses a withdraw that would drop HF below 1.05', async () => {
+      // Withdrawing $7k of $10k collateral leaves $3k against $5k debt → HF = 0.8*3000/5000 = 0.48
+      mockAccount(1_000_000_000_000n, 500_000_000_000n, 8000n)
+      await expect(
+        aavePlugin.builder.buildTx({
+          action: 'withdraw', protocol: 'aave', chain: 'ethereum',
+          asset: 'USDC', amount: '7000', userAddress: USER,
+        })
+      ).rejects.toThrow(/health factor/i)
+    })
+
+    it('refuses a max withdraw while debt is open', async () => {
+      mockAccount(1_000_000_000_000n, 500_000_000_000n, 8000n)
+      await expect(
+        aavePlugin.builder.buildTx({
+          action: 'withdraw', protocol: 'aave', chain: 'ethereum',
+          asset: 'USDC', amount: 'max', userAddress: USER,
+        })
+      ).rejects.toThrow(/max withdraw/i)
+    })
+
+    it('allows a withdraw when the user has no debt', async () => {
+      mockAccount(1_000_000_000_000n, 0n, 8000n)
+      const txs = await aavePlugin.builder.buildTx({
+        action: 'withdraw', protocol: 'aave', chain: 'ethereum',
+        asset: 'USDC', amount: '9000', userAddress: USER,
+      })
+      expect(txs[0].description).toContain('Withdraw 9000 USDC')
+    })
+
+    it('fails open (allows build) when account data cannot be read', async () => {
+      mockPublicClient.readContract.mockRejectedValue(new Error('rpc down'))
+      const txs = await aavePlugin.builder.buildTx({
+        action: 'borrow', protocol: 'aave', chain: 'ethereum',
+        asset: 'USDC', amount: '1000', userAddress: USER,
+      })
+      expect(txs[0].description).toContain('Borrow 1000 USDC')
+    })
+  })
+
+  describe('projectHealthFactor', () => {
+    it('returns Infinity when no debt remains', () => {
+      expect(
+        projectHealthFactor({
+          totalCollateralBase: 1_000_000_000_000n,
+          totalDebtBase: 500_000_000_000n,
+          liquidationThreshold: 8000n,
+          deltaBase: 500_000_000_000n,
+          action: 'repay',
+        })
+      ).toBe(Infinity)
+    })
+
+    it('computes the HF a withdraw would leave', () => {
+      // $10k coll, $5k debt, 80% LT, withdraw $2k → coll $8k → HF = 0.8*8000/5000 = 1.28
+      const hf = projectHealthFactor({
+        totalCollateralBase: 1_000_000_000_000n,
+        totalDebtBase: 500_000_000_000n,
+        liquidationThreshold: 8000n,
+        deltaBase: 200_000_000_000n,
+        action: 'withdraw',
+      })
+      expect(hf).toBeCloseTo(1.28, 2)
+    })
+
+    it('exposes the 1.05 floor constant', () => {
+      expect(MIN_HEALTH_FACTOR).toBe(1.05)
     })
   })
 
@@ -445,6 +557,84 @@ describe('Morpho Protocol Plugin', () => {
     } as unknown as Response)
   })
 
+  describe('fetchPositions', () => {
+    it('maps MetaMorpho vault positions into supply positions', async () => {
+      const { fetchMorphoVaultPositions } = await import('@/lib/data/morphoApi')
+      vi.mocked(fetchMorphoVaultPositions).mockResolvedValueOnce([
+        {
+          vaultAddress: '0xVault1',
+          vaultName: 'Gauntlet USDC Core',
+          assetAddress: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+          assetSymbol: 'USDC',
+          assetDecimals: 6,
+          assets: '5000000000', // 5,000 USDC
+          assetsUsd: 5000,
+          shares: '4999000000',
+          netApy: 0.068,
+        },
+      ])
+
+      const positions = await morphoPlugin.fetcher.fetchPositions(
+        '0x1234567890123456789012345678901234567890',
+        'ethereum'
+      )
+      expect(positions.length).toBe(1)
+      expect(positions[0].positionType).toBe('supply')
+      expect(positions[0].asset).toBe('USDC')
+      expect(positions[0].amount).toBe(5000)
+      expect(positions[0].currentApy).toBe(0.068)
+      expect(positions[0].metadata.vaultAddress).toBe('0xVault1')
+    })
+
+    it('skips zero-balance vault positions', async () => {
+      const { fetchMorphoVaultPositions } = await import('@/lib/data/morphoApi')
+      vi.mocked(fetchMorphoVaultPositions).mockResolvedValueOnce([
+        {
+          vaultAddress: '0xVault1', vaultName: 'V', assetAddress: '0xA', assetSymbol: 'USDC',
+          assetDecimals: 6, assets: '0', assetsUsd: 0, shares: '0', netApy: 0.05,
+        },
+      ])
+      const positions = await morphoPlugin.fetcher.fetchPositions('0x123', 'ethereum')
+      expect(positions).toEqual([])
+    })
+  })
+
+  describe('buildTx', () => {
+    const USER = '0x1234567890123456789012345678901234567890'
+    const VAULT = '0x1111111111111111111111111111111111111111'
+
+    it('builds approve + deposit for supply', async () => {
+      const txs = await morphoPlugin.builder.buildTx({
+        action: 'supply', protocol: 'morpho', chain: 'ethereum',
+        asset: 'USDC', amount: '100', userAddress: USER,
+        extraParams: { vaultAddress: VAULT },
+      })
+      expect(txs.length).toBe(2)
+      expect(txs[0].description).toContain('Approve Morpho vault')
+      expect(txs[1].description).toContain('Supply 100 USDC')
+      expect(txs[1].to).toBe(VAULT)
+    })
+
+    it('builds a withdraw', async () => {
+      const txs = await morphoPlugin.builder.buildTx({
+        action: 'withdraw', protocol: 'morpho', chain: 'ethereum',
+        asset: 'USDC', amount: '50', userAddress: USER,
+        extraParams: { vaultAddress: VAULT },
+      })
+      expect(txs.length).toBe(1)
+      expect(txs[0].description).toContain('Withdraw 50 USDC')
+    })
+
+    it('throws when no vault address is provided', async () => {
+      await expect(
+        morphoPlugin.builder.buildTx({
+          action: 'supply', protocol: 'morpho', chain: 'ethereum',
+          asset: 'USDC', amount: '100', userAddress: USER,
+        })
+      ).rejects.toThrow(/vaultAddress/)
+    })
+  })
+
   describe('rewards.fetchRewards', () => {
     it('should return empty when no Merkl claims', async () => {
       const rewards = await morphoPlugin.rewards!.fetchRewards(
@@ -519,6 +709,84 @@ describe('Morpho Protocol Plugin', () => {
 describe('Pendle Protocol Plugin', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  describe('fetchPositions', () => {
+    it('returns empty when chain unsupported (base)', async () => {
+      const positions = await pendlePlugin.fetcher.fetchPositions('0x123', 'base')
+      expect(positions).toEqual([])
+    })
+
+    it('maps YT balances into pendle-yt positions', async () => {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          balances: [
+            {
+              ytBalance: 2.5,
+              marketAddress: '0xMarket',
+              ytAddress: '0xYT',
+              underlyingAsset: 'eETH',
+              pendingYield: { amountUsd: 12.5 },
+            },
+          ],
+        }),
+      } as unknown as Response)
+
+      const positions = await pendlePlugin.fetcher.fetchPositions(
+        '0x1234567890123456789012345678901234567890',
+        'ethereum'
+      )
+      expect(positions.length).toBe(1)
+      expect(positions[0].positionType).toBe('pendle-yt')
+      expect(positions[0].amount).toBe(2.5)
+      expect(positions[0].metadata.marketAddress).toBe('0xMarket')
+    })
+  })
+
+  describe('buildTx', () => {
+    const USER = '0x1234567890123456789012345678901234567890'
+    const PT = '0x2222222222222222222222222222222222222222'
+
+    it('builds a redeem tx from the Pendle Convert API', async () => {
+      vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          tx: { to: '0xRouter', data: '0xdeadbeef', value: '0' },
+          data: { amountOut: '999' },
+        }),
+      } as unknown as Response)
+
+      const txs = await pendlePlugin.builder.buildTx({
+        action: 'withdraw', protocol: 'pendle', chain: 'ethereum',
+        asset: 'USDC', amount: '1000000', userAddress: USER,
+        extraParams: { tokenIn: PT, isWei: true },
+      })
+      expect(txs.length).toBe(1)
+      expect(txs[0].to).toBe('0xRouter')
+      expect(txs[0].data).toBe('0xdeadbeef')
+      expect(txs[0].description).toContain('Redeem')
+    })
+
+    it('throws when tokenIn is missing', async () => {
+      await expect(
+        pendlePlugin.builder.buildTx({
+          action: 'withdraw', protocol: 'pendle', chain: 'ethereum',
+          asset: 'USDC', amount: '1000000', userAddress: USER,
+          extraParams: { isWei: true },
+        })
+      ).rejects.toThrow(/tokenIn/)
+    })
+
+    it('throws for an unsupported chain', async () => {
+      await expect(
+        pendlePlugin.builder.buildTx({
+          action: 'withdraw', protocol: 'pendle', chain: 'base',
+          asset: 'USDC', amount: '100', userAddress: USER,
+          extraParams: { tokenIn: PT },
+        })
+      ).rejects.toThrow(/not supported/)
+    })
   })
 
   describe('rewards.fetchRewards', () => {

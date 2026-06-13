@@ -4,6 +4,7 @@ import { ChainId, RawPosition, UnsignedTx, TxBuildParams, Reward } from '@/types
 import { SUPPORTED_TOKENS } from '@/constants/tokens'
 import { getPublicClient } from '@/lib/server/rpc'
 import { fetchTokenPrices } from '@/lib/data/prices'
+import { findPoolApy } from '@/lib/data/defillama'
 import { encodeFunctionData, parseAbi } from 'viem'
 import { fetchMerklClaims, MERKL_DISTRIBUTOR_ADDRESS } from '@/lib/data/merkl'
 
@@ -75,6 +76,14 @@ export const eulerPlugin: ProtocolPlugin = {
           const tokenPositions: RawPosition[] = []
           const price = priceMap[`coingecko:${token.coingeckoId}`] || 0
 
+          // Real APYs from Defillama (the app's canonical yield source), with a
+          // safe fallback to 0 if the pool can't be matched.
+          const poolData = await findPoolApy(eulerPlugin.defillamaSlug, 'Ethereum', token.symbol).catch(
+            () => null
+          )
+          const supplyApy = poolData?.apy ?? 0
+          const borrowApy = poolData?.borrowApyDecimal ?? 0
+
           try {
             // 1. Check supply balance (balanceOf on vault shares)
             const shares = await client.readContract({
@@ -101,7 +110,7 @@ export const eulerPlugin: ProtocolPlugin = {
                 assetAddress: token.addresses[chain]!,
                 amount,
                 amountUsd: amount * price,
-                currentApy: 0.045, // Sample static APY for display
+                currentApy: supplyApy,
                 positionType: 'supply',
                 claimableRewards: [],
                 metadata: { vaultAddress, shares: shares.toString() }
@@ -126,7 +135,7 @@ export const eulerPlugin: ProtocolPlugin = {
                 assetAddress: token.addresses[chain]!,
                 amount,
                 amountUsd: amount * price,
-                currentApy: 0.055, // Sample static APY for display
+                currentApy: borrowApy,
                 positionType: 'borrow',
                 claimableRewards: [],
                 metadata: { vaultAddress }

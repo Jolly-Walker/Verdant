@@ -4,6 +4,7 @@
  */
 
 const YIELDS_API = 'https://yields.llama.fi/pools'
+const YIELDS_BORROW_API = 'https://yields.llama.fi/poolsBorrow'
 
 export interface DefillamaPool {
   pool: string               // pool UUID — use as stable ID
@@ -80,16 +81,68 @@ export async function fetchPoolApys(): Promise<DefillamaPool[]> {
   return pools
 }
 
+let borrowCache: { data: Map<string, number>; fetchedAt: number } | null = null
+
+/** Clears the in-memory pool/borrow caches — for tests. */
+export function resetDefillamaCache(): void {
+  poolCache = null
+  borrowCache = null
+}
+
+/**
+ * Fetch the borrow-APY map (pool UUID → borrow APR as a decimal) from
+ * Defillama's /poolsBorrow endpoint. Cached for 15 minutes. Fails soft to an
+ * empty map so a borrow-rate outage never blocks position display.
+ */
+export async function fetchBorrowApyMap(): Promise<Map<string, number>> {
+  if (borrowCache && Date.now() - borrowCache.fetchedAt < CACHE_TTL_MS) {
+    return borrowCache.data
+  }
+
+  const map = new Map<string, number>()
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10_000)
+    let res: Response
+    try {
+      res = await fetch(YIELDS_BORROW_API, { signal: controller.signal })
+    } finally {
+      clearTimeout(timeoutId)
+    }
+    if (res.ok) {
+      const json = await res.json()
+      for (const p of json.data || []) {
+        const apyBaseBorrow = (p.apyBaseBorrow as number) ?? null
+        if (p.pool && apyBaseBorrow !== null) {
+          map.set(p.pool as string, apyBaseBorrow / 100) // percentage → decimal
+        }
+      }
+    }
+  } catch {
+    // Fall through to empty map.
+  }
+
+  borrowCache = { data: map, fetchedAt: Date.now() }
+  return map
+}
+
 /**
  * Find the best matching pool for a given protocol/chain/asset combo.
- * Returns APY (decimal), TVL, and utilisation ratio for the highest-TVL match.
+ * Returns supply APY (decimal), borrow APY (decimal, if the pool is borrowable),
+ * TVL, utilisation ratio, and the pool UUID for the highest-TVL match.
  */
 export async function findPoolApy(
   defillamaSlug: string,    // was: protocol string looked up in PROJECT_MAP
   defillamaChain: string,   // was: chain string looked up in CHAIN_MAP
   asset: string
-): Promise<{ apy: number; tvlUsd: number; utilisationDecimal: number | null } | null> {
-  const pools = await fetchPoolApys()
+): Promise<{
+  poolId: string
+  apy: number
+  borrowApyDecimal: number | null
+  tvlUsd: number
+  utilisationDecimal: number | null
+} | null> {
+  const [pools, borrowMap] = await Promise.all([fetchPoolApys(), fetchBorrowApyMap()])
   const assetUpper = asset.toUpperCase()
 
   const matches = pools.filter((p) => {
@@ -113,7 +166,9 @@ export async function findPoolApy(
   }
 
   return {
+    poolId: best.pool,
     apy: best.apy / 100, // Convert percentage to decimal
+    borrowApyDecimal: borrowMap.get(best.pool) ?? null,
     tvlUsd: best.tvlUsd,
     utilisationDecimal,
   }
