@@ -59,7 +59,7 @@ describe('fetchDepositDestinations', () => {
       }
     ]
 
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
+    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools as defillama.DefillamaPool[])
 
     const result = await fetchDepositDestinations('USDC', 'ethereum')
     expect(result.length).toBe(1)
@@ -92,7 +92,7 @@ describe('fetchDepositDestinations', () => {
       }
     ]
 
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
+    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools as defillama.DefillamaPool[])
 
     const result = await fetchDepositDestinations('USDC', 'ethereum')
     expect(result.length).toBe(1)
@@ -137,7 +137,7 @@ describe('fetchDepositDestinations', () => {
       }
     ]
 
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
+    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools as defillama.DefillamaPool[])
 
     const result = await fetchDepositDestinations('USDC', 'ethereum')
     expect(result.length).toBe(1)
@@ -170,7 +170,7 @@ describe('fetchDepositDestinations', () => {
       }
     ]
 
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
+    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools as defillama.DefillamaPool[])
 
     const result = await fetchDepositDestinations('USDC', 'ethereum')
     expect(result.length).toBe(1)
@@ -215,7 +215,7 @@ describe('fetchDepositDestinations', () => {
       }
     ]
 
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
+    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools as defillama.DefillamaPool[])
 
     const result = await fetchDepositDestinations()
     expect(result.length).toBe(3)
@@ -256,7 +256,7 @@ describe('fetchDepositDestinations', () => {
       }
     ]
 
-    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools)
+    vi.spyOn(defillama, 'fetchPoolApys').mockResolvedValue(mockPools as defillama.DefillamaPool[])
 
     const result = await fetchDepositDestinations('USDC', 'ethereum')
     expect(result.length).toBe(2)

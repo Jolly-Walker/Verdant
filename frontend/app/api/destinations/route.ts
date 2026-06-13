@@ -2,25 +2,21 @@ import 'server-only'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { fetchDepositDestinations } from '@/lib/data/destinationsFetcher'
-import { ALL_CHAINS, ChainId } from '@/types/shared'
+import { ChainId } from '@/types/shared'
+import { chainSchema } from '@/lib/validation/primitives'
+import { parseQuery } from '@/lib/validation/http'
 
 const QuerySchema = z.object({
   token: z.string().optional(),
-  chain: z.enum(ALL_CHAINS).optional(),
+  chain: chainSchema.optional(),
 })
 
 export async function GET(request: NextRequest) {
-  const params = Object.fromEntries(request.nextUrl.searchParams.entries())
-  const result = QuerySchema.safeParse(params)
+  const parsed = parseQuery(request.nextUrl.searchParams, QuerySchema)
 
-  if (!result.success) {
-    return NextResponse.json(
-      { error: 'Invalid query params', details: result.error.format() },
-      { status: 400 }
-    )
-  }
+  if (!parsed.ok) return parsed.response
 
-  const { token, chain } = result.data
+  const { token, chain } = parsed.data
 
   try {
     const destinations = await fetchDepositDestinations(token, chain as ChainId | undefined)

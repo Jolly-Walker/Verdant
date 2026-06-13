@@ -1,17 +1,21 @@
 import 'server-only'
-import { getSupabaseAdmin } from '@/lib/data/supabase'
-import { ALL_CHAINS } from '@/types/shared'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import {
+  getAutoCompoundSettings,
+  upsertAutoCompoundSetting,
+} from '@/lib/data/autoCompoundSettings'
+import { chainSchema, evmAddressSchema } from '@/lib/validation/primitives'
+import { parseJson, parseQuery } from '@/lib/validation/http'
 
 const GetQuerySchema = z.object({
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address'),
+  address: evmAddressSchema,
 })
 
 const PostBodySchema = z.object({
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address'),
+  address: evmAddressSchema,
   protocol: z.string().min(1),
-  chain: z.enum(ALL_CHAINS),
+  chain: chainSchema,
   asset: z.string().min(1),
   enabled: z.boolean(),
   min_threshold_usd: z.number().min(0).optional(),
@@ -23,25 +27,12 @@ const PostBodySchema = z.object({
  * Returns auto-compound settings for all positions belonging to the wallet.
  */
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const result = GetQuerySchema.safeParse({ address: searchParams.get('address') })
-
-  if (!result.success) {
-    return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 })
-  }
-
-  const { address } = result.data
+  const parsed = parseQuery(new URL(req.url).searchParams, GetQuerySchema)
+  if (!parsed.ok) return parsed.response
 
   try {
-    const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
-      .from('auto_compound_settings')
-      .select('protocol, chain, asset, enabled, min_threshold_usd')
-      .eq('wallet_address', address)
-
-    if (error) throw error
-
-    return NextResponse.json({ settings: data ?? [] })
+    const settings = await getAutoCompoundSettings(parsed.data.address)
+    return NextResponse.json({ settings })
   } catch (err) {
     console.error('[harvest/settings] GET failed:', err)
     return NextResponse.json({ error: 'Could not load settings' }, { status: 502 })
@@ -54,38 +45,20 @@ export async function GET(req: NextRequest) {
  * Upserts an auto-compound setting for a wallet+protocol+chain+asset combination.
  */
 export async function POST(req: NextRequest) {
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  const parsed = await parseJson(req, PostBodySchema)
+  if (!parsed.ok) return parsed.response
 
-  const result = PostBodySchema.safeParse(body)
-  if (!result.success) {
-    return NextResponse.json({ error: result.error.issues[0].message }, { status: 400 })
-  }
-
-  const { address, protocol, chain, asset, enabled, min_threshold_usd } = result.data
+  const { address, protocol, chain, asset, enabled, min_threshold_usd } = parsed.data
 
   try {
-    const supabase = getSupabaseAdmin()
-    const { error } = await supabase
-      .from('auto_compound_settings')
-      .upsert(
-        {
-          wallet_address: address,
-          protocol,
-          chain,
-          asset,
-          enabled,
-          ...(min_threshold_usd !== undefined ? { min_threshold_usd } : {}),
-        },
-        { onConflict: 'wallet_address,protocol,chain,asset' }
-      )
-
-    if (error) throw error
-
+    await upsertAutoCompoundSetting({
+      address,
+      protocol,
+      chain,
+      asset,
+      enabled,
+      minThresholdUsd: min_threshold_usd,
+    })
     return NextResponse.json({ ok: true })
   } catch (err) {
     console.error('[harvest/settings] POST failed:', err)

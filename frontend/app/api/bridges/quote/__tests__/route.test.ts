@@ -4,30 +4,9 @@ import { NextRequest } from 'next/server';
 
 vi.mock('server-only', () => ({}));
 
-vi.mock('@/lib/data/supabase', () => ({
-  getSupabaseAdmin: vi.fn(() => ({
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          eq: vi.fn(() => ({
-            eq: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  gt: vi.fn(() => ({
-                    order: vi.fn(() => ({
-                      limit: vi.fn(() => ({
-                        maybeSingle: vi.fn().mockResolvedValue({ data: null })
-                      }))
-                    }))
-                  }))
-                }))
-              }))
-            }))
-          }))
-        }))
-      }))
-    }))
-  }))
+vi.mock('@/lib/data/bridgeQuotesCache', () => ({
+  getCachedBridgeQuotes: vi.fn().mockResolvedValue(null),
+  cacheBridgeQuotes: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/plugins/bridges', () => ({

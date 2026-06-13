@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { getEligibleActions, canSubmit, canAddMore, computeTokenDelta, builderStepsToSequencePlan } from '../logic'
-import { TokenState, BuilderStep } from '../types'
+import { TokenState, BuilderStep, DepositDestination } from '../types'
 import { Position } from '@/types/position'
 
 describe('Sequence Builder Logic', () => {
@@ -131,7 +131,7 @@ describe('Sequence Builder Logic', () => {
             displayName: 'Aave V3 — USDC',
             outputTokenSymbol: 'aUSDC',
             apyType: 'variable'
-          }
+          } as DepositDestination
         }
       ]
       expect(canSubmit(steps)).toBe(true)
@@ -157,7 +157,7 @@ describe('Sequence Builder Logic', () => {
             displayName: 'Aave V3 — USDC',
             outputTokenSymbol: 'aUSDC',
             apyType: 'variable'
-          }
+          } as DepositDestination
         }
       ]
       expect(canAddMore(steps)).toBe(false)
@@ -216,7 +216,7 @@ describe('Sequence Builder Logic', () => {
             displayName: 'Euler V2 — WETH',
             outputTokenSymbol: 'eWETH',
             apyType: 'variable'
-          }
+          } as DepositDestination
         }
       ]
 
@@ -270,7 +270,7 @@ describe('Sequence Builder Logic', () => {
             displayName: 'Euler V2 — WETH',
             outputTokenSymbol: 'eWETH',
             apyType: 'variable'
-          }
+          } as DepositDestination
         }
       ]
 
@@ -361,7 +361,7 @@ describe('Sequence Builder Logic', () => {
             displayName: 'Aave V3 — USDC',
             outputTokenSymbol: 'aUSDC',
             apyType: 'variable'
-          }
+          } as DepositDestination
         }
       ]
 

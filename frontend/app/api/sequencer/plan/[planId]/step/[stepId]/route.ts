@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
 import { applyStepUpdate, computePlanStatus, serializeSequencePlan } from '@/lib/sequencer/engine'
 import { SequenceStep } from '@/types/sequencer'
+import { parseJson } from '@/lib/validation/http'
 
 const UpdateStepSchema = z.object({
   status: z.enum(['simulating', 'ready', 'signing', 'confirmed', 'failed']),
@@ -30,21 +31,18 @@ export async function PATCH(
   req: Request,
   { params }: { params: { planId: string; stepId: string } }
 ) {
-  try {
-    const body = await req.json()
-    const result = UpdateStepSchema.safeParse(body)
-    
-    if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-    }
+  const parsed = await parseJson(req, UpdateStepSchema)
+  if (!parsed.ok) return parsed.response
+  const data = parsed.data
 
+  try {
     const plan = await getSequencePlan(params.planId)
     if (!plan) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
     }
 
     // Verify ownership
-    if (plan.walletAddress.toLowerCase() !== result.data.walletAddress.toLowerCase()) {
+    if (plan.walletAddress.toLowerCase() !== data.walletAddress.toLowerCase()) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -53,7 +51,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Step not found' }, { status: 404 })
     }
 
-    const { status: newStatus } = result.data
+    const { status: newStatus } = data
     
     // Validate status transition
     if (!VALID_TRANSITIONS[step.status]?.includes(newStatus)) {
@@ -62,7 +60,7 @@ export async function PATCH(
 
     // Enforce simulation acknowledgment for ready -> signing
     if (newStatus === 'signing' && step.status === 'ready') {
-      if (!result.data.acknowledged) {
+      if (!data.acknowledged) {
         return NextResponse.json(
           { error: 'Simulation must be acknowledged before signing' },
           { status: 400 }
@@ -72,11 +70,11 @@ export async function PATCH(
 
     // Apply update to plan using pure engine functions
     const updateData: Partial<SequenceStep> = { status: newStatus };
-    if (result.data.txHash) updateData.txHash = result.data.txHash;
-    if (result.data.simulation) {
+    if (data.txHash) updateData.txHash = data.txHash;
+    if (data.simulation) {
       updateData.simulation = {
-        ...result.data.simulation,
-        gasEstimate: result.data.simulation.gasEstimate ? BigInt(result.data.simulation.gasEstimate) : undefined,
+        ...data.simulation,
+        gasEstimate: data.simulation.gasEstimate ? BigInt(data.simulation.gasEstimate) : undefined,
         simulatedAt: new Date()
       };
     }

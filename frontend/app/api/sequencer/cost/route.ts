@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getSequencePlan } from '@/lib/data/sequencePlans'
 import { calculateCostPreview } from '@/lib/costPreview/calculator'
+import { parseJson } from '@/lib/validation/http'
 
 const CostRequestSchema = z.object({
-  planId: z.string().uuid(),
+  planId: z.uuid(),
   walletAddress: z.string(),
   currentApy: z.number().optional(),
   targetApy: z.number().optional(),
@@ -14,19 +15,12 @@ const CostRequestSchema = z.object({
 })
 
 export async function POST(req: Request) {
+  const parsed = await parseJson(req, CostRequestSchema)
+  if (!parsed.ok) return parsed.response
+
+  const { planId, walletAddress, currentApy, targetApy, borrowApy, supplyApy, totalCollateralUsd } = parsed.data
+
   try {
-    const body = await req.json()
-    const result = CostRequestSchema.safeParse(body)
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: 'Invalid request body', details: result.error.format() },
-        { status: 400 }
-      )
-    }
-
-    const { planId, walletAddress, currentApy, targetApy, borrowApy, supplyApy, totalCollateralUsd } = result.data
-
     const plan = await getSequencePlan(planId)
     if (!plan) {
       return NextResponse.json({ error: 'Plan not found' }, { status: 404 })

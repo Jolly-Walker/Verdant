@@ -1,12 +1,14 @@
 import 'server-only'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { ChainId, ALL_CHAINS, Reward } from '@/types/shared'
+import { ChainId, Reward } from '@/types/shared'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { chainSchema, evmAddressSchema } from '@/lib/validation/primitives'
+import { parseQuery } from '@/lib/validation/http'
 
 const RewardsQuerySchema = z.object({
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address'),
-  chain: z.enum(ALL_CHAINS).optional(),
+  address: evmAddressSchema,
+  chain: chainSchema.optional(),
 })
 
 export interface AggregatedReward extends Reward {
@@ -25,21 +27,10 @@ export interface AggregatedReward extends Reward {
  *   - chain:   filter to a specific chain (optional; fetches all supported chains if omitted)
  */
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const query = {
-    address: searchParams.get('address') ?? undefined,
-    chain: searchParams.get('chain') ?? undefined,
-  }
+  const parsed = parseQuery(new URL(req.url).searchParams, RewardsQuerySchema)
+  if (!parsed.ok) return parsed.response
 
-  const result = RewardsQuerySchema.safeParse(query)
-  if (!result.success) {
-    return NextResponse.json(
-      { error: result.error.issues[0].message },
-      { status: 400 }
-    )
-  }
-
-  const { address, chain: chainFilter } = result.data
+  const { address, chain: chainFilter } = parsed.data
 
   const rewardPromises: Promise<AggregatedReward[]>[] = []
 

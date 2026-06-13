@@ -1,13 +1,15 @@
 import 'server-only'
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { ChainId, ALL_CHAINS } from '@/types/shared'
+import { ChainId } from '@/types/shared'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { chainSchema, evmAddressSchema } from '@/lib/validation/primitives'
+import { parseJson } from '@/lib/validation/http'
 
 const ClaimBodySchema = z.object({
   protocol: z.string().min(1),
-  chain: z.enum(ALL_CHAINS),
-  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid EVM wallet address'),
+  chain: chainSchema,
+  address: evmAddressSchema,
 })
 
 /**
@@ -26,22 +28,10 @@ const ClaimBodySchema = z.object({
  *   { txs: UnsignedTx[] }
  */
 export async function POST(req: NextRequest) {
-  let body: unknown
-  try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 })
-  }
+  const parsed = await parseJson(req, ClaimBodySchema)
+  if (!parsed.ok) return parsed.response
 
-  const result = ClaimBodySchema.safeParse(body)
-  if (!result.success) {
-    return NextResponse.json(
-      { error: result.error.issues[0].message },
-      { status: 400 }
-    )
-  }
-
-  const { protocol, chain, address } = result.data
+  const { protocol, chain, address } = parsed.data
 
   const plugin = PROTOCOL_REGISTRY[protocol as keyof typeof PROTOCOL_REGISTRY]
   if (!plugin) {

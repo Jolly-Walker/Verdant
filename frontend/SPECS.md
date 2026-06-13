@@ -3,7 +3,9 @@
 > **Spec version:** 3 — Expanded scope: Base chain, Solana, full position type coverage, complex
 > transaction sequences, modular plugin architecture, sequential transaction execution with simulation.  
 > **Based on:** Existing SPECS.md (v2), AGENTS.md, codebase analysis.  
-> **Intended consumers:** AI coding agents generating GitHub tickets and tasks.
+> **Intended consumers:** AI coding agents generating GitHub tickets and tasks.  
+> **Rev 2026-06-06:** Database access migrated to Drizzle ORM (typed schema + repositories);
+> request validation consolidated into shared zod helpers. See §2.6, §14, §15, §18.
 
 ---
 
@@ -101,6 +103,8 @@ Sequencer Layer  — Plan and track multi-step transaction flows
 Simulation Layer — Validate each step before signing
 Bridge Layer     — Cross-chain routing (LayerZero, NEAR Intents, Across)
 Protocol Layer   — Per-protocol tx builders (Aave, Morpho, etc.) via plugins
+Data Layer       — Typed DB access via Drizzle ORM (lib/db) + repositories (lib/data)
+Validation Layer — Shared zod schemas + request helpers (lib/validation)
 UI Layer         — Display, cost preview, step-by-step signing flow
 ```
 
@@ -915,124 +919,194 @@ export interface CostPreviewResult {
 
 ## 14. Database Schema
 
-All Supabase migrations in `supabase/migrations/`. New migrations use sequential 3-digit prefix.
+The database is **Supabase Postgres**, accessed server-side through **Drizzle ORM** (over
+`postgres-js`). The SQL migrations in `supabase/migrations/` are the canonical applied schema; the
+Drizzle schema in `lib/db/schema.ts` mirrors them and is the **typed source of truth** for all
+queries. New migrations use a sequential 3-digit prefix — when you add one, reflect the change in
+`lib/db/schema.ts`.
 
-### 14.1 Existing Tables (unchanged)
+### 14.1 Data Access Layer
 
-- `user_settings` — wallet → preferences (including `min_usd_threshold`)
-- `auto_compound_settings` — per-position compound settings
-- `execution_history` — history of executed sequences
-- `harvest_history` — history of harvested rewards
+- `lib/db/client.ts` — lazy, server-only Drizzle client. Requires `DATABASE_URL` (the Supabase
+  Postgres connection-pooler URI; see §18). `@supabase/supabase-js` is no longer a dependency of the
+  Next app.
+- `lib/db/schema.ts` — Drizzle table definitions for every table below.
+- `lib/data/*` — typed repositories that own all queries; route handlers contain **no** raw DB
+  access. Modules: `sequencePlans`, `executionHistory`, `autoCompoundSettings`, `harvestHistory`,
+  `bridgeQuotesCache`.
+- Postgres `numeric` columns are returned by the driver as strings; repositories convert them to
+  `number` at their boundary.
+- `npm run db:generate | db:migrate | db:push | db:studio` wire `drizzle-kit` (`drizzle.config.ts`).
 
-### 14.2 New Tables (v3)
+> The Supabase Edge Function `supabase/functions/auto-compound/index.ts` runs on Deno and uses its
+> own `@supabase/supabase-js` import via esm.sh — independent of the Drizzle layer above.
+
+### 14.2 Tables
+
+| Migration(s) | Table | Purpose |
+|---|---|---|
+| `001`, `009` | `user_settings` | wallet → preferences (incl. `min_usd_threshold`) |
+| `002` | `auto_compound_settings` | per-position auto-compound prefs (unique per wallet+protocol+chain+asset) |
+| `003`, `006` | `execution_history` | executed sequences (`plan_id` → `sequence_plans`) |
+| `004`, `008` | `harvest_history` | harvested rewards (incl. `reward_token_address`) |
+| `005`, `010` | `sequence_plans` | persisted `SequencePlan`s (incl. `position_size_usd`) |
+| `007` | `bridge_quotes_cache` | short-TTL cache of bridge quotes per route |
+
+Key table definitions:
 
 ```sql
--- 005_sequence_plans.sql
+-- 005_sequence_plans.sql (+ 010 adds position_size_usd)
 CREATE TABLE sequence_plans (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_address      TEXT NOT NULL,
   template_id         TEXT NOT NULL,
   description         TEXT NOT NULL,
-  status              TEXT DEFAULT 'draft',  -- draft|in-progress|complete|failed
+  status              TEXT NOT NULL DEFAULT 'draft',  -- draft|in-progress|complete|failed
   total_cost_usd      NUMERIC,
-  steps               JSONB NOT NULL,        -- serialised SequenceStep[]
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW(),
+  position_size_usd   NUMERIC(18,2),
+  steps               JSONB NOT NULL,                 -- serialised SequenceStep[]
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at        TIMESTAMPTZ
 );
 
 CREATE INDEX idx_sequence_plans_wallet ON sequence_plans(wallet_address);
 CREATE INDEX idx_sequence_plans_status ON sequence_plans(status);
 
--- 006_bridge_quotes_cache.sql
+-- 007_bridge_quotes_cache.sql
 CREATE TABLE bridge_quotes_cache (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   from_chain          TEXT NOT NULL,
   to_chain            TEXT NOT NULL,
   token               TEXT NOT NULL,
   amount_wei          TEXT NOT NULL,
-  quotes              JSONB NOT NULL,       -- BridgeQuote[]
+  recipient           TEXT NOT NULL,
+  quotes              JSONB NOT NULL,                 -- BridgeQuote[]
   fetched_at          TIMESTAMPTZ DEFAULT NOW(),
   expires_at          TIMESTAMPTZ NOT NULL
 );
 
--- 007_solana_positions.sql  (future — for now positions are ephemeral)
--- Placeholder migration, table created in next iteration
+CREATE INDEX idx_bridge_quotes_cache_lookup
+  ON bridge_quotes_cache(from_chain, to_chain, token, amount_wei, recipient);
 ```
 
 ---
 
 ## 15. API Routes
 
-### 15.1 Existing Routes (updated)
+> **Input validation:** every route validates inputs with zod through shared helpers in
+> `lib/validation/` — `parse` / `parseQuery` / `parseJson` (each returns a ready `400` response on
+> failure or the typed data) plus reusable primitives (`evmAddressSchema`, `chainSchema`). Validation
+> failures respond with `{ error: <first message> }` and status `400`; malformed JSON bodies respond
+> with `{ error: 'Invalid JSON body' }`.
+
+### 15.1 Positions, Simulation & Data
 
 **`GET /api/positions?address={wallet}&solana={solanaAddress}`**
 
-Now accepts optional `solana` query param. Returns merged EVM + Solana positions.
+Both query params optional. Returns merged EVM (Zerion + protocol plugins) + Solana positions.
 
 **`POST /api/simulate`**
 
-Now accepts `chain: ChainId` (including `'solana'`). Routes to appropriate simulation method.
+Body: `{ chain: ChainId, to, from, data?, value? }` (`chain` includes `'solana'`). Routes to the
+appropriate simulation method and returns the serialised `SimulationResult`.
 
 **`POST /api/quote`**
 
-Now returns all bridge options for the route, not just one. Renamed fields:
-- `bridgeQuotes: BridgeQuote[]` (sorted best-to-worst)
-- `recommendedBridgeId: BridgeId`
+Single-move **cost preview** (not bridge quotes). Body:
+`{ asset, amountUsd, sourceProtocol, sourceChain, destProtocol, destChain }`. Returns a
+`CostPreviewResult` with `quoteFetchedAt` serialised to an ISO string. Rejects no-op moves
+(same source and destination). Bridge quotes live at `GET /api/bridges/quote` (§15.2).
 
 **`GET /api/apys?protocol={protocol}&chain={chain}&asset={asset}`**
 
-Unchanged.
+Defillama pool APY lookup via the protocol/chain registries. Unchanged.
 
-### 15.2 New Routes (v3)
+**`GET /api/destinations?token={token}&chain={chain}`**
+
+Candidate deposit destinations (protocol/chain/APY) for the sequence builder. Both params optional.
+CDN-cached (5 min, stale-while-revalidate 15 min).
+
+### 15.2 Bridge Routes
+
+**`GET /api/bridges/quote`**
+
+```typescript
+// Query: fromChain, toChain, token, amount, recipientAddress, slippagePercent? (default 0.5)
+// Response: { quotes: BridgeQuote[], recommended: BridgeQuote }   // sorted best net output first
+```
+
+Served from a 30s DB cache (`bridge_quotes_cache`) on a warm hit; otherwise queries all eligible
+bridge plugins in parallel (10s timeout) and caches the result.
+
+**`POST /api/bridges/build`**
+
+```typescript
+// Body: { bridgeId, quote, walletAddress }
+// Response: { unsignedTx: SerializedUnsignedTx }
+```
+
+Verifies `quote.rawQuote.recipientAddress === walletAddress`, resolves the origin chain, and
+simulates before returning the unsigned tx.
+
+**`GET /api/bridges/status?txHash={hash}&fromChain={chain}&bridgeId={bridge}`**
+
+Returns `BridgeStatus` by polling the selected bridge plugin.
+
+### 15.3 Sequencer Routes
 
 **`POST /api/sequencer/plan`**
 
 ```typescript
-// Body
-{
-  templateId: TemplateId
-  params: TemplateParams
-  walletAddress: string
-}
-// Response
-{
-  plan: SequencePlan
-}
+// Body (template): { templateId: TemplateId, params: TemplateParams, walletAddress }
+// Body (custom):   { templateId: 'custom', customPlan, walletAddress }
+// Response: { plan: SequencePlan }
 ```
 
 **`POST /api/sequencer/simulate`**
 
 ```typescript
-// Body
-{
-  planId: string
-  stepId: string
-}
-// Response
-{
-  simulation: SimulationResult
-  updatedStep: SequenceStep
-}
+// Body: { planId, stepId, walletAddress }
+// Response: { simulation: SimulationResult, updatedStep: SequenceStep }   // ownership-checked
 ```
 
-**`PATCH /api/sequencer/plan/{planId}/step/{stepId}`**
+**`POST /api/sequencer/cost`**
 
 ```typescript
-// Body: partial SequenceStep update (e.g., status after tx broadcast)
-{ status: StepStatus; txHash?: string }
+// Body: { planId, walletAddress, currentApy?, targetApy?, borrowApy?, supplyApy?, totalCollateralUsd? }
+// Response: multi-step CostPreviewResult (quoteFetchedAt as ISO string)   // ownership-checked
 ```
 
 **`GET /api/sequencer/plan/{planId}`**
 
-Returns full `SequencePlan` from DB.
+Returns the full `SequencePlan` from the DB.
 
-**`GET /api/bridges/quotes`**
+**`PATCH /api/sequencer/plan/{planId}/step/{stepId}`**
 
 ```typescript
-// Query params: fromChain, toChain, token, amount, recipient
-// Response: BridgeQuote[]
+// Body: { status: StepStatus, walletAddress, txHash?, simulation?, acknowledged? }
+// Enforces valid status transitions and plan ownership.
 ```
+
+### 15.4 Rewards & Harvest Routes
+
+**`GET /api/rewards?address={wallet}&chain={chain}`**
+
+Aggregates claimable rewards across all protocol plugins implementing `RewardFetcher`. `chain`
+optional (defaults to all supported EVM chains). Returns `{ rewards, totalUsd }`.
+
+**`POST /api/rewards/claim`**
+
+Body: `{ protocol, chain, address }`. Returns `{ txs: UnsignedTx[] }`.
+
+**`GET /api/harvest/settings?address={wallet}`** / **`POST /api/harvest/settings`**
+
+Read all auto-compound settings for a wallet, or upsert one
+(`{ address, protocol, chain, asset, enabled, min_threshold_usd? }`).
+
+**`GET /api/harvest/history?address={wallet}`**
+
+Returns the 50 most recent harvest events for the wallet, newest first.
 
 ---
 
@@ -1058,13 +1132,24 @@ app/
     ├── positions/route.ts
     ├── quote/route.ts
     ├── apys/route.ts
+    ├── destinations/route.ts
     ├── simulate/route.ts
+    ├── rewards/
+    │   ├── route.ts
+    │   └── claim/route.ts
+    ├── harvest/
+    │   ├── settings/route.ts
+    │   └── history/route.ts
     ├── bridges/
-    │   └── quotes/route.ts
+    │   ├── quote/route.ts
+    │   ├── build/route.ts
+    │   └── status/route.ts
     └── sequencer/
         ├── plan/route.ts
         ├── plan/[planId]/route.ts
-        └── plan/[planId]/step/[stepId]/route.ts
+        ├── plan/[planId]/step/[stepId]/route.ts
+        ├── simulate/route.ts
+        └── cost/route.ts
 ```
 
 ### 16.2 Component Structure
@@ -1182,6 +1267,8 @@ NEAR_INTENTS_API_KEY=
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+DATABASE_URL=                   # Postgres connection string for Drizzle ORM (server-side DB access).
+                                # Supabase: use the Transaction pooler URI (port 6543).
 
 # Tenderly (optional — for enriched simulation)
 TENDERLY_ACCESS_KEY=
@@ -1353,7 +1440,7 @@ templates. Replace existing execute flow with sequencer.
 - [x] `lib/plugins/bridges/across.ts` — refactor existing `lib/routing/across.ts` into plugin
 - [x] `lib/plugins/bridges/nearIntents.ts` — refactor existing `lib/routing/nearIntents.ts` into plugin
 - [x] `lib/plugins/bridges/layerzero.ts` — new: LayerZero CCTP for USDC
-- [x] `GET /api/bridges/quotes` — returns all bridge quotes for a route, sorted by net output
+- [x] `GET /api/bridges/quote` — returns all bridge quotes for a route, sorted by net output
 - [x] Supabase migration `006_bridge_quotes_cache.sql`
 - [x] Bridge quote caching (30s TTL in DB)
 - [x] `components/bridge/BridgeQuoteSelector.tsx` — compare bridge options
