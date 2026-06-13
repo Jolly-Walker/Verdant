@@ -17,6 +17,8 @@ export interface MorphoVaultPosition {
   /** Supplied assets in smallest units (string). */
   assets: string;
   assetsUsd: number | null;
+  /** Spot USD price of one whole asset token, or null if unavailable. */
+  assetPriceUsd: number | null;
   shares: string;
   /** Vault net supply APY as a decimal (e.g. 0.068), or null if unavailable. */
   netApy: number | null;
@@ -36,7 +38,7 @@ const USER_POSITIONS_QUERY = `
         vault {
           address
           name
-          asset { address symbol decimals }
+          asset { address symbol decimals priceUsd }
           state { netApy }
         }
       }
@@ -51,7 +53,7 @@ interface RawVaultPosition {
   vault?: {
     address?: string;
     name?: string;
-    asset?: { address?: string; symbol?: string; decimals?: number };
+    asset?: { address?: string; symbol?: string; decimals?: number; priceUsd?: number };
     state?: { netApy?: number };
   };
 }
@@ -97,6 +99,7 @@ export async function fetchMorphoVaultPositions(
         assetDecimals: asset.decimals ?? 18,
         assets,
         assetsUsd: vp.state?.assetsUsd ?? null,
+        assetPriceUsd: asset.priceUsd ?? null,
         shares,
         netApy: vault.state?.netApy ?? null,
       });

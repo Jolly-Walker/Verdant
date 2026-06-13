@@ -1,3 +1,4 @@
+import { decodeFunctionData } from 'viem';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('server-only', () => ({}));
@@ -34,11 +35,14 @@ describe('acrossBridgePlugin', () => {
   });
 
   it('should return a quote correctly', async () => {
+    // Across v3 /suggested-fees nests fees under `<fee>.total`; `totalRelayFee`
+    // already bundles gas + capital + LP and is the amount deducted from input.
     const mockApiResponse = {
-      relayFeeTotal: '100000',
-      relayGasFeeTotal: '50000',
-      capitalFeeTotal: '10000',
-      estimatedFillTime: 120,
+      totalRelayFee: { pct: '1600000000000000', total: '160000' },
+      relayerGasFee: { pct: '500000000000000', total: '50000' },
+      relayerCapitalFee: { pct: '100000000000000', total: '10000' },
+      lpFee: { pct: '1000000000000000', total: '100000' },
+      expectedFillTimeSec: 120,
       timestamp: 1700000000,
     };
 
@@ -57,10 +61,97 @@ describe('acrossBridgePlugin', () => {
 
     expect(quote).not.toBeNull();
     expect(quote?.bridgeId).toBe('across');
-    expect(quote?.expectedOutputAmount).toBe('99840000'); // 100000000 - (100000 + 50000 + 10000)
+    expect(quote?.expectedOutputAmount).toBe('99840000'); // 100000000 - totalRelayFee.total (160000)
     expect(quote?.feeUsd).toBeCloseTo(0.16, 2); // (160000 / 1e6) * 1.0
 
     expect(quote?.expiresAt.getTime()).toBe(mockNow + BRIDGE_QUOTE_TTL_MS);
+  });
+
+  it('falls back to summing sub-fees when totalRelayFee is absent', async () => {
+    // Shape change / partial payload: no `totalRelayFee`, only the sub-fees. The
+    // fee must still be deducted, not silently treated as 0 (which would
+    // over-promise the full input as output).
+    const mockApiResponse = {
+      relayerGasFee: { pct: '0', total: '50000' },
+      relayerCapitalFee: { pct: '0', total: '10000' },
+      lpFee: { pct: '0', total: '100000' },
+      expectedFillTimeSec: 120,
+      timestamp: 1700000000,
+    };
+
+    // @ts-expect-error - mocking fetch
+    (global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => mockApiResponse,
+    });
+    // @ts-expect-error - mocking fetchTokenPrices
+    (fetchTokenPrices as vi.Mock).mockResolvedValueOnce({ 'coingecko:usd-coin': 1.0 });
+
+    const quote = await acrossBridgePlugin.getQuote(mockQuoteParams);
+    // 50000 + 10000 + 100000 = 160000 deducted -> 99840000.
+    expect(quote?.expectedOutputAmount).toBe('99840000');
+  });
+
+  it('returns null when the response carries no fee fields at all', async () => {
+    // @ts-expect-error - mocking fetch
+    (global.fetch as vi.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ expectedFillTimeSec: 120, timestamp: 1700000000 }),
+    });
+
+    const quote = await acrossBridgePlugin.getQuote(mockQuoteParams);
+    expect(quote).toBeNull();
+  });
+
+  it('applies the slippage tolerance to the depositV3 outputAmount', async () => {
+    const depositV3Abi = [
+      {
+        inputs: [
+          { name: 'depositor', type: 'address' },
+          { name: 'recipient', type: 'address' },
+          { name: 'inputToken', type: 'address' },
+          { name: 'outputToken', type: 'address' },
+          { name: 'inputAmount', type: 'uint256' },
+          { name: 'outputAmount', type: 'uint256' },
+          { name: 'destinationChainId', type: 'uint256' },
+          { name: 'exclusiveRelayer', type: 'address' },
+          { name: 'quoteTimestamp', type: 'uint32' },
+          { name: 'fillDeadline', type: 'uint32' },
+          { name: 'exclusivityDeadline', type: 'uint32' },
+          { name: 'message', type: 'bytes' },
+        ],
+        name: 'depositV3',
+        outputs: [],
+        stateMutability: 'payable',
+        type: 'function',
+      },
+    ] as const;
+
+    const expectedOutput = 99840000n;
+    const mockQuote: Partial<BridgeQuote> = {
+      bridgeId: 'across',
+      expectedOutputAmount: expectedOutput.toString(),
+      slippagePercent: 1, // 1% => 100 bps
+      expiresAt: new Date(),
+      rawQuote: {
+        inputAmount: '100000000',
+        inputToken: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        outputToken: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+        originChainId: 1,
+        destinationChainId: 42161,
+        recipientAddress: '0x1234567890123456789012345678901234567890',
+        timestamp: 1700000000,
+        tokenSymbol: 'USDC',
+        decimals: 6,
+      },
+    };
+
+    const tx = await acrossBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote);
+    const decoded = decodeFunctionData({ abi: depositV3Abi, data: tx.data as `0x${string}` });
+    const outputAmount = decoded.args[5] as bigint;
+
+    expect(outputAmount).toBe((expectedOutput * 9900n) / 10000n);
+    expect(outputAmount).toBeLessThan(expectedOutput);
   });
 
   it('should build a bridge transaction correctly', async () => {

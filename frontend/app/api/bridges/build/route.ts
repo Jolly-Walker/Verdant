@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
 import { simulateTransaction } from '@/lib/simulation/simulate';
 import { parseJson } from '@/lib/validation/http';
+import { slippagePercentSchema } from '@/lib/validation/primitives';
 import type { SerializedUnsignedTx } from '@/types/sequencer';
 import { ALL_BRIDGES, ALL_CHAINS, type BridgeQuote, type ChainId } from '@/types/shared';
 
@@ -14,7 +15,9 @@ const SerializedBridgeQuoteSchema = z.object({
   feeUsd: z.number(),
   estimatedTimeSeconds: z.number(),
   expectedOutputAmount: z.string(),
-  slippagePercent: z.number(),
+  // Bound the client-posted slippage: an out-of-range value would make
+  // buildBridgeTx → applySlippageFloor emit a negative/inflated outputAmount.
+  slippagePercent: slippagePercentSchema,
   expiresAt: z.union([z.string(), z.number()]),
   rawQuote: z.record(z.string(), z.unknown()),
 });

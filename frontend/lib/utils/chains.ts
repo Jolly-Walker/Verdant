@@ -1,4 +1,4 @@
-import { DEMO_WALLET_ADDRESS } from '@/lib/demo/wallet';
+import { DEMO_WALLET_ADDRESS, isDemoMode } from '@/lib/demo/wallet';
 import { CHAIN_DISPLAY_MAP } from '@/lib/plugins/chains/metadata';
 import type { ChainId } from '@/types/shared';
 
@@ -6,7 +6,9 @@ import type { ChainId } from '@/types/shared';
  * Validates if a string is a valid address for a given chain or any supported chain.
  */
 export function isValidAddress(address: string, chain?: ChainId): boolean {
-  if (address === DEMO_WALLET_ADDRESS) return true;
+  // The demo sentinel is NOT a real address — only accept it in demo mode, or it
+  // bypasses address validation in production (e.g. /api/positions, plan route).
+  if (isDemoMode() && address === DEMO_WALLET_ADDRESS) return true;
   const evmRegex = /^0x[a-fA-F0-9]{40}$/;
   const solanaRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 

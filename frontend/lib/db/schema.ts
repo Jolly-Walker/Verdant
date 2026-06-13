@@ -129,6 +129,7 @@ export const bridgeQuotesCache = pgTable(
     token: text('token').notNull(),
     amountWei: text('amount_wei').notNull(),
     recipient: text('recipient').notNull(),
+    slippagePercent: text('slippage_percent').notNull().default('0.5'),
     quotes: jsonb('quotes').$type<BridgeQuote[]>().notNull(),
     fetchedAt: timestamp('fetched_at', { withTimezone: true }).defaultNow(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
@@ -140,6 +141,7 @@ export const bridgeQuotesCache = pgTable(
       t.token,
       t.amountWei,
       t.recipient,
+      t.slippagePercent,
     ),
   }),
 );

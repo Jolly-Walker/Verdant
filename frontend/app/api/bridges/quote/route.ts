@@ -5,7 +5,7 @@ import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
 import { isValidAddress } from '@/lib/utils/chains';
 import { sortBridgeQuotes } from '@/lib/utils/quotes';
 import { parse } from '@/lib/validation/http';
-import { chainSchema } from '@/lib/validation/primitives';
+import { chainSchema, slippagePercentSchema } from '@/lib/validation/primitives';
 import type { BridgeQuote } from '@/types/shared';
 
 const QUOTE_FETCH_TIMEOUT_MS = 10000;
@@ -21,7 +21,10 @@ const BridgeQuoteQuerySchema = z
       .string()
       .optional()
       .default('0.5')
-      .transform((v) => parseFloat(v)),
+      .transform((v) => parseFloat(v))
+      // Reject NaN (e.g. `?slippagePercent=abc`), negatives, and out-of-range
+      // values before they poison the cache key or reach `applySlippageFloor`.
+      .pipe(slippagePercentSchema),
   })
   .superRefine((data, ctx) => {
     if (!isValidAddress(data.recipientAddress, data.toChain)) {
@@ -46,7 +49,7 @@ export async function GET(req: NextRequest) {
   if (!parsed.ok) return parsed.response;
 
   const { fromChain, toChain, token, amount, recipientAddress, slippagePercent } = parsed.data;
-  const cacheKey = { fromChain, toChain, token, amount, recipientAddress };
+  const cacheKey = { fromChain, toChain, token, amount, recipientAddress, slippagePercent };
 
   try {
     // 1. Check cache first

@@ -17,6 +17,13 @@ export interface Warning {
 }
 
 export interface StepCost {
+  /**
+   * ID of the SequencePlan step this cost belongs to. Lets consumers pair costs
+   * to plan steps by identity rather than array index (which mis-attributes
+   * staleness when steps are reordered or the cost API returns fewer entries).
+   * Optional because the single-quote preview path has no plan step.
+   */
+  stepId?: string;
   stepLabel: string;
   chain: ChainId;
   gasCostUsd: number;

@@ -82,7 +82,9 @@ export const eulerPlugin: ProtocolPlugin = {
           const price = priceMap[`coingecko:${token.coingeckoId}`] || 0;
 
           // Real APYs from Defillama (the app's canonical yield source), with a
-          // safe fallback to 0 if the pool can't be matched.
+          // safe fallback to 0 if the pool can't be matched. Uses its own slug
+          // directly (not the shared `findPoolApyByIds`) — euler is inside the
+          // PROTOCOL_REGISTRY graph, so importing that helper would be circular.
           const poolData = await findPoolApy(
             eulerPlugin.defillamaSlug,
             CHAIN_REGISTRY[chain].defillamaChain,

@@ -1,5 +1,5 @@
 import 'server-only';
-import { findPoolApy } from '@/lib/data/defillama';
+import { findPoolApyByIds } from '@/lib/data/poolApyLookup';
 import { getEthPrice } from '@/lib/data/prices';
 import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
 import { CHAIN_REGISTRY } from '@/lib/plugins/chains';
@@ -162,6 +162,7 @@ export async function calculateCostPreview(
       totalCostUsd += stepTotal;
 
       steps.push({
+        stepId: step.id,
         stepLabel: step.label,
         chain: step.chain,
         gasCostUsd,
@@ -267,9 +268,12 @@ export async function calculateCostPreview(
 
     totalCostUsd = gasStep1Usd + gasStep2Usd + bridgeFeeUsd + slippageUsd;
 
+    // `findPoolApyByIds` resolves our internal ProtocolId/ChainId to DefiLlama
+    // identifiers before the lookup (raw ids silently miss → APY 0). Shared with
+    // /api/apys so the resolution lives in exactly one place.
     const [currentApyResult, targetApyResult] = await Promise.all([
-      findPoolApy(input.sourceProtocol, input.sourceChain, input.asset).catch(() => null),
-      findPoolApy(input.destProtocol, input.destChain, input.asset).catch(() => null),
+      findPoolApyByIds(input.sourceProtocol, input.sourceChain, input.asset).catch(() => null),
+      findPoolApyByIds(input.destProtocol, input.destChain, input.asset).catch(() => null),
     ]);
 
     const currentApyDecimal = currentApyResult?.apy ?? 0;

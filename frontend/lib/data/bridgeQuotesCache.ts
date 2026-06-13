@@ -11,6 +11,12 @@ export interface BridgeQuoteCacheKey {
   /** Amount in wei (stored as text to preserve precision). */
   amount: string;
   recipientAddress: string;
+  /**
+   * Slippage tolerance for the quote. Part of the key because it changes the
+   * executable outputAmount derived from the cached quote — a quote cached at one
+   * slippage must not be served to a request asking for a different one.
+   */
+  slippagePercent: number;
 }
 
 /** How long a cached set of quotes stays valid. */
@@ -30,6 +36,7 @@ export async function getCachedBridgeQuotes(
         eq(bridgeQuotesCache.token, key.token),
         eq(bridgeQuotesCache.amountWei, key.amount),
         eq(bridgeQuotesCache.recipient, key.recipientAddress),
+        eq(bridgeQuotesCache.slippagePercent, String(key.slippagePercent)),
         gt(bridgeQuotesCache.expiresAt, new Date()),
       ),
     )
@@ -52,6 +59,7 @@ export async function cacheBridgeQuotes(
       token: key.token,
       amountWei: key.amount,
       recipient: key.recipientAddress,
+      slippagePercent: String(key.slippagePercent),
       quotes,
       expiresAt: new Date(Date.now() + CACHE_TTL_MS),
     });

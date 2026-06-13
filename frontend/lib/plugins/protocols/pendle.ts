@@ -261,12 +261,30 @@ export const pendlePlugin: ProtocolPlugin = {
         );
       }
 
-      const decimals =
-        SUPPORTED_TOKENS[(underlyingSymbol ?? params.asset).toUpperCase()]?.decimals ?? 18;
+      // `amountIn` is the INPUT (PT/SY) token quantity, so a non-wei amount must
+      // be scaled by the INPUT token's decimals — NOT the output/underlying's
+      // (scaling by the output mis-sizes the redeem whenever they differ, e.g. a
+      // 6-dec PT redeemed to an 18-dec underlying would be 1e12× too large). PT
+      // symbols are often absent from the registry; when we cannot determine the
+      // input decimals we REFUSE rather than guess 18 and silently mis-size a
+      // non-18-decimal token. Callers pass a pre-scaled amount with `isWei: true`
+      // or supply `extraParams.tokenInDecimals`.
       const isWei = params.extraParams?.isWei === true;
-      const amountIn = isWei
-        ? params.amount
-        : BigInt(Math.floor(Number(params.amount) * 10 ** decimals)).toString();
+      let amountIn: string;
+      if (isWei) {
+        amountIn = params.amount;
+      } else {
+        const tokenInDecimals =
+          (params.extraParams?.tokenInDecimals as number | undefined) ??
+          SUPPORTED_TOKENS[params.asset.toUpperCase()]?.decimals;
+        if (tokenInDecimals === undefined) {
+          throw new Error(
+            `Pendle buildTx cannot determine input-token decimals for ${params.asset}; ` +
+              `pass extraParams.tokenInDecimals or a pre-scaled amount with extraParams.isWei.`,
+          );
+        }
+        amountIn = BigInt(Math.floor(Number(params.amount) * 10 ** tokenInDecimals)).toString();
+      }
       const slippage = (params.extraParams?.slippagePercent as number | undefined)
         ? (params.extraParams!.slippagePercent as number) / 100
         : 0.01;

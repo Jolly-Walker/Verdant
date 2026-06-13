@@ -1,3 +1,4 @@
+import { applySlippageFloor } from '@/lib/utils/slippage';
 import type { ExitPendleParams, SequencePlan } from '@/types/sequencer';
 
 /**
@@ -10,8 +11,9 @@ import type { ExitPendleParams, SequencePlan } from '@/types/sequencer';
  * (a server-only network call — see `previewPendleRedemption`) and passes the raw
  * underlying output (atomic units) in as `redemptionOutput`; this builder applies a
  * slippage-buffered floor for the downstream deposit/bridge steps. When the preview
- * is unavailable (`null` — unsupported token, API failure), we fall back to the PT
- * amount and rely on the mandatory simulation gate to catch drift.
+ * is unavailable (`null` — unsupported token, API failure) we REFUSE to build:
+ * sizing the downstream steps off the PT amount would deposit/bridge more than was
+ * actually received, so the caller must surface the failure instead.
  *
  * This builder is intentionally pure (no server-only imports): it is re-exported
  * through the template registry barrel, which the client hook `useSequencer`
@@ -58,18 +60,19 @@ export function buildExitPendlePlan(
     },
   });
 
-  // Apply the slippage buffer as a conservative floor on the previewed expected
-  // redemption output (BigInt math, atomic units) so the downstream deposit/bridge
-  // use the right amount instead of the stale PT amount. Fall back to the PT amount
-  // when no preview is available.
-  let downstreamAmount = params.amount;
-  if (redemptionOutput !== null) {
-    // slippagePercent is a percentage (e.g. 0.5 = 0.5%); scale by basis points to
-    // keep integer math: floor = out * (10000 - bps) / 10000.
-    const bps = BigInt(Math.round(params.slippagePercent * 100));
-    const buffered = (BigInt(redemptionOutput) * (10000n - bps)) / 10000n;
-    downstreamAmount = buffered.toString();
+  // Size the downstream deposit/bridge off the PREVIEWED underlying output, never
+  // the PT amount. Without a preview we cannot size safely — refuse rather than
+  // move more underlying than the redemption actually yields.
+  if (redemptionOutput === null) {
+    throw new Error(
+      `Cannot size the Pendle exit for ${params.ptAsset}: redemption preview unavailable. ` +
+        `Retry once Pendle's Convert API can quote ${params.underlyingAsset} on ${params.fromChain}.`,
+    );
   }
+  const downstreamAmount = applySlippageFloor(
+    BigInt(redemptionOutput),
+    params.slippagePercent,
+  ).toString();
 
   if (isSameChain) {
     // Step 2: Deposit Underlying on same chain

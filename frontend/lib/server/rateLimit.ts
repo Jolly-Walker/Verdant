@@ -45,13 +45,35 @@ export function resetRateLimits(): void {
   resetRateLimitStore();
 }
 
-/** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
+/**
+ * Best-effort client IP from proxy headers, resistant to `x-forwarded-for`
+ * spoofing. The LEFTMOST x-forwarded-for entry is client-supplied (an attacker
+ * can forge it to scatter requests across distinct rate-limit keys and bypass
+ * the limit), so we prefer headers the edge sets and a client cannot forge, and
+ * fall back to the RIGHTMOST x-forwarded-for entry (appended by the closest
+ * trusted proxy) rather than the leftmost.
+ */
 export function getClientIp(req: Request): string {
   const headers = (req as { headers?: Headers }).headers;
   if (!headers || typeof headers.get !== 'function') return 'unknown';
+
+  // Platform-set, non-spoofable on Vercel.
+  const vercelFwd = headers.get('x-vercel-forwarded-for');
+  if (vercelFwd) return vercelFwd.split(',')[0].trim();
+
+  const realIp = headers.get('x-real-ip');
+  if (realIp) return realIp.trim();
+
   const fwd = headers.get('x-forwarded-for');
-  if (fwd) return fwd.split(',')[0].trim();
-  return headers.get('x-real-ip') ?? 'unknown';
+  if (fwd) {
+    const parts = fwd
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (parts.length > 0) return parts[parts.length - 1];
+  }
+
+  return 'unknown';
 }
 
 export interface EnforceOptions {

@@ -309,6 +309,22 @@ describe('Aave V3 Protocol Plugin', () => {
       ).rejects.toThrow(/max withdraw/i);
     });
 
+    it('refuses a max borrow while debt is open', async () => {
+      // A max borrow carries the uint256-max sentinel, which cannot be projected
+      // against the floor — it must be refused, not silently admitted.
+      mockAccount(1_000_000_000_000n, 500_000_000_000n, 8000n);
+      await expect(
+        aavePlugin.builder.buildTx({
+          action: 'borrow',
+          protocol: 'aave',
+          chain: 'ethereum',
+          asset: 'USDC',
+          amount: 'max',
+          userAddress: USER,
+        }),
+      ).rejects.toThrow(/max borrow/i);
+    });
+
     it('allows a withdraw when the user has no debt', async () => {
       mockAccount(1_000_000_000_000n, 0n, 8000n);
       const txs = await aavePlugin.builder.buildTx({
@@ -359,6 +375,23 @@ describe('Aave V3 Protocol Plugin', () => {
         action: 'withdraw',
       });
       expect(hf).toBeCloseTo(1.28, 2);
+    });
+
+    it('computes a correct HF for positions whose base values exceed 2^53', () => {
+      // ~$2B collateral / ~$1.5B debt in 8-decimal base — well above Number's
+      // 2^53 safe-integer ceiling. The BigInt fixed-point path must still report
+      // the exact ratio rather than a precision-mangled one.
+      const collateral = 200_000_000_000_000_000n; // $2,000,000,000
+      const debt = 150_000_000_000_000_000n; // $1,500,000,000
+      const hf = projectHealthFactor({
+        totalCollateralBase: collateral,
+        totalDebtBase: debt,
+        liquidationThreshold: 8000n,
+        deltaBase: 0n,
+        action: 'borrow',
+      });
+      // HF = (2e9 * 0.8) / 1.5e9 = 1.0667
+      expect(hf).toBeCloseTo(1.0667, 3);
     });
 
     it('exposes the 1.05 floor constant', () => {
@@ -732,6 +765,7 @@ describe('Morpho Protocol Plugin', () => {
           assetDecimals: 6,
           assets: '5000000000', // 5,000 USDC
           assetsUsd: 5000,
+          assetPriceUsd: 1,
           shares: '4999000000',
           netApy: 0.068,
         },
@@ -745,8 +779,53 @@ describe('Morpho Protocol Plugin', () => {
       expect(positions[0].positionType).toBe('supply');
       expect(positions[0].asset).toBe('USDC');
       expect(positions[0].amount).toBe(5000);
+      expect(positions[0].amountUsd).toBe(5000);
       expect(positions[0].currentApy).toBe(0.068);
       expect(positions[0].metadata.vaultAddress).toBe('0xVault1');
+    });
+
+    it('derives amountUsd from the spot price when assetsUsd is null (never the token count)', async () => {
+      const { fetchMorphoVaultPositions } = await import('@/lib/data/morphoApi');
+      vi.mocked(fetchMorphoVaultPositions).mockResolvedValueOnce([
+        {
+          vaultAddress: '0xVaultWBTC',
+          vaultName: 'WBTC Vault',
+          assetAddress: '0xBtc',
+          assetSymbol: 'WBTC',
+          assetDecimals: 8,
+          assets: '50000000', // 0.5 WBTC
+          assetsUsd: null,
+          assetPriceUsd: 60000,
+          shares: '50000000',
+          netApy: 0.01,
+        },
+      ]);
+
+      const positions = await morphoPlugin.fetcher.fetchPositions('0x123', 'ethereum');
+      expect(positions[0].amount).toBe(0.5);
+      // 0.5 WBTC * $60k — NOT the raw 0.5 token count.
+      expect(positions[0].amountUsd).toBe(30000);
+    });
+
+    it('reports $0 (not the token count) when no USD valuation is available', async () => {
+      const { fetchMorphoVaultPositions } = await import('@/lib/data/morphoApi');
+      vi.mocked(fetchMorphoVaultPositions).mockResolvedValueOnce([
+        {
+          vaultAddress: '0xVaultWBTC',
+          vaultName: 'WBTC Vault',
+          assetAddress: '0xBtc',
+          assetSymbol: 'WBTC',
+          assetDecimals: 8,
+          assets: '50000000', // 0.5 WBTC
+          assetsUsd: null,
+          assetPriceUsd: null,
+          shares: '50000000',
+          netApy: 0.01,
+        },
+      ]);
+
+      const positions = await morphoPlugin.fetcher.fetchPositions('0x123', 'ethereum');
+      expect(positions[0].amountUsd).toBe(0);
     });
 
     it('skips zero-balance vault positions', async () => {
@@ -760,6 +839,7 @@ describe('Morpho Protocol Plugin', () => {
           assetDecimals: 6,
           assets: '0',
           assetsUsd: 0,
+          assetPriceUsd: 1,
           shares: '0',
           netApy: 0.05,
         },
@@ -956,6 +1036,48 @@ describe('Pendle Protocol Plugin', () => {
       expect(txs[0].to).toBe('0xRouter');
       expect(txs[0].data).toBe('0xdeadbeef');
       expect(txs[0].description).toContain('Redeem');
+    });
+
+    it('scales a non-wei amount by the INPUT token decimals, not the output', async () => {
+      const fetchMock = vi.mocked(global.fetch).mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          tx: { to: '0xRouter', data: '0xdeadbeef', value: '0' },
+          data: { amountOut: '999' },
+        }),
+      } as unknown as Response);
+
+      // Input asset USDC (6 decimals); output underlying WETH (18 decimals).
+      // 1 USDC must scale to 1e6 — scaling by the output's 18 decimals (the old
+      // bug) would send 1e18, a 1e12× over-size.
+      await pendlePlugin.builder.buildTx({
+        action: 'withdraw',
+        protocol: 'pendle',
+        chain: 'ethereum',
+        asset: 'USDC',
+        amount: '1',
+        userAddress: USER,
+        extraParams: { tokenIn: PT, underlyingAsset: 'WETH', isWei: false },
+      });
+
+      const calledUrl = String(fetchMock.mock.calls[0]?.[0]);
+      expect(calledUrl).toContain('amountsIn=1000000');
+    });
+
+    it('refuses a non-wei amount when input-token decimals are indeterminate', async () => {
+      // PT symbol absent from the registry + no tokenInDecimals override + non-wei:
+      // we must refuse rather than guess 18 and silently mis-size a non-18 token.
+      await expect(
+        pendlePlugin.builder.buildTx({
+          action: 'withdraw',
+          protocol: 'pendle',
+          chain: 'ethereum',
+          asset: 'PT-UNKNOWN',
+          amount: '1',
+          userAddress: USER,
+          extraParams: { tokenIn: PT, underlyingAsset: 'WETH', isWei: false },
+        }),
+      ).rejects.toThrow(/input-token decimals/i);
     });
 
     it('throws when tokenIn is missing', async () => {

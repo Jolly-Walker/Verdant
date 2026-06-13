@@ -4,6 +4,7 @@ vi.mock('server-only', () => ({}));
 
 import { NextRequest } from 'next/server';
 import { enforceRateLimit, getClientIp, rateLimit, resetRateLimits } from '../rateLimit';
+import { memoryHitsSize } from '../rateLimitStore';
 
 describe('rateLimit', () => {
   beforeEach(() => {
@@ -39,14 +40,53 @@ describe('rateLimit', () => {
     expect(rateLimit('k', 2, 60_000).remaining).toBe(1);
     expect(rateLimit('k', 2, 60_000).remaining).toBe(0);
   });
+
+  it('evicts idle keys so the store does not grow unbounded', () => {
+    // Two keys hit once and never again.
+    rateLimit('idle-a', 5, 60_000);
+    rateLimit('idle-b', 5, 60_000);
+    expect(memoryHitsSize()).toBe(2);
+
+    // Advance well past the idle TTL, then a fresh hit triggers the sweep.
+    vi.advanceTimersByTime(10 * 60_000);
+    rateLimit('fresh', 5, 60_000);
+
+    // The two idle keys are evicted; only the fresh one remains.
+    expect(memoryHitsSize()).toBe(1);
+  });
 });
 
 describe('getClientIp', () => {
-  it('reads the first x-forwarded-for entry', () => {
+  it('reads the RIGHTMOST x-forwarded-for entry (the spoofable leftmost is ignored)', () => {
     const req = new NextRequest(new URL('http://localhost/x'), {
       headers: { 'x-forwarded-for': '1.2.3.4, 5.6.7.8' },
     });
-    expect(getClientIp(req)).toBe('1.2.3.4');
+    // 1.2.3.4 is client-supplied; 5.6.7.8 is appended by the closest trusted proxy.
+    expect(getClientIp(req)).toBe('5.6.7.8');
+  });
+
+  it('resists a forged leftmost entry', () => {
+    const req = new NextRequest(new URL('http://localhost/x'), {
+      headers: { 'x-forwarded-for': 'evil-spoof, 203.0.113.9' },
+    });
+    expect(getClientIp(req)).toBe('203.0.113.9');
+  });
+
+  it('prefers x-vercel-forwarded-for over x-forwarded-for', () => {
+    const req = new NextRequest(new URL('http://localhost/x'), {
+      headers: {
+        'x-vercel-forwarded-for': '198.51.100.7',
+        'x-forwarded-for': 'spoof, other',
+      },
+    });
+    expect(getClientIp(req)).toBe('198.51.100.7');
+  });
+
+  it('falls back to x-real-ip when no vercel header is present', () => {
+    const req = new NextRequest(new URL('http://localhost/x'), {
+      headers: { 'x-real-ip': '192.0.2.5' },
+    });
+    expect(getClientIp(req)).toBe('192.0.2.5');
   });
 
   it('falls back to unknown when no header is present', () => {

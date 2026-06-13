@@ -11,4 +11,19 @@ describe('decodeRevertReason', () => {
   it('returns generic error for unknown selector', () => {
     expect(decodeRevertReason('0xdeadbeef')).toContain('0xdeadbeef');
   });
+
+  it('maps a plain-text health-factor revert to the HF classification', () => {
+    expect(decodeRevertReason('execution reverted: HF too low')).toBe(
+      'Health factor too low after this action',
+    );
+    expect(decodeRevertReason('Aave: health factor below threshold')).toBe(
+      'Health factor too low after this action',
+    );
+  });
+
+  it('returns an unrecognized plain-text revert as-is (not a mangled selector)', () => {
+    expect(decodeRevertReason('execution reverted: insufficient balance')).toBe(
+      'execution reverted: insufficient balance',
+    );
+  });
 });

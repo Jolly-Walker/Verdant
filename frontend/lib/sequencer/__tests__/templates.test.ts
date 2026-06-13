@@ -163,18 +163,21 @@ describe('Sequencer Templates', () => {
 
   describe('exitPendle', () => {
     it('creates a 3-step plan when chains are different', () => {
-      const plan = buildExitPendlePlan({
-        ptAsset: 'PT-eETH',
-        ptAddress: '0xabc',
-        amount: '100',
-        amountUsd: 100,
-        underlyingAsset: 'ETH',
-        fromChain: 'ethereum',
-        toChain: 'arbitrum',
-        toProtocol: 'aave',
-        walletAddress: '0x123',
-        slippagePercent: 0.5,
-      });
+      const plan = buildExitPendlePlan(
+        {
+          ptAsset: 'PT-eETH',
+          ptAddress: '0xabc',
+          amount: '100',
+          amountUsd: 100,
+          underlyingAsset: 'ETH',
+          fromChain: 'ethereum',
+          toChain: 'arbitrum',
+          toProtocol: 'aave',
+          walletAddress: '0x123',
+          slippagePercent: 0.5,
+        },
+        '100',
+      );
 
       expect(plan.steps.length).toBe(3);
       expect(plan.steps[0].id).toBe('redeem');
@@ -188,18 +191,21 @@ describe('Sequencer Templates', () => {
     });
 
     it('creates a 2-step plan when chains are the same', () => {
-      const plan = buildExitPendlePlan({
-        ptAsset: 'PT-eETH',
-        ptAddress: '0xabc',
-        amount: '100',
-        amountUsd: 100,
-        underlyingAsset: 'ETH',
-        fromChain: 'ethereum',
-        toChain: 'ethereum',
-        toProtocol: 'aave',
-        walletAddress: '0x123',
-        slippagePercent: 0.5,
-      });
+      const plan = buildExitPendlePlan(
+        {
+          ptAsset: 'PT-eETH',
+          ptAddress: '0xabc',
+          amount: '100',
+          amountUsd: 100,
+          underlyingAsset: 'ETH',
+          fromChain: 'ethereum',
+          toChain: 'ethereum',
+          toProtocol: 'aave',
+          walletAddress: '0x123',
+          slippagePercent: 0.5,
+        },
+        '100',
+      );
 
       expect(plan.steps.length).toBe(2);
       expect(plan.steps[0].id).toBe('redeem');
@@ -207,24 +213,23 @@ describe('Sequencer Templates', () => {
       expect(plan.steps[1].dependsOn).toEqual(['redeem']);
     });
 
-    it('falls back to the PT amount for downstream steps when no preview is given', () => {
-      const plan = buildExitPendlePlan({
-        ptAsset: 'PT-eETH',
-        ptAddress: '0xabc',
-        amount: '950000000000000000',
-        amountUsd: 3000,
-        underlyingAsset: 'WETH',
-        fromChain: 'ethereum',
-        toChain: 'arbitrum',
-        toProtocol: 'aave',
-        walletAddress: '0x123',
-        slippagePercent: 0.5,
-      });
-      // No redemptionOutput → downstream steps reuse the PT amount.
-      const bridge = plan.steps.find((s) => s.id === 'bridge');
-      const deposit = plan.steps.find((s) => s.id === 'deposit');
-      expect((bridge!.buildParams as { amount: string }).amount).toBe('950000000000000000');
-      expect((deposit!.buildParams as { amount: string }).amount).toBe('950000000000000000');
+    it('refuses to build (does not reuse the PT amount) when no preview is given', () => {
+      // Sizing downstream steps off the PT amount would move more underlying than
+      // the redemption yields — refuse rather than silently mis-size.
+      expect(() =>
+        buildExitPendlePlan({
+          ptAsset: 'PT-eETH',
+          ptAddress: '0xabc',
+          amount: '950000000000000000',
+          amountUsd: 3000,
+          underlyingAsset: 'WETH',
+          fromChain: 'ethereum',
+          toChain: 'arbitrum',
+          toProtocol: 'aave',
+          walletAddress: '0x123',
+          slippagePercent: 0.5,
+        }),
+      ).toThrow(/redemption preview unavailable/i);
     });
 
     it('threads the previewed redemption output (with slippage floor) into downstream steps', () => {

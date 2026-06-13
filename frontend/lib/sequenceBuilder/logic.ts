@@ -141,14 +141,21 @@ export function builderStepsToSequencePlan(
     if (step.kind === 'repayAndWithdraw') {
       const borrowPos = positions.find((p) => p.id === step.targetPositionId);
       const protocol = borrowPos?.protocol || 'aave';
-      const potentialCollaterals = positions.filter(
+
+      // The withdraw is sized by the builder-computed `tokenOut` (the collateral
+      // that flows to the next step) — NOT the full largest collateral position.
+      // Withdrawing the entire collateral against still-outstanding debt would
+      // breach the Aave HF guard at execution. Resolve the collateral's protocol
+      // from the matching supply position (falling back to the repay protocol),
+      // and never substitute a hardcoded WETH/max guess.
+      const collateralPos = positions.find(
         (p) =>
-          p.chain === step.tokenIn.chain && p.protocol === protocol && p.positionType === 'supply',
+          p.id === step.tokenOut.sourcePositionId ||
+          (p.chain === step.tokenOut.chain &&
+            p.asset === step.tokenOut.token &&
+            p.positionType === 'supply'),
       );
-      const collateralPos =
-        potentialCollaterals.length > 0
-          ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
-          : undefined;
+      const withdrawProtocol = collateralPos?.protocol || protocol;
 
       const repayStepId = `repay-${idx}`;
       const withdrawStepId = `withdraw-${idx}`;
@@ -171,20 +178,20 @@ export function builderStepsToSequencePlan(
         },
       });
 
-      // Step 2: Withdraw collateral (depends on repay)
+      // Step 2: Withdraw the planned collateral amount (depends on repay)
       sequenceSteps.push({
         id: withdrawStepId,
-        label: `Withdraw ${collateralPos?.asset || 'collateral'} from ${protocol} on ${step.tokenIn.chain}`,
-        chain: step.tokenIn.chain,
-        pluginId: protocol,
+        label: `Withdraw ${step.tokenOut.token} from ${withdrawProtocol} on ${step.tokenOut.chain}`,
+        chain: step.tokenOut.chain,
+        pluginId: withdrawProtocol,
         dependsOn: [repayStepId],
         status: 'pending',
         buildParams: {
           action: 'withdraw',
-          protocol,
-          chain: step.tokenIn.chain,
-          asset: collateralPos?.asset || 'WETH',
-          amount: collateralPos?.amount.toString() || 'max',
+          protocol: withdrawProtocol,
+          chain: step.tokenOut.chain,
+          asset: step.tokenOut.token,
+          amount: step.tokenOut.amount.toString(),
           userAddress: walletAddress,
         },
       });

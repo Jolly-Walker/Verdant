@@ -4,6 +4,7 @@ import { BRIDGE_QUOTE_TTL_MS } from '@/constants/bridges';
 import { SUPPORTED_TOKENS } from '@/constants/tokens';
 import { fetchTokenPrices } from '@/lib/data/prices';
 import { fetchWithTimeout } from '@/lib/utils/fetch';
+import { applySlippageFloor } from '@/lib/utils/slippage';
 import type {
   BridgeQuote,
   BridgeQuoteParams,
@@ -69,6 +70,30 @@ interface AcrossRawQuote {
   exclusivityDeadline?: string | number;
 }
 
+/** A single fee component in the Across `/suggested-fees` response. */
+interface AcrossFeeDetail {
+  pct: string;
+  total: string;
+}
+
+/**
+ * Shape of the Across v3 `/suggested-fees` response (the fields Verdant reads).
+ * Fees are NESTED objects with a `total` (atomic units) — `totalRelayFee.total`
+ * already includes gas + capital + LP, so it is the single amount deducted from
+ * the input to size the relayer's `outputAmount`. The sub-fees are read only as a
+ * fallback when `totalRelayFee` is absent (see `getQuote`).
+ */
+interface AcrossSuggestedFeesResponse {
+  totalRelayFee?: AcrossFeeDetail;
+  relayerGasFee?: AcrossFeeDetail;
+  relayerCapitalFee?: AcrossFeeDetail;
+  lpFee?: AcrossFeeDetail;
+  timestamp?: string | number;
+  expectedFillTimeSec?: number;
+  exclusiveRelayer?: `0x${string}`;
+  exclusivityDeadline?: string | number;
+}
+
 export const acrossBridgePlugin: BridgePlugin = {
   id: 'across',
   displayName: 'Across Protocol',
@@ -103,12 +128,29 @@ export const acrossBridgePlugin: BridgePlugin = {
       const response = await fetchWithTimeout(url, { timeout: 8000 });
       if (!response.ok) return null;
 
-      const data = await response.json();
+      const data = (await response.json()) as AcrossSuggestedFeesResponse;
 
-      const relayFeeTotal = BigInt(data.relayFeeTotal || '0');
-      const relayGasFeeTotal = BigInt(data.relayGasFeeTotal || '0');
-      const capitalFeeTotal = BigInt(data.capitalFeeTotal || '0');
-      const totalFeeAtomic = relayFeeTotal + relayGasFeeTotal + capitalFeeTotal;
+      // Across v3 nests fees under `totalRelayFee.total` (atomic units) — that
+      // total already bundles gas + capital + LP, so it is the full amount the
+      // relayer deducts. If the response is missing it (shape change / partial
+      // payload), fall back to summing the sub-fees rather than failing open to a
+      // 0 fee, which would over-promise `expectedOutputAmount = full input` and
+      // produce an unfillable deposit. If NO fee field is present, we cannot size
+      // safely — return null instead of a bogus quote.
+      const feeFromTotal = data.totalRelayFee?.total;
+      const hasSubFees = Boolean(data.relayerGasFee || data.relayerCapitalFee || data.lpFee);
+      let totalFeeAtomic: bigint;
+      if (feeFromTotal != null) {
+        totalFeeAtomic = BigInt(feeFromTotal);
+      } else if (hasSubFees) {
+        totalFeeAtomic =
+          BigInt(data.relayerGasFee?.total ?? '0') +
+          BigInt(data.relayerCapitalFee?.total ?? '0') +
+          BigInt(data.lpFee?.total ?? '0');
+      } else {
+        console.warn('Across quote missing all fee fields; cannot size output safely');
+        return null;
+      }
 
       const inputAmount = BigInt(amount);
       const expectedOutputAmount = (inputAmount - totalFeeAtomic).toString();
@@ -128,7 +170,7 @@ export const acrossBridgePlugin: BridgePlugin = {
       return {
         bridgeId: 'across',
         feeUsd,
-        estimatedTimeSeconds: data.estimatedFillTime || 120,
+        estimatedTimeSeconds: data.expectedFillTimeSec ?? 120,
         expectedOutputAmount,
         slippagePercent: params.slippagePercent,
         expiresAt: new Date(Date.now() + BRIDGE_QUOTE_TTL_MS),
@@ -153,7 +195,15 @@ export const acrossBridgePlugin: BridgePlugin = {
   async buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx> {
     const raw = quote.rawQuote as AcrossRawQuote;
     const inputAmount = BigInt(raw.inputAmount);
-    const outputAmount = BigInt(quote.expectedOutputAmount);
+    // depositV3 commits the relayer to deliver EXACTLY `outputAmount`. Sizing it
+    // at the raw `expectedOutputAmount` leaves zero margin, so any fee drift
+    // between quote and execution makes the deposit unfillable until the 6h
+    // refund. Floor it by the user's slippage tolerance so relayers retain
+    // headroom and the fill succeeds.
+    const outputAmount = applySlippageFloor(
+      BigInt(quote.expectedOutputAmount),
+      quote.slippagePercent,
+    );
     const destinationChainId = BigInt(raw.destinationChainId);
 
     const data = encodeFunctionData({

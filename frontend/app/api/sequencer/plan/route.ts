@@ -337,6 +337,18 @@ export async function POST(req: Request) {
               slippagePercent: exitParams.slippagePercent,
             })
           : null;
+        // Without a real redemption preview we cannot size the downstream
+        // deposit/bridge safely (the PT amount ≠ the underlying received), so the
+        // builder refuses. Surface a clean, actionable 400 rather than a 500.
+        if (redemptionOutput === null) {
+          return NextResponse.json(
+            {
+              error:
+                'Could not preview the Pendle redemption output; the exit cannot be sized safely. Please retry.',
+            },
+            { status: 400 },
+          );
+        }
         plan = buildExitPendlePlan(exitParams, redemptionOutput);
       }
     }

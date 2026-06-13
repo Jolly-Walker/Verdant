@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getCachedBridgeQuotes } from '@/lib/data/bridgeQuotesCache';
 import { GET } from '../route';
 
 vi.mock('server-only', () => ({}));
@@ -64,5 +65,35 @@ describe('Bridge Quote API Route', () => {
     expect(res.status).toBe(400);
     const data = await res.json();
     expect(data.error).toBe('Invalid recipient address for ethereum');
+  });
+
+  it('includes slippagePercent in the cache lookup key', async () => {
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=arbitrum&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=0x742d35Cc6634C0532925a3b844Bc454e4438f44e&slippagePercent=2.5',
+    );
+
+    await GET(req);
+
+    expect(getCachedBridgeQuotes).toHaveBeenCalledWith(
+      expect.objectContaining({ slippagePercent: 2.5 }),
+    );
+  });
+
+  it('returns 400 for a non-numeric slippagePercent (NaN)', async () => {
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=arbitrum&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=0x742d35Cc6634C0532925a3b844Bc454e4438f44e&slippagePercent=abc',
+    );
+
+    const res = await GET(req);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for an out-of-range slippagePercent', async () => {
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=arbitrum&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=0x742d35Cc6634C0532925a3b844Bc454e4438f44e&slippagePercent=200',
+    );
+
+    const res = await GET(req);
+    expect(res.status).toBe(400);
   });
 });

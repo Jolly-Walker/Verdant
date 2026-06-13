@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useDemoSequenceCost } from '@/hooks/useDemoSequenceCost';
-import type { CostPreviewResult } from '@/types/quote';
+import type { CostPreviewResult, StepCost } from '@/types/quote';
 import type { SequencePlan } from '@/types/sequencer';
 
 // process.env.NEXT_PUBLIC_DEMO_MODE is a build-time constant — it never
@@ -10,8 +10,50 @@ import type { SequencePlan } from '@/types/sequencer';
 // rules-of-hooks suppression below is intentional and documented.
 const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-const STALE_WARN_MS = 30_000; // 30s → orange warning
-const STALE_EXPIRE_MS = 60_000; // 60s → disable execution
+export const STALE_WARN_MS = 30_000; // 30s → orange warning
+export const STALE_EXPIRE_MS = 60_000; // 60s → disable execution
+
+/**
+ * Pure staleness computation, extracted for testability. Pairs each plan step to
+ * its cost entry BY ID (never array index — the cost API may reorder or return
+ * fewer steps), and treats an unverifiable quote age (NaN) as expired so a
+ * malformed timestamp can never present a stale quote as executable.
+ */
+export function computeQuoteStaleness(
+  steps: ReadonlyArray<{ id: string }>,
+  costSteps: ReadonlyArray<StepCost>,
+  quoteFetchedAtMs: number,
+  nowMs: number,
+): { stale: Set<string>; expired: Set<string> } {
+  const stale = new Set<string>();
+  const expired = new Set<string>();
+  // NaN age (malformed fetch timestamp) → treat as expired so a quote whose
+  // freshness we can't verify is never executable. The fetch-time guard in
+  // useRealSequenceCost already rejects a NaN timestamp before we get here; this
+  // keeps the pure function correct in isolation (and under test).
+  const age = Number.isNaN(quoteFetchedAtMs) ? Infinity : nowMs - quoteFetchedAtMs;
+
+  for (const step of steps) {
+    const stepCost = costSteps.find((sc) => sc.stepId === step.id);
+    if (!stepCost?.quoteExpiresAt) continue;
+
+    // Respect the bridge's own expiresAt too (skip if malformed → NaN).
+    const ownExpiresAt = new Date(stepCost.quoteExpiresAt).getTime();
+    const ownExpired = !Number.isNaN(ownExpiresAt) && nowMs >= ownExpiresAt;
+
+    if (age > STALE_EXPIRE_MS || ownExpired) {
+      expired.add(step.id);
+    } else if (age > STALE_WARN_MS) {
+      stale.add(step.id);
+    }
+  }
+
+  // Expired always implies stale; derive the superset once rather than
+  // double-adding to both sets in every branch above.
+  for (const id of expired) stale.add(id);
+
+  return { stale, expired };
+}
 
 interface UseSequenceCostOptions {
   plan: SequencePlan | null;
@@ -69,7 +111,16 @@ function useRealSequenceCost({
   const fetchIdRef = useRef(0);
   const resultRef = useRef<CostPreviewResult | null>(null);
 
+  // useSequencer recreates the plan OBJECT on every status transition while the
+  // plan's identity (id) and step ids are unchanged. Key effects on `planId` and
+  // read the latest plan through a ref so a mid-execution status change does not
+  // refetch and wipe a legitimate expired-quote block.
+  const planRef = useRef(plan);
+  planRef.current = plan;
+  const planId = plan?.id ?? null;
+
   const fetchCost = useCallback(async () => {
+    const plan = planRef.current;
     if (!plan || !walletAddress) return;
 
     const fetchId = ++fetchIdRef.current;
@@ -99,9 +150,17 @@ function useRealSequenceCost({
       }
 
       const data = await res.json();
+      const fetchedAt = new Date(data.quoteFetchedAt);
+      if (Number.isNaN(fetchedAt.getTime())) {
+        // A malformed timestamp would make every age comparison NaN (always
+        // false), silently disabling expiry. Refuse it rather than present a
+        // potentially-stale quote as executable.
+        setError('Cost preview returned an invalid quote timestamp. Please retry.');
+        return;
+      }
       const parsed: CostPreviewResult = {
         ...data,
-        quoteFetchedAt: new Date(data.quoteFetchedAt),
+        quoteFetchedAt: fetchedAt,
       };
       setResult(parsed);
       resultRef.current = parsed;
@@ -117,7 +176,8 @@ function useRealSequenceCost({
         setIsLoading(false);
       }
     }
-  }, [plan, walletAddress, currentApy, targetApy, borrowApy, supplyApy]);
+    // planId (not the plan object) keeps this stable across status transitions.
+  }, [planId, walletAddress, currentApy, targetApy, borrowApy, supplyApy]);
 
   // Fetch on plan change
   useEffect(() => {
@@ -128,40 +188,22 @@ function useRealSequenceCost({
   useEffect(() => {
     const interval = setInterval(() => {
       const current = resultRef.current;
+      const plan = planRef.current;
       if (!current || !plan) return;
 
-      const now = Date.now();
-      const newStale = new Set<string>();
-      const newExpired = new Set<string>();
+      const { stale, expired } = computeQuoteStaleness(
+        plan.steps,
+        current.steps,
+        current.quoteFetchedAt.getTime(),
+        Date.now(),
+      );
 
-      plan.steps.forEach((step, idx) => {
-        const stepCost = current.steps[idx];
-        if (!stepCost?.quoteExpiresAt) return;
-
-        const expiresAt = new Date(stepCost.quoteExpiresAt).getTime();
-        const fetchedAt = current.quoteFetchedAt.getTime();
-        const age = now - fetchedAt;
-
-        if (age > STALE_EXPIRE_MS) {
-          newExpired.add(step.id);
-          newStale.add(step.id);
-        } else if (age > STALE_WARN_MS) {
-          newStale.add(step.id);
-        }
-
-        // Also respect the bridge's own expiresAt
-        if (now >= expiresAt) {
-          newExpired.add(step.id);
-          newStale.add(step.id);
-        }
-      });
-
-      setStaleStepIds(newStale);
-      setExpiredStepIds(newExpired);
+      setStaleStepIds(stale);
+      setExpiredStepIds(expired);
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [plan]);
+  }, [planId]);
 
   const refetch = useCallback(() => {
     fetchCost();

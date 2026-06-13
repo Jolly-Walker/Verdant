@@ -12,6 +12,8 @@ All commands run from `frontend/` (package manager is `bun`):
 bun run dev          # Next dev server (localhost:3000)
 bun run build        # production build
 bun run lint         # next lint / eslint
+bun run check        # Biome lint + format check (read-only); check:fix to apply
+bun run format       # Biome format --write
 bun run test         # Vitest (run mode)
 npx tsc --noEmit     # typecheck (no dedicated script)
 

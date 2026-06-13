@@ -100,11 +100,18 @@ export function StepOneBridge({
   useEffect(() => {
     if (!txHash || !selectedQuote || bridgeStatus === 'complete') return;
 
+    // NEAR Intents tracks delivery by deposit address (not the source tx hash),
+    // so it must be threaded through or status polling never resolves. It lives
+    // on the bridge's raw quote when present.
+    const depositAddress = (selectedQuote.rawQuote as { depositAddress?: string } | null)
+      ?.depositAddress;
+
     const interval = setInterval(async () => {
       const status = await pollStatus({
         txHash,
         fromChain,
         bridgeId: selectedQuote.bridgeId,
+        depositAddress,
       });
 
       if (status.trackingUrl) {

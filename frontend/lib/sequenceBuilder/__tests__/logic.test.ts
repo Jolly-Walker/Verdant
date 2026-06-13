@@ -391,6 +391,8 @@ describe('Sequence Builder Logic', () => {
         },
       });
 
+      // The withdraw is sized to the builder-computed tokenOut (500), NOT the full
+      // 1000 collateral position — over-withdrawing would breach the HF guard.
       expect(plan.steps[1]).toEqual({
         id: 'withdraw-1',
         label: 'Withdraw USDC from aave on arbitrum',
@@ -403,7 +405,7 @@ describe('Sequence Builder Logic', () => {
           protocol: 'aave',
           chain: 'arbitrum',
           asset: 'USDC',
-          amount: '1000',
+          amount: '500',
           userAddress: '0xwallet',
         },
       });
@@ -424,6 +426,48 @@ describe('Sequence Builder Logic', () => {
           userAddress: '0xwallet',
         },
       });
+    });
+
+    it('sizes repayAndWithdraw withdraw from tokenOut, never a hardcoded WETH/max, when no collateral matches', () => {
+      const steps: BuilderStep[] = [
+        {
+          kind: 'source',
+          tokenOut: { token: 'USDC', chain: 'arbitrum', amount: 500, amountUsd: 500 },
+        },
+        {
+          kind: 'repayAndWithdraw',
+          tokenIn: { token: 'USDC', chain: 'arbitrum', amount: 500, amountUsd: 500 },
+          targetPositionId: 'aave-borrow-usdc-arb',
+          // Collateral the user actually holds, but no matching supply position is
+          // passed in below — the withdraw must still use these values, not WETH/max.
+          tokenOut: { token: 'WBTC', chain: 'arbitrum', amount: 0.01, amountUsd: 600 },
+        },
+        {
+          kind: 'deposit',
+          tokenIn: { token: 'WBTC', chain: 'arbitrum', amount: 0.01, amountUsd: 600 },
+          destination: {
+            id: 'aave-wbtc-arb',
+            protocol: 'aave',
+            chain: 'arbitrum',
+            token: 'WBTC',
+            apy: 0.01,
+            displayName: 'Aave V3 — WBTC',
+            outputTokenSymbol: 'aWBTC',
+            apyType: 'variable',
+          } as DepositDestination,
+        },
+      ];
+
+      // Only the borrow position exists — no WBTC supply position to match.
+      const positionsWithoutCollateral = mockPositions.filter((p) => p.positionType === 'borrow');
+      const plan = builderStepsToSequencePlan(steps, '0xwallet', positionsWithoutCollateral);
+
+      const withdraw = plan.steps.find((s) => s.id === 'withdraw-1');
+      expect(withdraw).toBeDefined();
+      const params = withdraw!.buildParams as { asset: string; amount: string; protocol: string };
+      expect(params.asset).toBe('WBTC'); // from tokenOut, not 'WETH'
+      expect(params.amount).toBe('0.01'); // from tokenOut, not 'max'
+      expect(params.protocol).toBe('aave'); // falls back to the repay protocol
     });
   });
 });

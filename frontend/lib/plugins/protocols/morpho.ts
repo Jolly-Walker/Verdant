@@ -145,6 +145,20 @@ export const morphoPlugin: ProtocolPlugin = {
         const amount = Number(vp.assets) / 10 ** decimals;
         if (amount <= 0) continue;
 
+        // `amount` is a TOKEN quantity, never a USD value — using it as a fallback
+        // mis-values any non-$1 asset by its price (e.g. 0.5 WBTC -> "$0.5"). Prefer
+        // the API's USD, then derive it from the spot price, and only as a last
+        // resort report 0 (clearly "unknown") rather than the token count.
+        let amountUsd = vp.assetsUsd;
+        if (amountUsd == null) {
+          amountUsd = vp.assetPriceUsd != null ? amount * vp.assetPriceUsd : 0;
+          if (amountUsd === 0) {
+            console.warn(
+              `[morpho] no USD valuation for ${vp.assetSymbol} in vault ${vp.vaultAddress}; reporting $0`,
+            );
+          }
+        }
+
         positions.push({
           id: `morpho-supply-${chain}-${vp.vaultAddress}`,
           protocol: 'morpho',
@@ -152,7 +166,7 @@ export const morphoPlugin: ProtocolPlugin = {
           asset: vp.assetSymbol,
           assetAddress: vp.assetAddress,
           amount,
-          amountUsd: vp.assetsUsd ?? amount,
+          amountUsd,
           currentApy: vp.netApy ?? 0,
           positionType: 'supply',
           claimableRewards: [],

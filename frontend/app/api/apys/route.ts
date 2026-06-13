@@ -1,6 +1,6 @@
 import 'server-only';
 import { type NextRequest, NextResponse } from 'next/server';
-import { findPoolApy } from '@/lib/data/defillama';
+import { findPoolApyByIds } from '@/lib/data/poolApyLookup';
 import { CHAIN_REGISTRY } from '@/lib/plugins/chains';
 import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols';
 import type { ChainId, ProtocolId } from '@/types/shared';
@@ -18,19 +18,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const protocolPlugin = PROTOCOL_REGISTRY[protocol as ProtocolId];
-  const chainPlugin = CHAIN_REGISTRY[chain as ChainId];
-
-  if (!protocolPlugin || !chainPlugin) {
+  // Validate the untrusted query params up front (400, not a 404 "no data").
+  if (!PROTOCOL_REGISTRY[protocol as ProtocolId] || !CHAIN_REGISTRY[chain as ChainId]) {
     return NextResponse.json({ error: 'Unknown protocol or chain' }, { status: 400 });
   }
 
   try {
-    const result = await findPoolApy(
-      protocolPlugin.defillamaSlug,
-      chainPlugin.defillamaChain,
-      asset,
-    );
+    const result = await findPoolApyByIds(protocol as ProtocolId, chain as ChainId, asset);
 
     if (!result) {
       return NextResponse.json(

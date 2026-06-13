@@ -255,7 +255,14 @@ export function projectHealthFactor(opts: {
   }
 
   if (debt === 0n) return Infinity;
-  return (Number(collateral) / Number(debt)) * (Number(opts.liquidationThreshold) / 10000);
+
+  // HF = (collateral × LT_bps / 10000) / debt. Casting the raw uint256 base
+  // values to Number first loses precision above 2^53 (~$90M of 8-decimal base),
+  // which can report a safe HF for an unsafe action. Divide in BigInt at
+  // 1e6 fixed-point, then cast the (small) quotient — never the operands.
+  const HF_PRECISION = 1_000_000n;
+  const scaledHf = (collateral * opts.liquidationThreshold * HF_PRECISION) / (debt * 10000n);
+  return Number(scaledHf) / Number(HF_PRECISION);
 }
 
 /**
@@ -324,14 +331,19 @@ async function assertActionKeepsHealthy(opts: {
     return;
   }
 
-  // A max withdraw against an unknown remaining balance cannot be projected
-  // against the 1.05 floor — refuse rather than risk it while debt is open.
-  if (isMax && action === 'withdraw') {
+  // A max action carries a sentinel uint256-max amount, which cannot be
+  // projected against the 1.05 floor — refuse it (for BOTH withdraw and borrow)
+  // rather than admit an unverifiable action while debt is open.
+  if (isMax) {
     throw new Error(
-      'Cannot safely build a max withdraw while a borrow position is open. Specify an explicit amount so the health factor can be verified.',
+      `Cannot safely build a max ${action} while a borrow position is open. Specify an explicit amount so the health factor can be verified.`,
     );
   }
 
+  // deltaBase and collateral/debt are both denominated in the pool oracle's base
+  // currency (getAssetPrice and getUserAccountData share it), so this ratio is
+  // independent of how many decimals that base currency uses — no 8-decimal
+  // assumption is load-bearing as long as we read the pool's own oracle.
   const deltaBase = (amountBigInt * assetPrice) / 10n ** BigInt(decimals);
   const projectedHf = projectHealthFactor({
     totalCollateralBase,

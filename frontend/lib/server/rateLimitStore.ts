@@ -40,9 +40,41 @@ type Timestamps = number[];
  */
 const memoryHits = new Map<string, Timestamps>();
 
-/** Clears all recorded in-memory hits — for tests. */
+/**
+ * Idle-key eviction. Per-key timestamp arrays are pruned on every hit, but a key
+ * that is hit once and never again would otherwise persist FOREVER — across
+ * millions of distinct `bucket:ip` keys (trivially so if the IP is spoofable)
+ * the Map grows unbounded until the process OOMs. So we amortize a sweep that
+ * drops keys idle longer than any window in use.
+ */
+const SWEEP_INTERVAL_MS = 60_000; // sweep at most once per minute
+// Generously larger than any rate-limit window this app uses (≤ 60s): a key
+// whose newest hit is older than this is past its window, so the next hit would
+// re-prune to empty anyway — deleting it now changes no rate-limit decision.
+const IDLE_TTL_MS = 5 * 60_000;
+const MAX_TRACKED_KEYS = 50_000; // hard backstop forcing a sweep under abuse
+
+let lastSweepAt = 0;
+
+function sweepIdleKeys(now: number): void {
+  const cutoff = now - IDLE_TTL_MS;
+  for (const [key, timestamps] of memoryHits) {
+    // timestamps are appended in increasing time order, so the last is newest.
+    if (timestamps.length === 0 || timestamps[timestamps.length - 1] <= cutoff) {
+      memoryHits.delete(key);
+    }
+  }
+}
+
+/** Clears all recorded in-memory hits and sweep state — for tests. */
 export function clearMemoryHits(): void {
   memoryHits.clear();
+  lastSweepAt = 0;
+}
+
+/** Current number of tracked keys — for tests/observability. */
+export function memoryHitsSize(): number {
+  return memoryHits.size;
 }
 
 /**
@@ -52,6 +84,13 @@ export function clearMemoryHits(): void {
  */
 export function rateLimitSync(key: string, limit: number, windowMs: number): RateLimitResult {
   const now = Date.now();
+
+  // Amortized cleanup so idle keys cannot accumulate across the process lifetime.
+  if (now - lastSweepAt > SWEEP_INTERVAL_MS || memoryHits.size > MAX_TRACKED_KEYS) {
+    sweepIdleKeys(now);
+    lastSweepAt = now;
+  }
+
   const windowStart = now - windowMs;
   const recent = (memoryHits.get(key) ?? []).filter((t) => t > windowStart);
 
