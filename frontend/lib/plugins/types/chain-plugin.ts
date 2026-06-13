@@ -1,29 +1,29 @@
-import { ChainId, TokenSymbol } from '@/types/shared'
-import { PublicClient } from 'viem'
-import { Connection } from '@solana/web3.js'
+import type { Connection } from '@solana/web3.js';
+import type { PublicClient } from 'viem';
+import type { ChainId, TokenSymbol } from '@/types/shared';
 
 export interface ChainPlugin {
   /** Unique identifier used throughout the codebase */
-  id: ChainId
+  id: ChainId;
   /** Human-readable name */
-  displayName: string
+  displayName: string;
   /** DeFi Llama's chain name string */
-  defillamaChain: string
+  defillamaChain: string;
   /** EIP-155 chain ID for EVM; 'solana-mainnet' string for Solana */
-  chainIdOrNetwork: number | string
+  chainIdOrNetwork: number | string;
   /** Chain family — determines which wallet adapters apply */
-  family: 'evm' | 'solana'
+  family: 'evm' | 'solana';
   /** Block explorer base URL */
-  explorerUrl: string
+  explorerUrl: string;
   /** Native currency */
-  nativeCurrency: { symbol: string; decimals: number }
+  nativeCurrency: { symbol: string; decimals: number };
   /** Supported bridgeable tokens on this chain */
-  bridgeableTokens: TokenSymbol[]
+  bridgeableTokens: TokenSymbol[];
   /**
    * Returns a viem PublicClient (EVM) or Connection (Solana).
    * RPC URL is constructed server-side only.
    */
-  getRpcClient(): Promise<PublicClient | Connection>
+  getRpcClient(): Promise<PublicClient | Connection>;
   /** Estimate gas cost in USD for a given tx */
-  estimateGasCostUsd(tx: unknown): Promise<number>
+  estimateGasCostUsd(tx: unknown): Promise<number>;
 }

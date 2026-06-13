@@ -1,14 +1,14 @@
-import 'server-only'
-import { BridgeId } from '@/types/shared'
-import { BridgePlugin } from '../types/bridge-plugin'
-import { acrossBridgePlugin } from './across'
-import { nearIntentsBridgePlugin } from './nearIntents'
-import { layerzeroBridgePlugin } from './layerzero'
-import { chainlinkBridgePlugin } from './chainlink'
+import 'server-only';
+import type { BridgeId } from '@/types/shared';
+import type { BridgePlugin } from '../types/bridge-plugin';
+import { acrossBridgePlugin } from './across';
+import { chainlinkBridgePlugin } from './chainlink';
+import { layerzeroBridgePlugin } from './layerzero';
+import { nearIntentsBridgePlugin } from './nearIntents';
 
 export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
   across: acrossBridgePlugin,
   nearIntents: nearIntentsBridgePlugin,
   layerzero: layerzeroBridgePlugin,
-  chainlink: chainlinkBridgePlugin
-}
+  chainlink: chainlinkBridgePlugin,
+};

@@ -1,5 +1,5 @@
-import { ChainPlugin } from '../types/chain-plugin'
-import { ChainId } from '@/types/shared'
+import type { ChainId } from '@/types/shared';
+import type { ChainPlugin } from '../types/chain-plugin';
 
 export const solanaPlugin: ChainPlugin = {
   id: 'solana' as ChainId,
@@ -11,11 +11,11 @@ export const solanaPlugin: ChainPlugin = {
   nativeCurrency: { symbol: 'SOL', decimals: 9 },
   bridgeableTokens: ['SOL', 'USDC'],
   async getRpcClient() {
-    const { Connection } = await import('@solana/web3.js')
-    const { getRpcUrl } = await import('@/lib/server/rpc')
-    return new Connection(getRpcUrl('solana'))
+    const { Connection } = await import('@solana/web3.js');
+    const { getRpcUrl } = await import('@/lib/server/rpc');
+    return new Connection(getRpcUrl('solana'));
   },
   async estimateGasCostUsd() {
-    return 0.001 // Solana fees are negligible
-  }
-}
+    return 0.001; // Solana fees are negligible
+  },
+};

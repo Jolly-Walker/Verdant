@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { buildDeleverageAavePlan, computeOptimalCycles } from '../templates/deleverageAave';
 
 describe('De-leverage E2E & Template Integration Tests', () => {
@@ -24,13 +24,13 @@ describe('De-leverage E2E & Template Integration Tests', () => {
       cycles: 3,
       protocol: 'aave',
       chain: 'ethereum',
-      walletAddress: '0x123'
+      walletAddress: '0x123',
     });
 
     expect(plan.steps.length).toBe(6);
-    
+
     // All step amounts must be integer strings (no decimals)
-    plan.steps.forEach(step => {
+    plan.steps.forEach((step) => {
       const amountStr = step.buildParams.amount;
       expect(amountStr).toMatch(/^\d+$/); // pure digits
       expect(Number.isInteger(Number(amountStr))).toBe(true);
@@ -51,7 +51,7 @@ describe('De-leverage E2E & Template Integration Tests', () => {
         cycles: 30,
         protocol: 'aave',
         chain: 'ethereum',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
       });
     }).toThrow(/limit of 1.05/);
   });
@@ -68,7 +68,7 @@ describe('De-leverage E2E & Template Integration Tests', () => {
       amountUsd: 3000,
       protocol: 'aave',
       chain: 'ethereum',
-      walletAddress: '0x123'
+      walletAddress: '0x123',
     });
 
     // It should have calculated the optimal cycles and successfully generated the plan

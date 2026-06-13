@@ -1,25 +1,25 @@
-import 'server-only'
+import 'server-only';
 /**
  * Morpho Blue GraphQL API client.
  * Docs: https://docs.morpho.org/tools/offchain/api/
  * Endpoint: https://blue-api.morpho.org/graphql
  */
-import { fetchWithTimeout } from '@/lib/utils/fetch'
+import { fetchWithTimeout } from '@/lib/utils/fetch';
 
-const MORPHO_API = 'https://blue-api.morpho.org/graphql'
+const MORPHO_API = 'https://blue-api.morpho.org/graphql';
 
 export interface MorphoVaultPosition {
-  vaultAddress: string
-  vaultName: string
-  assetAddress: string
-  assetSymbol: string
-  assetDecimals: number
+  vaultAddress: string;
+  vaultName: string;
+  assetAddress: string;
+  assetSymbol: string;
+  assetDecimals: number;
   /** Supplied assets in smallest units (string). */
-  assets: string
-  assetsUsd: number | null
-  shares: string
+  assets: string;
+  assetsUsd: number | null;
+  shares: string;
   /** Vault net supply APY as a decimal (e.g. 0.068), or null if unavailable. */
-  netApy: number | null
+  netApy: number | null;
 }
 
 const USER_POSITIONS_QUERY = `
@@ -42,18 +42,18 @@ const USER_POSITIONS_QUERY = `
       }
     }
   }
-`
+`;
 
 interface RawVaultPosition {
-  shares?: string | number
-  assets?: string | number
-  state?: { assets?: string | number; assetsUsd?: number; shares?: string | number }
+  shares?: string | number;
+  assets?: string | number;
+  state?: { assets?: string | number; assetsUsd?: number; shares?: string | number };
   vault?: {
-    address?: string
-    name?: string
-    asset?: { address?: string; symbol?: string; decimals?: number }
-    state?: { netApy?: number }
-  }
+    address?: string;
+    name?: string;
+    asset?: { address?: string; symbol?: string; decimals?: number };
+    state?: { netApy?: number };
+  };
 }
 
 /**
@@ -62,7 +62,7 @@ interface RawVaultPosition {
  */
 export async function fetchMorphoVaultPositions(
   address: string,
-  chainId: number
+  chainId: number,
 ): Promise<MorphoVaultPosition[]> {
   try {
     const res = await fetchWithTimeout(MORPHO_API, {
@@ -73,21 +73,21 @@ export async function fetchMorphoVaultPositions(
         variables: { address, chainId },
       }),
       timeout: 10_000,
-    })
-    if (!res.ok) return []
+    });
+    if (!res.ok) return [];
 
-    const json = await res.json()
-    const raw: RawVaultPosition[] = json?.data?.userByAddress?.vaultPositions ?? []
+    const json = await res.json();
+    const raw: RawVaultPosition[] = json?.data?.userByAddress?.vaultPositions ?? [];
 
-    const positions: MorphoVaultPosition[] = []
+    const positions: MorphoVaultPosition[] = [];
     for (const vp of raw) {
-      const vault = vp.vault
-      const asset = vault?.asset
-      if (!vault?.address || !asset?.address || !asset.symbol) continue
+      const vault = vp.vault;
+      const asset = vault?.asset;
+      if (!vault?.address || !asset?.address || !asset.symbol) continue;
 
       // Prefer the nested state (current values) over the top-level snapshot.
-      const assets = String(vp.state?.assets ?? vp.assets ?? '0')
-      const shares = String(vp.state?.shares ?? vp.shares ?? '0')
+      const assets = String(vp.state?.assets ?? vp.assets ?? '0');
+      const shares = String(vp.state?.shares ?? vp.shares ?? '0');
 
       positions.push({
         vaultAddress: vault.address,
@@ -99,10 +99,10 @@ export async function fetchMorphoVaultPositions(
         assetsUsd: vp.state?.assetsUsd ?? null,
         shares,
         netApy: vault.state?.netApy ?? null,
-      })
+      });
     }
-    return positions
+    return positions;
   } catch {
-    return []
+    return [];
   }
 }

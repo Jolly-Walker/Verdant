@@ -1,5 +1,5 @@
-import { ChainId } from '@/types/shared'
-import { DepositDestination } from './types'
+import type { ChainId } from '@/types/shared';
+import type { DepositDestination } from './types';
 
 export const DEPOSIT_DESTINATIONS: DepositDestination[] = [
   // Ethereum
@@ -43,7 +43,7 @@ export const DEPOSIT_DESTINATIONS: DepositDestination[] = [
     chain: 'ethereum',
     token: 'WBTC',
     apy: 0.011,
-    apyMean30d: 0.010,
+    apyMean30d: 0.01,
     apyBase: 0.011,
     apyReward: null,
     displayName: 'Aave V3 — WBTC',
@@ -296,9 +296,10 @@ export const DEPOSIT_DESTINATIONS: DepositDestination[] = [
     lockPeriodDays: null,
     lockDescription: null,
   },
-]
+];
 
 export function getDepositDestinations(token: string, chain: ChainId): DepositDestination[] {
-  return DEPOSIT_DESTINATIONS.filter(d => d.token === token && d.chain === chain)
-    .sort((a, b) => b.apy - a.apy)  // highest APY first
+  return DEPOSIT_DESTINATIONS.filter((d) => d.token === token && d.chain === chain).sort(
+    (a, b) => b.apy - a.apy,
+  ); // highest APY first
 }

@@ -1,12 +1,12 @@
-import 'server-only'
-import { NextResponse } from 'next/server'
+import 'server-only';
+import { NextResponse } from 'next/server';
 import {
-  getRateLimitStore,
-  rateLimitSync,
   clearMemoryHits,
-  resetRateLimitStore,
+  getRateLimitStore,
   type RateLimitResult,
-} from './rateLimitStore'
+  rateLimitSync,
+  resetRateLimitStore,
+} from './rateLimitStore';
 
 /**
  * Sliding-window rate limiter (SPECS §19) over a PLUGGABLE backend.
@@ -26,7 +26,7 @@ import {
  * retained for tests and any caller that wants the per-process semantics.
  */
 
-export type { RateLimitResult }
+export type { RateLimitResult };
 
 /**
  * Synchronous sliding-window check against the in-memory store. Records a hit
@@ -36,29 +36,29 @@ export type { RateLimitResult }
  * configured (possibly shared) store.
  */
 export function rateLimit(key: string, limit: number, windowMs: number): RateLimitResult {
-  return rateLimitSync(key, limit, windowMs)
+  return rateLimitSync(key, limit, windowMs);
 }
 
 /** Clears all recorded hits and the cached store selection — for tests. */
 export function resetRateLimits(): void {
-  clearMemoryHits()
-  resetRateLimitStore()
+  clearMemoryHits();
+  resetRateLimitStore();
 }
 
 /** Best-effort client IP from proxy headers (Vercel sets x-forwarded-for). */
 export function getClientIp(req: Request): string {
-  const headers = (req as { headers?: Headers }).headers
-  if (!headers || typeof headers.get !== 'function') return 'unknown'
-  const fwd = headers.get('x-forwarded-for')
-  if (fwd) return fwd.split(',')[0].trim()
-  return headers.get('x-real-ip') ?? 'unknown'
+  const headers = (req as { headers?: Headers }).headers;
+  if (!headers || typeof headers.get !== 'function') return 'unknown';
+  const fwd = headers.get('x-forwarded-for');
+  if (fwd) return fwd.split(',')[0].trim();
+  return headers.get('x-real-ip') ?? 'unknown';
 }
 
 export interface EnforceOptions {
   /** Logical bucket name so different route groups have independent windows. */
-  bucket: string
-  limit: number
-  windowMs?: number // defaults to 60_000 (1 minute)
+  bucket: string;
+  limit: number;
+  windowMs?: number; // defaults to 60_000 (1 minute)
 }
 
 /**
@@ -71,15 +71,15 @@ export interface EnforceOptions {
  */
 export async function enforceRateLimit(
   req: Request,
-  opts: EnforceOptions
+  opts: EnforceOptions,
 ): Promise<NextResponse | null> {
-  const windowMs = opts.windowMs ?? 60_000
-  const ip = getClientIp(req)
-  const result = await getRateLimitStore().hit(`${opts.bucket}:${ip}`, opts.limit, windowMs)
-  if (result.ok) return null
+  const windowMs = opts.windowMs ?? 60_000;
+  const ip = getClientIp(req);
+  const result = await getRateLimitStore().hit(`${opts.bucket}:${ip}`, opts.limit, windowMs);
+  if (result.ok) return null;
 
   return NextResponse.json(
     { error: 'Rate limit exceeded. Please slow down and try again.' },
-    { status: 429, headers: { 'Retry-After': String(result.retryAfterSeconds) } }
-  )
+    { status: 429, headers: { 'Retry-After': String(result.retryAfterSeconds) } },
+  );
 }

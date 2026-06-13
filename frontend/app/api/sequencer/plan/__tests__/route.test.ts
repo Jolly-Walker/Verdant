@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SequencePlan } from '@/types/sequencer';
 import { POST } from '../route';
-import { SequencePlan } from '@/types/sequencer';
 
 vi.mock('server-only', () => ({}));
 
@@ -55,7 +55,7 @@ describe('Plan API Route', () => {
 
   it('should save a custom plan successfully', async () => {
     const { createSequencePlan } = await import('@/lib/data/sequencePlans');
-    
+
     const mockPlan: Partial<SequencePlan> = {
       id: 'mock-uuid',
       walletAddress: '0x8ab71ad4037a06002fdcfbef051f2fa9799df240',
@@ -63,19 +63,22 @@ describe('Plan API Route', () => {
       steps: [],
       totalCostUsd: 0,
       status: 'draft',
-      templateId: 'custom'
+      templateId: 'custom',
     };
 
-    vi.mocked(createSequencePlan).mockImplementation(async (plan) => ({
-      ...plan,
-      id: 'saved-id',
-      createdAt: new Date('2026-05-23T12:00:00Z'),
-    } as unknown as SequencePlan));
+    vi.mocked(createSequencePlan).mockImplementation(
+      async (plan) =>
+        ({
+          ...plan,
+          id: 'saved-id',
+          createdAt: new Date('2026-05-23T12:00:00Z'),
+        }) as unknown as SequencePlan,
+    );
 
     const req = createMockRequest({
       templateId: 'custom',
       customPlan: mockPlan,
-      walletAddress: '0x8ab71ad4037a06002fdcfbef051f2fa9799df240'
+      walletAddress: '0x8ab71ad4037a06002fdcfbef051f2fa9799df240',
     });
 
     const res = await POST(req);
@@ -89,7 +92,7 @@ describe('Plan API Route', () => {
   it('should fail if customPlan is missing for custom templateId', async () => {
     const req = createMockRequest({
       templateId: 'custom',
-      walletAddress: '0x8ab71ad4037a06002fdcfbef051f2fa9799df240'
+      walletAddress: '0x8ab71ad4037a06002fdcfbef051f2fa9799df240',
     });
 
     const res = await POST(req);

@@ -1,12 +1,12 @@
-'use client'
+'use client';
 
-import React from 'react'
-import { SimulationResult } from '@/types/sequencer'
-import { Badge } from '@/components/ui/Badge'
-import { formatUsd } from '@/lib/utils/formatting'
+import React from 'react';
+import { Badge } from '@/components/ui/Badge';
+import { formatUsd } from '@/lib/utils/formatting';
+import type { SimulationResult } from '@/types/sequencer';
 
 interface SimulationResultViewProps {
-  result: SimulationResult
+  result: SimulationResult;
 }
 
 export function SimulationResultView({ result }: SimulationResultViewProps) {
@@ -28,7 +28,7 @@ export function SimulationResultView({ result }: SimulationResultViewProps) {
           )}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -41,25 +41,35 @@ export function SimulationResultView({ result }: SimulationResultViewProps) {
           </div>
           {result.gasCostUsd !== undefined && (
             <div className="text-xs text-verdant-text-muted">
-              Est. Gas: <span className="text-verdant-text-primary font-mono font-semibold">{formatUsd(result.gasCostUsd)}</span>
+              Est. Gas:{' '}
+              <span className="text-verdant-text-primary font-mono font-semibold">
+                {formatUsd(result.gasCostUsd)}
+              </span>
             </div>
           )}
         </div>
 
         {result.stateChanges && result.stateChanges.length > 0 && (
           <div className="flex flex-col gap-2">
-            <h4 className="text-[10px] font-bold uppercase tracking-wider text-verdant-text-muted">Expected Balance Changes</h4>
+            <h4 className="text-[10px] font-bold uppercase tracking-wider text-verdant-text-muted">
+              Expected Balance Changes
+            </h4>
             <div className="flex flex-col gap-1">
               {result.stateChanges.map((change, idx) => {
-                const isPositive = change.change.startsWith('+')
+                const isPositive = change.change.startsWith('+');
                 return (
-                  <div key={idx} className="flex items-center justify-between text-sm py-1 border-b border-[#E5E0D8] last:border-0">
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between text-sm py-1 border-b border-[#E5E0D8] last:border-0"
+                  >
                     <span className="text-verdant-text-muted">{change.asset}</span>
-                    <span className={`font-mono text-sm ${isPositive ? 'text-verdant-profit' : 'text-verdant-text-primary'}`}>
+                    <span
+                      className={`font-mono text-sm ${isPositive ? 'text-verdant-profit' : 'text-verdant-text-primary'}`}
+                    >
                       {change.change}
                     </span>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
@@ -72,5 +82,5 @@ export function SimulationResultView({ result }: SimulationResultViewProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,10 +1,10 @@
-import { ProtocolPlugin, RewardFetcher, ClaimParams } from '../types/protocol-plugin'
-import { ChainId, RawPosition, UnsignedTx, TxBuildParams, Reward } from '@/types/shared'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
-import { getPublicClient } from '@/lib/server/rpc'
-import { fetchTokenPrices } from '@/lib/data/prices'
-import { fetchAaveUserData } from '@/lib/data/aaveSubgraph'
-import { encodeFunctionData } from 'viem'
+import { encodeFunctionData } from 'viem';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import { fetchAaveUserData } from '@/lib/data/aaveSubgraph';
+import { fetchTokenPrices } from '@/lib/data/prices';
+import { getPublicClient } from '@/lib/server/rpc';
+import type { ChainId, RawPosition, Reward, TxBuildParams, UnsignedTx } from '@/types/shared';
+import type { ClaimParams, ProtocolPlugin, RewardFetcher } from '../types/protocol-plugin';
 
 const AAVE_POOL_ABI = [
   {
@@ -90,7 +90,7 @@ const AAVE_POOL_ABI = [
     ],
     outputs: [{ type: 'uint256' }],
   },
-] as const
+] as const;
 
 const ERC20_ABI = [
   {
@@ -117,7 +117,7 @@ const ERC20_ABI = [
     ],
     outputs: [{ type: 'bool' }],
   },
-] as const
+] as const;
 
 /**
  * Aave V3 RewardsController ABI (subset used for reward fetching and claiming).
@@ -181,7 +181,7 @@ const AAVE_REWARDS_CONTROLLER_ABI = [
       { name: 'lastUpdateTimestamp', type: 'uint256' },
     ],
   },
-] as const
+] as const;
 
 /**
  * Aave V3 RewardsController proxy addresses per chain.
@@ -191,7 +191,7 @@ const AAVE_REWARDS_CONTROLLER: Partial<Record<ChainId, string>> = {
   ethereum: '0x8164Cc65827dcFe994AB23944CBC90e0aa80bFcb',
   arbitrum: '0x929EC64c34a17401F460460D4B9390518E5B473e',
   base: '0x98820eb0f4641958c27B1E76cd4c66FCC6a9B6Ca',
-}
+};
 
 /**
  * Aave V3 AaveOracle addresses per chain. Returns asset prices in the pool's
@@ -202,7 +202,7 @@ const AAVE_ORACLE: Partial<Record<ChainId, string>> = {
   ethereum: '0x54586bE62E3c3580375aE3723C145253060Ca0C2',
   arbitrum: '0xb56c2F0B653B2e0b10C9b928C8580Ac5Df02C7C7',
   base: '0x2Cc0Fc26eD4563A5ce5e8bdcfe1A2878676Ae156',
-}
+};
 
 const AAVE_ORACLE_ABI = [
   {
@@ -212,14 +212,14 @@ const AAVE_ORACLE_ABI = [
     inputs: [{ name: 'asset', type: 'address' }],
     outputs: [{ type: 'uint256' }],
   },
-] as const
+] as const;
 
 /**
  * Minimum health factor Verdant will allow a built transaction to leave the
  * user at. Aave itself only reverts below 1.0; this 1.05 buffer is a Verdant
  * safety constraint (SPECS §6.2 / §19) enforced before the sign prompt.
  */
-export const MIN_HEALTH_FACTOR = 1.05
+export const MIN_HEALTH_FACTOR = 1.05;
 
 /**
  * Pure projection of the health factor that an action would leave the user at,
@@ -230,32 +230,32 @@ export const MIN_HEALTH_FACTOR = 1.05
  * action leaves no outstanding debt (no liquidation risk).
  */
 export function projectHealthFactor(opts: {
-  totalCollateralBase: bigint
-  totalDebtBase: bigint
-  liquidationThreshold: bigint // basis points, e.g. 8000 = 80%
-  deltaBase: bigint // base-currency value of the asset moved by the action
-  action: 'withdraw' | 'borrow' | 'supply' | 'repay'
+  totalCollateralBase: bigint;
+  totalDebtBase: bigint;
+  liquidationThreshold: bigint; // basis points, e.g. 8000 = 80%
+  deltaBase: bigint; // base-currency value of the asset moved by the action
+  action: 'withdraw' | 'borrow' | 'supply' | 'repay';
 }): number {
-  let collateral = opts.totalCollateralBase
-  let debt = opts.totalDebtBase
+  let collateral = opts.totalCollateralBase;
+  let debt = opts.totalDebtBase;
 
   switch (opts.action) {
     case 'withdraw':
-      collateral = collateral > opts.deltaBase ? collateral - opts.deltaBase : 0n
-      break
+      collateral = collateral > opts.deltaBase ? collateral - opts.deltaBase : 0n;
+      break;
     case 'supply':
-      collateral = collateral + opts.deltaBase
-      break
+      collateral = collateral + opts.deltaBase;
+      break;
     case 'borrow':
-      debt = debt + opts.deltaBase
-      break
+      debt = debt + opts.deltaBase;
+      break;
     case 'repay':
-      debt = debt > opts.deltaBase ? debt - opts.deltaBase : 0n
-      break
+      debt = debt > opts.deltaBase ? debt - opts.deltaBase : 0n;
+      break;
   }
 
-  if (debt === 0n) return Infinity
-  return (Number(collateral) / Number(debt)) * (Number(opts.liquidationThreshold) / 10000)
+  if (debt === 0n) return Infinity;
+  return (Number(collateral) / Number(debt)) * (Number(opts.liquidationThreshold) / 10000);
 }
 
 /**
@@ -267,35 +267,35 @@ export function projectHealthFactor(opts: {
  * transient read failure. A computed HF below the floor, however, throws.
  */
 async function assertActionKeepsHealthy(opts: {
-  chain: ChainId
-  action: 'withdraw' | 'borrow'
-  assetAddress: string
-  amountBigInt: bigint
-  decimals: number
-  isMax: boolean
-  userAddress: string
+  chain: ChainId;
+  action: 'withdraw' | 'borrow';
+  assetAddress: string;
+  amountBigInt: bigint;
+  decimals: number;
+  isMax: boolean;
+  userAddress: string;
 }): Promise<void> {
-  const { chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress } = opts
-  const poolAddress = aavePlugin.addresses[chain]?.poolAddress
-  const oracle = AAVE_ORACLE[chain]
-  if (!poolAddress || !oracle) return
+  const { chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress } = opts;
+  const poolAddress = aavePlugin.addresses[chain]?.poolAddress;
+  const oracle = AAVE_ORACLE[chain];
+  if (!poolAddress || !oracle) return;
 
-  let totalCollateralBase: bigint
-  let totalDebtBase: bigint
-  let liquidationThreshold: bigint
-  let assetPrice: bigint
+  let totalCollateralBase: bigint;
+  let totalDebtBase: bigint;
+  let liquidationThreshold: bigint;
+  let assetPrice: bigint;
 
   try {
-    const client = getPublicClient(chain)
+    const client = getPublicClient(chain);
     const accountData = await client.readContract({
       address: poolAddress as `0x${string}`,
       abi: AAVE_POOL_ABI,
       functionName: 'getUserAccountData',
       args: [userAddress as `0x${string}`],
-    })
-    totalCollateralBase = accountData[0]
-    totalDebtBase = accountData[1]
-    liquidationThreshold = accountData[3]
+    });
+    totalCollateralBase = accountData[0];
+    totalDebtBase = accountData[1];
+    liquidationThreshold = accountData[3];
 
     // Defend against malformed RPC responses — only act on a well-formed tuple.
     if (
@@ -303,45 +303,48 @@ async function assertActionKeepsHealthy(opts: {
       typeof totalDebtBase !== 'bigint' ||
       typeof liquidationThreshold !== 'bigint'
     ) {
-      return
+      return;
     }
 
     // No outstanding debt ⇒ no liquidation risk; nothing to guard.
-    if (totalDebtBase === 0n) return
+    if (totalDebtBase === 0n) return;
 
     assetPrice = await client.readContract({
       address: oracle as `0x${string}`,
       abi: AAVE_ORACLE_ABI,
       functionName: 'getAssetPrice',
       args: [assetAddress as `0x${string}`],
-    })
-    if (typeof assetPrice !== 'bigint' || assetPrice === 0n) return
+    });
+    if (typeof assetPrice !== 'bigint' || assetPrice === 0n) return;
   } catch (e) {
-    console.warn(`[aave] HF guard could not verify ${action} on ${chain}; allowing build (simulation will still gate):`, e)
-    return
+    console.warn(
+      `[aave] HF guard could not verify ${action} on ${chain}; allowing build (simulation will still gate):`,
+      e,
+    );
+    return;
   }
 
   // A max withdraw against an unknown remaining balance cannot be projected
   // against the 1.05 floor — refuse rather than risk it while debt is open.
   if (isMax && action === 'withdraw') {
     throw new Error(
-      'Cannot safely build a max withdraw while a borrow position is open. Specify an explicit amount so the health factor can be verified.'
-    )
+      'Cannot safely build a max withdraw while a borrow position is open. Specify an explicit amount so the health factor can be verified.',
+    );
   }
 
-  const deltaBase = (amountBigInt * assetPrice) / 10n ** BigInt(decimals)
+  const deltaBase = (amountBigInt * assetPrice) / 10n ** BigInt(decimals);
   const projectedHf = projectHealthFactor({
     totalCollateralBase,
     totalDebtBase,
     liquidationThreshold,
     deltaBase,
     action,
-  })
+  });
 
   if (projectedHf < MIN_HEALTH_FACTOR) {
     throw new Error(
-      `This ${action} would bring your Aave health factor to ${projectedHf.toFixed(2)}, below the safe minimum of ${MIN_HEALTH_FACTOR}. Reduce the amount and try again.`
-    )
+      `This ${action} would bring your Aave health factor to ${projectedHf.toFixed(2)}, below the safe minimum of ${MIN_HEALTH_FACTOR}. Reduce the amount and try again.`,
+    );
   }
 }
 
@@ -349,7 +352,7 @@ async function assertActionKeepsHealthy(opts: {
  * Minimum claimable USD value to surface a reward to the user.
  * Prevents noisy sub-cent rewards from showing up.
  */
-const MIN_REWARD_USD = 0.01
+const MIN_REWARD_USD = 0.01;
 
 export const aavePlugin: ProtocolPlugin = {
   id: 'aave',
@@ -364,42 +367,44 @@ export const aavePlugin: ProtocolPlugin = {
   },
   fetcher: {
     fetchPositions: async (address: string, chain: ChainId): Promise<RawPosition[]> => {
-      const poolAddress = aavePlugin.addresses[chain]?.poolAddress
-      if (!poolAddress) return []
+      const poolAddress = aavePlugin.addresses[chain]?.poolAddress;
+      if (!poolAddress) return [];
 
-      const client = getPublicClient(chain)
-      const positions: RawPosition[] = []
+      const client = getPublicClient(chain);
+      const positions: RawPosition[] = [];
 
       try {
         // 1. Try to fetch from subgraph first for richer data (e.g. per-reserve collateral status)
-        const subgraphData = await fetchAaveUserData(address, chain)
-        
+        const subgraphData = await fetchAaveUserData(address, chain);
+
         if (subgraphData?.user) {
-          const user = subgraphData.user
-          const healthFactor = Number(user.healthFactor) / 1e18
-          
-          const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
-          const priceIds = tokensToQuery.map(t => `coingecko:${t.coingeckoId}`)
-          const priceMap = await fetchTokenPrices(priceIds).catch(() => ({} as Record<string, number>))
+          const user = subgraphData.user;
+          const healthFactor = Number(user.healthFactor) / 1e18;
+
+          const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter((t) => t.addresses[chain]);
+          const priceIds = tokensToQuery.map((t) => `coingecko:${t.coingeckoId}`);
+          const priceMap = await fetchTokenPrices(priceIds).catch(
+            () => ({}) as Record<string, number>,
+          );
 
           for (const userReserve of user.userReserves) {
-            const assetAddress = userReserve.reserve.underlyingAsset.toLowerCase()
+            const assetAddress = userReserve.reserve.underlyingAsset.toLowerCase();
             const token = Object.values(SUPPORTED_TOKENS).find(
-              t => t.addresses[chain]?.toLowerCase() === assetAddress
-            )
-            
-            if (!token) continue
+              (t) => t.addresses[chain]?.toLowerCase() === assetAddress,
+            );
 
-            const price = priceMap[`coingecko:${token.coingeckoId}`] || 0
-            const aTokenBalance = BigInt(userReserve.currentATokenBalance)
-            const variableDebt = BigInt(userReserve.currentVariableDebt)
-            const isCollateral = userReserve.usageAsCollateralEnabledOnUser
+            if (!token) continue;
+
+            const price = priceMap[`coingecko:${token.coingeckoId}`] || 0;
+            const aTokenBalance = BigInt(userReserve.currentATokenBalance);
+            const variableDebt = BigInt(userReserve.currentVariableDebt);
+            const isCollateral = userReserve.usageAsCollateralEnabledOnUser;
 
             // Still need APY from RPC as subgraph might be slightly delayed or not have latest rates
-            let supplyApy = 0
-            let borrowApy = 0
-            let aTokenAddress = ''
-            let variableDebtTokenAddress = ''
+            let supplyApy = 0;
+            let borrowApy = 0;
+            let aTokenAddress = '';
+            let variableDebtTokenAddress = '';
 
             try {
               const result = await client.readContract({
@@ -407,17 +412,17 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_POOL_ABI,
                 functionName: 'getReserveData',
                 args: [assetAddress as `0x${string}`],
-              })
-              supplyApy = Number(result[4]) / 1e27
-              borrowApy = Number(result[5]) / 1e27
-              aTokenAddress = result[9]
-              variableDebtTokenAddress = result[11]
+              });
+              supplyApy = Number(result[4]) / 1e27;
+              borrowApy = Number(result[5]) / 1e27;
+              aTokenAddress = result[9];
+              variableDebtTokenAddress = result[11];
             } catch (e) {
-              console.error(`Failed to get Aave rates for ${token.symbol} on ${chain}:`, e)
+              console.error(`Failed to get Aave rates for ${token.symbol} on ${chain}:`, e);
             }
 
             if (aTokenBalance > 0n) {
-              const amount = Number(aTokenBalance) / Math.pow(10, token.decimals)
+              const amount = Number(aTokenBalance) / 10 ** token.decimals;
               positions.push({
                 id: `aave-supply-${chain}-${token.symbol}`,
                 protocol: 'aave',
@@ -429,16 +434,16 @@ export const aavePlugin: ProtocolPlugin = {
                 currentApy: supplyApy,
                 positionType: 'supply',
                 claimableRewards: [],
-                metadata: { 
+                metadata: {
                   aTokenAddress,
                   healthFactor,
-                  isCollateral
-                }
-              })
+                  isCollateral,
+                },
+              });
             }
 
             if (variableDebt > 0n) {
-              const amount = Number(variableDebt) / Math.pow(10, token.decimals)
+              const amount = Number(variableDebt) / 10 ** token.decimals;
               positions.push({
                 id: `aave-borrow-${chain}-${token.symbol}`,
                 protocol: 'aave',
@@ -450,15 +455,15 @@ export const aavePlugin: ProtocolPlugin = {
                 currentApy: borrowApy,
                 positionType: 'borrow',
                 claimableRewards: [],
-                metadata: { 
+                metadata: {
                   variableDebtTokenAddress,
-                  healthFactor
-                }
-              })
+                  healthFactor,
+                },
+              });
             }
           }
-          
-          if (positions.length > 0) return positions
+
+          if (positions.length > 0) return positions;
         }
 
         // 2. Fallback to RPC if subgraph fails or returns no user
@@ -467,43 +472,45 @@ export const aavePlugin: ProtocolPlugin = {
           abi: AAVE_POOL_ABI,
           functionName: 'getUserAccountData',
           args: [address as `0x${string}`],
-        })
+        });
 
-        const totalCollateralBase = accountData[0]
-        const totalDebtBase = accountData[1]
-        const hfBigInt = accountData[5]
-        const healthFactor = Number(hfBigInt) / 1e18
+        const totalCollateralBase = accountData[0];
+        const totalDebtBase = accountData[1];
+        const hfBigInt = accountData[5];
+        const healthFactor = Number(hfBigInt) / 1e18;
 
         // If both are zero, the user has no positions on this Aave market.
         if (totalCollateralBase === 0n && totalDebtBase === 0n) {
-          return []
+          return [];
         }
 
         // Query reserve data and balances for all supported tokens that have an address on this chain
-        const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
+        const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter((t) => t.addresses[chain]);
 
         // Fetch prices in parallel
-        const priceIds = tokensToQuery.map(t => `coingecko:${t.coingeckoId}`)
-        const priceMap = await fetchTokenPrices(priceIds).catch(() => ({} as Record<string, number>))
+        const priceIds = tokensToQuery.map((t) => `coingecko:${t.coingeckoId}`);
+        const priceMap = await fetchTokenPrices(priceIds).catch(
+          () => ({}) as Record<string, number>,
+        );
 
         const balancePromises = tokensToQuery.map(async (token) => {
-          const tokenPositions: RawPosition[] = []
+          const tokenPositions: RawPosition[] = [];
           try {
             const result = await client.readContract({
               address: poolAddress as `0x${string}`,
               abi: AAVE_POOL_ABI,
               functionName: 'getReserveData',
               args: [token.addresses[chain] as `0x${string}`],
-            })
+            });
 
-            const aTokenAddress = result[9]
-            const variableDebtTokenAddress = result[11]
-            const currentLiquidityRate = result[4]
-            const currentVariableBorrowRate = result[5]
+            const aTokenAddress = result[9];
+            const variableDebtTokenAddress = result[11];
+            const currentLiquidityRate = result[4];
+            const currentVariableBorrowRate = result[5];
 
-            const supplyApy = Number(currentLiquidityRate) / 1e27
-            const borrowApy = Number(currentVariableBorrowRate) / 1e27
-            const price = priceMap[`coingecko:${token.coingeckoId}`] || 0
+            const supplyApy = Number(currentLiquidityRate) / 1e27;
+            const borrowApy = Number(currentVariableBorrowRate) / 1e27;
+            const price = priceMap[`coingecko:${token.coingeckoId}`] || 0;
 
             // Check supply balance
             const aTokenBalance = await client.readContract({
@@ -511,10 +518,10 @@ export const aavePlugin: ProtocolPlugin = {
               abi: ERC20_ABI,
               functionName: 'balanceOf',
               args: [address as `0x${string}`],
-            })
+            });
 
             if (aTokenBalance > 0n) {
-              const amount = Number(aTokenBalance) / Math.pow(10, token.decimals)
+              const amount = Number(aTokenBalance) / 10 ** token.decimals;
               tokenPositions.push({
                 id: `aave-supply-${chain}-${token.symbol}`,
                 protocol: 'aave',
@@ -526,8 +533,8 @@ export const aavePlugin: ProtocolPlugin = {
                 currentApy: supplyApy,
                 positionType: 'supply',
                 claimableRewards: [],
-                metadata: { aTokenAddress, healthFactor }
-              })
+                metadata: { aTokenAddress, healthFactor },
+              });
             }
 
             // Check borrow balance
@@ -536,10 +543,10 @@ export const aavePlugin: ProtocolPlugin = {
               abi: ERC20_ABI,
               functionName: 'balanceOf',
               args: [address as `0x${string}`],
-            })
+            });
 
             if (debtBalance > 0n) {
-              const amount = Number(debtBalance) / Math.pow(10, token.decimals)
+              const amount = Number(debtBalance) / 10 ** token.decimals;
               tokenPositions.push({
                 id: `aave-borrow-${chain}-${token.symbol}`,
                 protocol: 'aave',
@@ -551,56 +558,57 @@ export const aavePlugin: ProtocolPlugin = {
                 currentApy: borrowApy,
                 positionType: 'borrow',
                 claimableRewards: [],
-                metadata: { variableDebtTokenAddress, healthFactor }
-              })
+                metadata: { variableDebtTokenAddress, healthFactor },
+              });
             }
           } catch (e) {
-            console.error(`Failed to get Aave details for ${token.symbol} on ${chain}:`, e)
+            console.error(`Failed to get Aave details for ${token.symbol} on ${chain}:`, e);
           }
-          return tokenPositions
-        })
+          return tokenPositions;
+        });
 
-        const balanceResults = await Promise.all(balancePromises)
+        const balanceResults = await Promise.all(balancePromises);
         for (const res of balanceResults) {
-          positions.push(...res)
+          positions.push(...res);
         }
       } catch (e) {
-        console.error('Error fetching Aave positions:', e)
+        console.error('Error fetching Aave positions:', e);
       }
 
-      return positions
+      return positions;
     },
   },
   builder: {
     buildTx: async (params: TxBuildParams): Promise<UnsignedTx[]> => {
-      const { action, chain, asset, amount, userAddress } = params
-      const poolAddress = aavePlugin.addresses[chain]?.poolAddress
-      if (!poolAddress) throw new Error(`Aave pool address not found for chain ${chain}`)
+      const { action, chain, asset, amount, userAddress } = params;
+      const poolAddress = aavePlugin.addresses[chain]?.poolAddress;
+      if (!poolAddress) throw new Error(`Aave pool address not found for chain ${chain}`);
 
-      const tokenConfig = SUPPORTED_TOKENS[asset]
-      if (!tokenConfig) throw new Error(`Token config not found for asset ${asset}`)
+      const tokenConfig = SUPPORTED_TOKENS[asset];
+      if (!tokenConfig) throw new Error(`Token config not found for asset ${asset}`);
 
-      const assetAddress = tokenConfig.addresses[chain]
-      if (!assetAddress) throw new Error(`Token address not found for asset ${asset} on chain ${chain}`)
+      const assetAddress = tokenConfig.addresses[chain];
+      if (!assetAddress)
+        throw new Error(`Token address not found for asset ${asset} on chain ${chain}`);
 
-      const decimals = tokenConfig.decimals
-      const isMax = amount === 'max'
-      const isWei = params.extraParams?.isWei === true
-      const amountBigInt = isMax 
-        ? 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn 
-        : isWei 
+      const decimals = tokenConfig.decimals;
+      const isMax = amount === 'max';
+      const isWei = params.extraParams?.isWei === true;
+      const amountBigInt = isMax
+        ? 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffn
+        : isWei
           ? BigInt(amount)
-          : BigInt(Math.floor(Number(amount) * Math.pow(10, decimals)))
+          : BigInt(Math.floor(Number(amount) * 10 ** decimals));
 
       const chainMap: Record<ChainId, number> = {
         ethereum: 1,
         arbitrum: 42161,
         base: 8453,
         solana: 0,
-      }
-      const chainId = chainMap[chain]
+      };
+      const chainId = chainMap[chain];
 
-      const txs: UnsignedTx[] = []
+      const txs: UnsignedTx[] = [];
 
       if (action === 'supply') {
         // 1. Approve
@@ -608,116 +616,130 @@ export const aavePlugin: ProtocolPlugin = {
           abi: ERC20_ABI,
           functionName: 'approve',
           args: [poolAddress as `0x${string}`, amountBigInt],
-        })
+        });
         txs.push({
           chainId,
           to: assetAddress,
           data: approveData,
           value: 0n,
           description: `Approve Aave V3 Pool to spend ${amount} ${asset}`,
-        })
+        });
 
         // 2. Supply
         const supplyData = encodeFunctionData({
           abi: AAVE_POOL_ABI,
           functionName: 'supply',
           args: [assetAddress as `0x${string}`, amountBigInt, userAddress as `0x${string}`, 0],
-        })
+        });
         txs.push({
           chainId,
           to: poolAddress,
           data: supplyData,
           value: 0n,
           description: `Supply ${amount} ${asset} to Aave V3`,
-        })
+        });
       } else if (action === 'withdraw') {
         await assertActionKeepsHealthy({
-          chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress,
-        })
+          chain,
+          action,
+          assetAddress,
+          amountBigInt,
+          decimals,
+          isMax,
+          userAddress,
+        });
         const withdrawData = encodeFunctionData({
           abi: AAVE_POOL_ABI,
           functionName: 'withdraw',
           args: [assetAddress as `0x${string}`, amountBigInt, userAddress as `0x${string}`],
-        })
+        });
         txs.push({
           chainId,
           to: poolAddress,
           data: withdrawData,
           value: 0n,
           description: `Withdraw ${isMax ? 'all' : `${amount} ${asset}`} from Aave V3`,
-        })
+        });
       } else if (action === 'borrow') {
         await assertActionKeepsHealthy({
-          chain, action, assetAddress, amountBigInt, decimals, isMax, userAddress,
-        })
+          chain,
+          action,
+          assetAddress,
+          amountBigInt,
+          decimals,
+          isMax,
+          userAddress,
+        });
         const borrowData = encodeFunctionData({
           abi: AAVE_POOL_ABI,
           functionName: 'borrow',
           args: [assetAddress as `0x${string}`, amountBigInt, 2n, 0, userAddress as `0x${string}`],
-        })
+        });
         txs.push({
           chainId,
           to: poolAddress,
           data: borrowData,
           value: 0n,
           description: `Borrow ${amount} ${asset} from Aave V3`,
-        })
+        });
       } else if (action === 'repay') {
         // 1. Approve
         const approveData = encodeFunctionData({
           abi: ERC20_ABI,
           functionName: 'approve',
           args: [poolAddress as `0x${string}`, amountBigInt],
-        })
+        });
         txs.push({
           chainId,
           to: assetAddress,
           data: approveData,
           value: 0n,
           description: `Approve Aave V3 Pool to spend ${isMax ? 'unlimited' : `${amount} ${asset}`}`,
-        })
+        });
 
         // 2. Repay
         const repayData = encodeFunctionData({
           abi: AAVE_POOL_ABI,
           functionName: 'repay',
           args: [assetAddress as `0x${string}`, amountBigInt, 2n, userAddress as `0x${string}`],
-        })
+        });
         txs.push({
           chainId,
           to: poolAddress,
           data: repayData,
           value: 0n,
           description: `Repay ${isMax ? 'all' : `${amount} ${asset}`} borrow position on Aave V3`,
-        })
+        });
       } else {
-        throw new Error(`Unsupported action ${action} on Aave V3 plugin`)
+        throw new Error(`Unsupported action ${action} on Aave V3 plugin`);
       }
 
-      return txs
+      return txs;
     },
     describeAction: (params: TxBuildParams) => {
-      const { action, amount, asset } = params
-      if (action === 'supply') return `Supply ${amount} ${asset} to Aave V3`
-      if (action === 'withdraw') return `Withdraw ${amount === 'max' ? 'all' : `${amount} ${asset}`} from Aave V3`
-      if (action === 'borrow') return `Borrow ${amount} ${asset} from Aave V3`
-      if (action === 'repay') return `Repay ${amount === 'max' ? 'all' : `${amount} ${asset}`} borrow position on Aave V3`
-      return `Aave V3 Action`
+      const { action, amount, asset } = params;
+      if (action === 'supply') return `Supply ${amount} ${asset} to Aave V3`;
+      if (action === 'withdraw')
+        return `Withdraw ${amount === 'max' ? 'all' : `${amount} ${asset}`} from Aave V3`;
+      if (action === 'borrow') return `Borrow ${amount} ${asset} from Aave V3`;
+      if (action === 'repay')
+        return `Repay ${amount === 'max' ? 'all' : `${amount} ${asset}`} borrow position on Aave V3`;
+      return `Aave V3 Action`;
     },
   },
   rewards: {
     fetchRewards: async (address: string, chain: ChainId): Promise<Reward[]> => {
-      const rewardsController = AAVE_REWARDS_CONTROLLER[chain]
-      const poolAddress = aavePlugin.addresses[chain]?.poolAddress
-      if (!rewardsController || !poolAddress) return []
+      const rewardsController = AAVE_REWARDS_CONTROLLER[chain];
+      const poolAddress = aavePlugin.addresses[chain]?.poolAddress;
+      if (!rewardsController || !poolAddress) return [];
 
-      const client = getPublicClient(chain)
-      const rewards: Reward[] = []
+      const client = getPublicClient(chain);
+      const rewards: Reward[] = [];
 
       try {
         // Collect all aToken addresses the user might hold
-        const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
-        const aTokenAddresses: string[] = []
+        const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter((t) => t.addresses[chain]);
+        const aTokenAddresses: string[] = [];
 
         await Promise.all(
           tokensToQuery.map(async (token) => {
@@ -727,8 +749,8 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_POOL_ABI,
                 functionName: 'getReserveData',
                 args: [token.addresses[chain] as `0x${string}`],
-              })
-              const aTokenAddress = result[9]
+              });
+              const aTokenAddress = result[9];
               if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
                 // Check user has a balance on this aToken
                 const bal = await client.readContract({
@@ -736,19 +758,19 @@ export const aavePlugin: ProtocolPlugin = {
                   abi: ERC20_ABI,
                   functionName: 'balanceOf',
                   args: [address as `0x${string}`],
-                })
-                if (bal > 0n) aTokenAddresses.push(aTokenAddress)
+                });
+                if (bal > 0n) aTokenAddresses.push(aTokenAddress);
               }
             } catch {
               // Ignore tokens with no reserve on this chain
             }
-          })
-        )
+          }),
+        );
 
-        if (aTokenAddresses.length === 0) return []
+        if (aTokenAddresses.length === 0) return [];
 
         // For each aToken, get its reward list and query claimable amounts
-        const rewardTokenSet = new Set<string>()
+        const rewardTokenSet = new Set<string>();
         await Promise.all(
           aTokenAddresses.map(async (aToken) => {
             try {
@@ -757,20 +779,22 @@ export const aavePlugin: ProtocolPlugin = {
                 abi: AAVE_REWARDS_CONTROLLER_ABI,
                 functionName: 'getRewardsByAsset',
                 args: [aToken as `0x${string}`],
-              })
-              rewardTokens.forEach(r => rewardTokenSet.add(r))
+              });
+              rewardTokens.forEach((r) => rewardTokenSet.add(r));
             } catch {
               // No rewards configured for this aToken
             }
-          })
-        )
+          }),
+        );
 
-        if (rewardTokenSet.size === 0) return []
+        if (rewardTokenSet.size === 0) return [];
 
         // Fetch prices for reward tokens
         // We use a best-effort approach — unknown tokens default to $0 price
-        const priceIds = Array.from(rewardTokenSet).map(r => `token:${r}`)
-        const priceMap = await fetchTokenPrices(priceIds).catch(() => ({} as Record<string, number>))
+        const priceIds = Array.from(rewardTokenSet).map((r) => `token:${r}`);
+        const priceMap = await fetchTokenPrices(priceIds).catch(
+          () => ({}) as Record<string, number>,
+        );
 
         // Query claimable amounts per reward token
         await Promise.all(
@@ -780,54 +804,60 @@ export const aavePlugin: ProtocolPlugin = {
                 address: rewardsController as `0x${string}`,
                 abi: AAVE_REWARDS_CONTROLLER_ABI,
                 functionName: 'getUserRewards',
-                args: [aTokenAddresses as `0x${string}`[], address as `0x${string}`, rewardToken as `0x${string}`],
-              })
+                args: [
+                  aTokenAddresses as `0x${string}`[],
+                  address as `0x${string}`,
+                  rewardToken as `0x${string}`,
+                ],
+              });
 
-              if (claimable <= 0n) return
+              if (claimable <= 0n) return;
 
               // Resolve reward token symbol and decimals from our known tokens or fall back
-              const knownToken = Object.values(SUPPORTED_TOKENS).find(
-                t => Object.values(t.addresses).some(a => a?.toLowerCase() === rewardToken.toLowerCase())
-              )
-              const decimals = knownToken?.decimals ?? 18
-              const symbol = knownToken?.symbol ?? rewardToken.slice(0, 6)
-              const amount = Number(claimable) / Math.pow(10, decimals)
+              const knownToken = Object.values(SUPPORTED_TOKENS).find((t) =>
+                Object.values(t.addresses).some(
+                  (a) => a?.toLowerCase() === rewardToken.toLowerCase(),
+                ),
+              );
+              const decimals = knownToken?.decimals ?? 18;
+              const symbol = knownToken?.symbol ?? rewardToken.slice(0, 6);
+              const amount = Number(claimable) / 10 ** decimals;
 
               // Attempt price lookup with multiple key formats
               const priceKey = knownToken
                 ? `coingecko:${knownToken.coingeckoId}`
-                : `token:${rewardToken}`
-              const price = priceMap[priceKey] ?? 0
-              const amountUsd = amount * price
+                : `token:${rewardToken}`;
+              const price = priceMap[priceKey] ?? 0;
+              const amountUsd = amount * price;
 
               if (amountUsd >= MIN_REWARD_USD || amount > 0) {
-                rewards.push({ token: symbol, amount: amount.toFixed(8), amountUsd })
+                rewards.push({ token: symbol, amount: amount.toFixed(8), amountUsd });
               }
             } catch (e) {
-              console.error(`[aave] Failed to get rewards for token ${rewardToken}:`, e)
+              console.error(`[aave] Failed to get rewards for token ${rewardToken}:`, e);
             }
-          })
-        )
+          }),
+        );
       } catch (e) {
-        console.error('[aave] fetchRewards error:', e)
+        console.error('[aave] fetchRewards error:', e);
       }
 
-      return rewards
+      return rewards;
     },
 
     buildClaimTx: async (params: ClaimParams): Promise<UnsignedTx[]> => {
-      const { address, chain } = params
-      const rewardsController = AAVE_REWARDS_CONTROLLER[chain]
-      const poolAddress = aavePlugin.addresses[chain]?.poolAddress
+      const { address, chain } = params;
+      const rewardsController = AAVE_REWARDS_CONTROLLER[chain];
+      const poolAddress = aavePlugin.addresses[chain]?.poolAddress;
       if (!rewardsController || !poolAddress) {
-        throw new Error(`Aave RewardsController not available on ${chain}`)
+        throw new Error(`Aave RewardsController not available on ${chain}`);
       }
 
-      const client = getPublicClient(chain)
+      const client = getPublicClient(chain);
 
       // Collect aToken addresses with positive balances
-      const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter(t => t.addresses[chain])
-      const aTokenAddresses: string[] = []
+      const tokensToQuery = Object.values(SUPPORTED_TOKENS).filter((t) => t.addresses[chain]);
+      const aTokenAddresses: string[] = [];
 
       await Promise.all(
         tokensToQuery.map(async (token) => {
@@ -837,36 +867,36 @@ export const aavePlugin: ProtocolPlugin = {
               abi: AAVE_POOL_ABI,
               functionName: 'getReserveData',
               args: [token.addresses[chain] as `0x${string}`],
-            })
-            const aTokenAddress = result[9]
+            });
+            const aTokenAddress = result[9];
             if (aTokenAddress && aTokenAddress !== '0x0000000000000000000000000000000000000000') {
               const bal = await client.readContract({
                 address: aTokenAddress as `0x${string}`,
                 abi: ERC20_ABI,
                 functionName: 'balanceOf',
                 args: [address as `0x${string}`],
-              })
-              if (bal > 0n) aTokenAddresses.push(aTokenAddress)
+              });
+              if (bal > 0n) aTokenAddresses.push(aTokenAddress);
             }
           } catch {
             // skip
           }
-        })
-      )
+        }),
+      );
 
       const chainMap: Record<ChainId, number> = {
         ethereum: 1,
         arbitrum: 42161,
         base: 8453,
         solana: 0,
-      }
-      const chainId = chainMap[chain]
+      };
+      const chainId = chainMap[chain];
 
       const claimData = encodeFunctionData({
         abi: AAVE_REWARDS_CONTROLLER_ABI,
         functionName: 'claimAllRewards',
         args: [aTokenAddresses as `0x${string}`[], address as `0x${string}`],
-      })
+      });
 
       return [
         {
@@ -876,7 +906,7 @@ export const aavePlugin: ProtocolPlugin = {
           value: 0n,
           description: `Claim all Aave V3 rewards on ${chain}`,
         },
-      ]
+      ];
     },
   } satisfies RewardFetcher,
-}
+};

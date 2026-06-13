@@ -1,29 +1,29 @@
-import 'server-only'
-import { eq } from 'drizzle-orm'
-import { getDb } from '@/lib/db/client'
-import { autoCompoundSettings } from '@/lib/db/schema'
+import 'server-only';
+import { eq } from 'drizzle-orm';
+import { getDb } from '@/lib/db/client';
+import { autoCompoundSettings } from '@/lib/db/schema';
 
 /** Shape returned to the client (snake_case to match the harvest UI). */
 export interface AutoCompoundSetting {
-  protocol: string
-  chain: string
-  asset: string
-  enabled: boolean
-  min_threshold_usd: number | null
+  protocol: string;
+  chain: string;
+  asset: string;
+  enabled: boolean;
+  min_threshold_usd: number | null;
 }
 
 export interface UpsertAutoCompoundSettingInput {
-  address: string
-  protocol: string
-  chain: string
-  asset: string
-  enabled: boolean
-  minThresholdUsd?: number
+  address: string;
+  protocol: string;
+  chain: string;
+  asset: string;
+  enabled: boolean;
+  minThresholdUsd?: number;
 }
 
 /** Returns auto-compound settings for all positions belonging to a wallet. */
 export async function getAutoCompoundSettings(
-  walletAddress: string
+  walletAddress: string,
 ): Promise<AutoCompoundSetting[]> {
   const rows = await getDb()
     .select({
@@ -34,7 +34,7 @@ export async function getAutoCompoundSettings(
       minThresholdUsd: autoCompoundSettings.minThresholdUsd,
     })
     .from(autoCompoundSettings)
-    .where(eq(autoCompoundSettings.walletAddress, walletAddress))
+    .where(eq(autoCompoundSettings.walletAddress, walletAddress));
 
   return rows.map((r) => ({
     protocol: r.protocol,
@@ -42,15 +42,15 @@ export async function getAutoCompoundSettings(
     asset: r.asset,
     enabled: r.enabled ?? false,
     min_threshold_usd: r.minThresholdUsd != null ? Number(r.minThresholdUsd) : null,
-  }))
+  }));
 }
 
 /** Inserts or updates the auto-compound setting for a wallet+protocol+chain+asset. */
 export async function upsertAutoCompoundSetting(
-  input: UpsertAutoCompoundSettingInput
+  input: UpsertAutoCompoundSettingInput,
 ): Promise<void> {
   const threshold =
-    input.minThresholdUsd !== undefined ? { minThresholdUsd: String(input.minThresholdUsd) } : {}
+    input.minThresholdUsd !== undefined ? { minThresholdUsd: String(input.minThresholdUsd) } : {};
 
   await getDb()
     .insert(autoCompoundSettings)
@@ -70,5 +70,5 @@ export async function upsertAutoCompoundSetting(
         autoCompoundSettings.asset,
       ],
       set: { enabled: input.enabled, ...threshold },
-    })
+    });
 }

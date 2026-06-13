@@ -1,3 +1,3 @@
-import 'server-only'
+import 'server-only';
 
-export { fetchDepositDestinations } from '@/lib/data/destinationsFetcher'
+export { fetchDepositDestinations } from '@/lib/data/destinationsFetcher';

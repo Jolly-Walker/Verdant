@@ -9,14 +9,14 @@
  */
 export function formatUsd(value: number): string {
   if (Math.abs(value) < 0.01 && value !== 0) {
-    return `$${value.toFixed(4)}`
+    return `$${value.toFixed(4)}`;
   }
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value)
+  }).format(value);
 }
 
 /**
@@ -28,7 +28,7 @@ export function formatToken(value: number, decimals: number = 4): string {
   return new Intl.NumberFormat('en-US', {
     minimumFractionDigits: 0,
     maximumFractionDigits: decimals,
-  }).format(value)
+  }).format(value);
 }
 
 /**
@@ -37,7 +37,7 @@ export function formatToken(value: number, decimals: number = 4): string {
  * @example formatPercent(0.1234) => "12.34%"
  */
 export function formatPercent(decimal: number): string {
-  return `${(decimal * 100).toFixed(2)}%`
+  return `${(decimal * 100).toFixed(2)}%`;
 }
 
 /**
@@ -45,8 +45,8 @@ export function formatPercent(decimal: number): string {
  * @example truncateAddress("0x1234567890abcdef1234567890abcdef12345678") => "0x1234...5678"
  */
 export function truncateAddress(address: string): string {
-  if (!address || address.length < 10) return address
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
+  if (!address || address.length < 10) return address;
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 /**
@@ -54,8 +54,8 @@ export function truncateAddress(address: string): string {
  * @example formatCompact(1500000) => "$1.50M"
  */
 export function formatCompactUsd(value: number): string {
-  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`
-  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`
-  if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`
-  return formatUsd(value)
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(2)}B`;
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(2)}K`;
+  return formatUsd(value);
 }

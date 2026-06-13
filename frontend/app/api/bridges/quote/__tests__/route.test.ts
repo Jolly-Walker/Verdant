@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { GET } from '../route';
 import { NextRequest } from 'next/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { GET } from '../route';
 
 vi.mock('server-only', () => ({}));
 
@@ -10,7 +10,7 @@ vi.mock('@/lib/data/bridgeQuotesCache', () => ({
 }));
 
 vi.mock('@/lib/plugins/bridges', () => ({
-  BRIDGE_REGISTRY: {}
+  BRIDGE_REGISTRY: {},
 }));
 
 describe('Bridge Quote API Route', () => {
@@ -23,7 +23,9 @@ describe('Bridge Quote API Route', () => {
   };
 
   it('should return 400 for an invalid EVM recipient address on ethereum', async () => {
-    const req = createMockRequest('http://localhost/api/bridges/quote?fromChain=arbitrum&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=invalid-evm-address');
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=arbitrum&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=invalid-evm-address',
+    );
 
     const res = await GET(req);
     expect(res.status).toBe(400);
@@ -32,7 +34,9 @@ describe('Bridge Quote API Route', () => {
   });
 
   it('should return 400 for an invalid Solana recipient address on solana', async () => {
-    const req = createMockRequest('http://localhost/api/bridges/quote?fromChain=ethereum&toChain=solana&token=USDC&amount=1000000&recipientAddress=invalid-solana-address');
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=ethereum&toChain=solana&token=USDC&amount=1000000&recipientAddress=invalid-solana-address',
+    );
 
     const res = await GET(req);
     expect(res.status).toBe(400);
@@ -41,7 +45,9 @@ describe('Bridge Quote API Route', () => {
   });
 
   it('should return 400 when an EVM address is provided for solana', async () => {
-    const req = createMockRequest('http://localhost/api/bridges/quote?fromChain=ethereum&toChain=solana&token=USDC&amount=1000000&recipientAddress=0x742d35Cc6634C0532925a3b844Bc454e4438f44e');
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=ethereum&toChain=solana&token=USDC&amount=1000000&recipientAddress=0x742d35Cc6634C0532925a3b844Bc454e4438f44e',
+    );
 
     const res = await GET(req);
     expect(res.status).toBe(400);
@@ -50,7 +56,9 @@ describe('Bridge Quote API Route', () => {
   });
 
   it('should return 400 when a Solana address is provided for ethereum', async () => {
-    const req = createMockRequest('http://localhost/api/bridges/quote?fromChain=solana&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=HN7c7Ex3PBvLSuuJA4asBgXWoCBy9TGR2fN8zH7r1S8A');
+    const req = createMockRequest(
+      'http://localhost/api/bridges/quote?fromChain=solana&toChain=ethereum&token=USDC&amount=1000000&recipientAddress=HN7c7Ex3PBvLSuuJA4asBgXWoCBy9TGR2fN8zH7r1S8A',
+    );
 
     const res = await GET(req);
     expect(res.status).toBe(400);

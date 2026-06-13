@@ -1,11 +1,11 @@
-import { ChainId } from '@/types/shared'
+import type { ChainId } from '@/types/shared';
 
 export interface TokenConfig {
-  symbol: string
-  name: string
-  decimals: number
-  coingeckoId: string
-  addresses: Partial<Record<ChainId, string>>
+  symbol: string;
+  name: string;
+  decimals: number;
+  coingeckoId: string;
+  addresses: Partial<Record<ChainId, string>>;
 }
 
 export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
@@ -106,6 +106,6 @@ export const SUPPORTED_TOKENS: Record<string, TokenConfig> = {
       arbitrum: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Using real USDC address as mock
     },
   },
-}
+};
 
-export const SUPPORTED_ASSET_SYMBOLS = Object.keys(SUPPORTED_TOKENS)
+export const SUPPORTED_ASSET_SYMBOLS = Object.keys(SUPPORTED_TOKENS);

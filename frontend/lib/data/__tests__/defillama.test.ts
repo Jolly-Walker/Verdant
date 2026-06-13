@@ -1,18 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('server-only', () => ({}))
+vi.mock('server-only', () => ({}));
 
-import { findPoolApy, resetDefillamaCache } from '../defillama'
+import { findPoolApy, resetDefillamaCache } from '../defillama';
 
 function jsonResponse(body: unknown) {
-  return { ok: true, json: async () => body } as unknown as Response
+  return { ok: true, json: async () => body } as unknown as Response;
 }
 
 describe('findPoolApy', () => {
   beforeEach(() => {
-    vi.restoreAllMocks()
-    resetDefillamaCache()
-  })
+    vi.restoreAllMocks();
+    resetDefillamaCache();
+  });
 
   it('returns the highest-TVL match with real supply and borrow APYs', async () => {
     const pools = {
@@ -38,35 +38,33 @@ describe('findPoolApy', () => {
           totalBorrowUsd: 4_500_000,
         },
       ],
-    }
-    const borrow = { data: [{ pool: 'pool-big', apyBaseBorrow: 6.2 }] }
+    };
+    const borrow = { data: [{ pool: 'pool-big', apyBaseBorrow: 6.2 }] };
 
     const fetchMock = vi
       .spyOn(global, 'fetch')
       .mockImplementation((url: string | URL | Request) => {
-        const u = String(url)
-        return Promise.resolve(jsonResponse(u.includes('poolsBorrow') ? borrow : pools))
-      })
+        const u = String(url);
+        return Promise.resolve(jsonResponse(u.includes('poolsBorrow') ? borrow : pools));
+      });
 
-    const result = await findPoolApy('euler-v2', 'Ethereum', 'USDC')
+    const result = await findPoolApy('euler-v2', 'Ethereum', 'USDC');
 
-    expect(result).not.toBeNull()
-    expect(result?.poolId).toBe('pool-big')
-    expect(result?.apy).toBeCloseTo(0.045, 6) // 4.5% → decimal
-    expect(result?.borrowApyDecimal).toBeCloseTo(0.062, 6) // 6.2% → decimal
-    expect(result?.utilisationDecimal).toBeCloseTo(0.5, 6)
-    expect(fetchMock).toHaveBeenCalled()
-  })
+    expect(result).not.toBeNull();
+    expect(result?.poolId).toBe('pool-big');
+    expect(result?.apy).toBeCloseTo(0.045, 6); // 4.5% → decimal
+    expect(result?.borrowApyDecimal).toBeCloseTo(0.062, 6); // 6.2% → decimal
+    expect(result?.utilisationDecimal).toBeCloseTo(0.5, 6);
+    expect(fetchMock).toHaveBeenCalled();
+  });
 
   it('returns null when no pool matches the protocol/chain/asset', async () => {
     vi.spyOn(global, 'fetch').mockImplementation((url: string | URL | Request) => {
-      const u = String(url)
-      return Promise.resolve(
-        jsonResponse(u.includes('poolsBorrow') ? { data: [] } : { data: [] })
-      )
-    })
+      const u = String(url);
+      return Promise.resolve(jsonResponse(u.includes('poolsBorrow') ? { data: [] } : { data: [] }));
+    });
 
-    const result = await findPoolApy('euler-v2', 'Ethereum', 'USDC')
-    expect(result).toBeNull()
-  })
-})
+    const result = await findPoolApy('euler-v2', 'Ethereum', 'USDC');
+    expect(result).toBeNull();
+  });
+});

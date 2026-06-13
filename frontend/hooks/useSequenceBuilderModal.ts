@@ -1,30 +1,30 @@
-'use client'
+'use client';
 
-import { useState, useCallback } from 'react'
+import { useCallback, useState } from 'react';
 
 export interface OpenBuilderOptions {
-  positionId?: string
+  positionId?: string;
 }
 
 export function useSequenceBuilderModal() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [builderPositionId, setBuilderPositionId] = useState<string | undefined>(undefined)
+  const [isOpen, setIsOpen] = useState(false);
+  const [builderPositionId, setBuilderPositionId] = useState<string | undefined>(undefined);
 
   const openBuilder = useCallback((opts?: OpenBuilderOptions) => {
-    setBuilderPositionId(opts?.positionId)
-    setIsOpen(true)
-  }, [])
+    setBuilderPositionId(opts?.positionId);
+    setIsOpen(true);
+  }, []);
 
   const closeBuilder = useCallback(() => {
-    setIsOpen(false)
-    setBuilderPositionId(undefined)
-  }, [])
+    setIsOpen(false);
+    setBuilderPositionId(undefined);
+  }, []);
 
   return {
     isOpen,
     builderPositionId,
     openBuilder,
     closeBuilder,
-  }
+  };
 }
-export type UseSequenceBuilderModalReturn = ReturnType<typeof useSequenceBuilderModal>
+export type UseSequenceBuilderModalReturn = ReturnType<typeof useSequenceBuilderModal>;

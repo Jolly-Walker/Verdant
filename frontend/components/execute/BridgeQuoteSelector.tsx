@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { BridgeQuote, BridgeId } from '@/types/shared';
 import { formatUsd } from '@/lib/utils/formatting';
+import type { BridgeId, BridgeQuote } from '@/types/shared';
 
 const BRIDGE_METADATA: Record<BridgeId, { name: string; description: string }> = {
   across: {
@@ -83,10 +83,10 @@ export function BridgeQuoteSelector({
               </div>
               <p className="text-xs text-verdant-text-muted mb-2">{metadata.description}</p>
               <div className="flex justify-between items-center text-[10px] text-verdant-text-muted uppercase">
-                <span className="font-mono">~{Math.ceil(quote.estimatedTimeSeconds / 60)} mins</span>
-                {isSelected && (
-                  <span className="text-verdant-moss font-bold">Selected</span>
-                )}
+                <span className="font-mono">
+                  ~{Math.ceil(quote.estimatedTimeSeconds / 60)} mins
+                </span>
+                {isSelected && <span className="text-verdant-moss font-bold">Selected</span>}
               </div>
             </div>
           </button>

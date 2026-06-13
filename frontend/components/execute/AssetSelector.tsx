@@ -1,17 +1,17 @@
-'use client'
+'use client';
 
-import React from 'react'
-import { Position } from '@/types/position'
-import { Card } from '@/components/ui/Card'
-import { formatUsd, formatToken, formatPercent } from '@/lib/utils/formatting'
-import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
+import React from 'react';
+import { Card } from '@/components/ui/Card';
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings';
+import { formatPercent, formatToken, formatUsd } from '@/lib/utils/formatting';
+import type { Position } from '@/types/position';
 
 interface AssetSelectorProps {
-  positions: Position[]
-  selectedPosition: Position | null
-  onSelect: (p: Position) => void
-  customAmount: string
-  onAmountChange: (v: string) => void
+  positions: Position[];
+  selectedPosition: Position | null;
+  onSelect: (p: Position) => void;
+  customAmount: string;
+  onAmountChange: (v: string) => void;
 }
 
 export function AssetSelector({
@@ -21,14 +21,14 @@ export function AssetSelector({
   customAmount,
   onAmountChange,
 }: AssetSelectorProps) {
-  const ethPositions = positions.filter((p) => p.chain === 'ethereum')
-  const arbPositions = positions.filter((p) => p.chain === 'arbitrum')
+  const ethPositions = positions.filter((p) => p.chain === 'ethereum');
+  const arbPositions = positions.filter((p) => p.chain === 'arbitrum');
 
-  const amountNum = parseFloat(customAmount) || 0
+  const amountNum = parseFloat(customAmount) || 0;
   const amountUsd = selectedPosition
     ? (amountNum / selectedPosition.amount) * selectedPosition.amountUsd
-    : 0
-  const isBelowMinimum = amountUsd > 0 && amountUsd < DEFAULT_MIN_USD_THRESHOLD
+    : 0;
+  const isBelowMinimum = amountUsd > 0 && amountUsd < DEFAULT_MIN_USD_THRESHOLD;
 
   return (
     <div className="space-y-4">
@@ -84,9 +84,7 @@ export function AssetSelector({
             </button>
           </div>
           <div className="flex justify-between text-xs font-mono text-verdant-text-muted">
-            <span>
-              ≈ {formatUsd(amountUsd)}
-            </span>
+            <span>≈ {formatUsd(amountUsd)}</span>
             <span>
               Balance: {formatToken(selectedPosition.amount)} {selectedPosition.asset}
             </span>
@@ -99,7 +97,7 @@ export function AssetSelector({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function PositionGroup({
@@ -108,17 +106,17 @@ function PositionGroup({
   selectedId,
   onSelect,
 }: {
-  label: string
-  positions: Position[]
-  selectedId?: string
-  onSelect: (p: Position) => void
+  label: string;
+  positions: Position[];
+  selectedId?: string;
+  onSelect: (p: Position) => void;
 }) {
   return (
     <div>
       <p className="text-xs text-verdant-text-muted mb-2 font-semibold">{label}</p>
       <div className="space-y-2">
         {positions.map((p) => {
-          const isSelected = selectedId === p.id
+          const isSelected = selectedId === p.id;
           return (
             <button
               key={p.id}
@@ -131,18 +129,22 @@ function PositionGroup({
             >
               <div className="flex justify-between items-center">
                 <span className="font-semibold text-verdant-text-primary">
-                  {p.asset} on{' '}
-                  {p.protocol.charAt(0).toUpperCase() + p.protocol.slice(1)}
+                  {p.asset} on {p.protocol.charAt(0).toUpperCase() + p.protocol.slice(1)}
                 </span>
-                <span className="text-sm font-semibold font-mono text-verdant-text-primary">{formatUsd(p.amountUsd)}</span>
+                <span className="text-sm font-semibold font-mono text-verdant-text-primary">
+                  {formatUsd(p.amountUsd)}
+                </span>
               </div>
               <p className="text-xs text-verdant-text-muted mt-1 font-mono">
-                {formatToken(p.amount)} {p.asset} • <span className="text-verdant-profit font-semibold">{formatPercent(p.currentApy)} APY</span>
+                {formatToken(p.amount)} {p.asset} •{' '}
+                <span className="text-verdant-profit font-semibold">
+                  {formatPercent(p.currentApy)} APY
+                </span>
               </p>
             </button>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import { Warning, CostPreviewResult } from '@/types/quote'
-import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings';
+import type { CostPreviewResult, Warning } from '@/types/quote';
 
 /**
  * Detect warning conditions per SPECS.md §5.
@@ -8,41 +8,32 @@ import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
 export function detectWarnings(
   result: Partial<CostPreviewResult>,
   amountUsd: number,
-  pendleMaturityMs?: number
+  pendleMaturityMs?: number,
 ): Warning[] {
-  const warnings: Warning[] = []
+  const warnings: Warning[] = [];
 
   const totalBridgeFeeUsd = result.steps
     ? result.steps.reduce((acc, s) => acc + (s.bridgeFeeUsd || 0), 0)
-    : undefined
+    : undefined;
 
   const totalSlippageUsd = result.steps
     ? result.steps.reduce((acc, s) => acc + (s.slippageUsd || 0), 0)
-    : undefined
+    : undefined;
 
   // Bridge fee > 0.5% of transaction value
-  if (
-    totalBridgeFeeUsd !== undefined &&
-    amountUsd > 0 &&
-    totalBridgeFeeUsd / amountUsd > 0.005
-  ) {
+  if (totalBridgeFeeUsd !== undefined && amountUsd > 0 && totalBridgeFeeUsd / amountUsd > 0.005) {
     warnings.push({
       type: 'high_bridge_fee',
       message: 'High bridge fee relative to transaction size',
-    })
+    });
   }
 
   // Slippage > 0.5%
-  if (
-    totalSlippageUsd !== undefined &&
-    amountUsd > 0 &&
-    totalSlippageUsd / amountUsd > 0.005
-  ) {
+  if (totalSlippageUsd !== undefined && amountUsd > 0 && totalSlippageUsd / amountUsd > 0.005) {
     warnings.push({
       type: 'high_slippage',
-      message:
-        'Significant slippage expected — consider splitting into smaller transactions',
-    })
+      message: 'Significant slippage expected — consider splitting into smaller transactions',
+    });
   }
 
   // Break-even > 30 days
@@ -54,21 +45,18 @@ export function detectWarnings(
   ) {
     warnings.push({
       type: 'long_breakeven',
-      message:
-        'Long break-even period — only worthwhile for long-term positions',
-    })
+      message: 'Long break-even period — only worthwhile for long-term positions',
+    });
   }
 
   // Pendle maturity < 30 days away
   if (pendleMaturityMs !== undefined) {
-    const daysToMaturity = Math.ceil(
-      (pendleMaturityMs - Date.now()) / (24 * 60 * 60 * 1000)
-    )
+    const daysToMaturity = Math.ceil((pendleMaturityMs - Date.now()) / (24 * 60 * 60 * 1000));
     if (daysToMaturity < 30 && daysToMaturity > 0) {
       warnings.push({
         type: 'pendle_maturity',
         message: `This Pendle position matures in ${daysToMaturity} days`,
-      })
+      });
     }
   }
 
@@ -77,7 +65,7 @@ export function detectWarnings(
     warnings.push({
       type: 'below_minimum',
       message: `Minimum transaction is $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} to cover fees`,
-    })
+    });
   }
 
   // Negative yield uplift (moving to lower APY)
@@ -89,20 +77,20 @@ export function detectWarnings(
     warnings.push({
       type: 'negative_uplift',
       message: 'Target APY is lower than current APY — you would earn less after moving',
-    })
+    });
   }
 
   // Target protocol utilisation > 90%
   if (
     result.targetUtilisationDecimal !== undefined &&
     result.targetUtilisationDecimal !== null &&
-    result.targetUtilisationDecimal > 0.90
+    result.targetUtilisationDecimal > 0.9
   ) {
     warnings.push({
       type: 'high_utilisation',
       message: 'High utilisation — APY may compress after your deposit',
-    })
+    });
   }
 
-  return warnings
+  return warnings;
 }

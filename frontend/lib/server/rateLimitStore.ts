@@ -1,4 +1,4 @@
-import 'server-only'
+import 'server-only';
 
 /**
  * Pluggable rate-limit backends (SPECS §19).
@@ -21,28 +21,28 @@ import 'server-only'
  */
 
 export interface RateLimitResult {
-  ok: boolean
-  remaining: number
+  ok: boolean;
+  remaining: number;
   /** Seconds until the caller may retry (only meaningful when !ok). */
-  retryAfterSeconds: number
+  retryAfterSeconds: number;
 }
 
 export interface RateLimitStore {
-  hit(key: string, limit: number, windowMs: number): Promise<RateLimitResult>
+  hit(key: string, limit: number, windowMs: number): Promise<RateLimitResult>;
 }
 
-type Timestamps = number[]
+type Timestamps = number[];
 
 /**
  * The shared module-level store for the in-memory backend. Kept at module scope
  * (not per-instance-of-class) so the synchronous `rateLimit()` helper and
  * `resetRateLimits()` in `rateLimit.ts` operate on the same data.
  */
-const memoryHits = new Map<string, Timestamps>()
+const memoryHits = new Map<string, Timestamps>();
 
 /** Clears all recorded in-memory hits — for tests. */
 export function clearMemoryHits(): void {
-  memoryHits.clear()
+  memoryHits.clear();
 }
 
 /**
@@ -51,28 +51,28 @@ export function clearMemoryHits(): void {
  * the async {@link InMemoryRateLimitStore} share identical semantics.
  */
 export function rateLimitSync(key: string, limit: number, windowMs: number): RateLimitResult {
-  const now = Date.now()
-  const windowStart = now - windowMs
-  const recent = (memoryHits.get(key) ?? []).filter((t) => t > windowStart)
+  const now = Date.now();
+  const windowStart = now - windowMs;
+  const recent = (memoryHits.get(key) ?? []).filter((t) => t > windowStart);
 
   if (recent.length >= limit) {
-    memoryHits.set(key, recent)
-    const oldest = recent[0]
+    memoryHits.set(key, recent);
+    const oldest = recent[0];
     return {
       ok: false,
       remaining: 0,
       retryAfterSeconds: Math.max(1, Math.ceil((oldest + windowMs - now) / 1000)),
-    }
+    };
   }
 
-  recent.push(now)
-  memoryHits.set(key, recent)
-  return { ok: true, remaining: limit - recent.length, retryAfterSeconds: 0 }
+  recent.push(now);
+  memoryHits.set(key, recent);
+  return { ok: true, remaining: limit - recent.length, retryAfterSeconds: 0 };
 }
 
 export class InMemoryRateLimitStore implements RateLimitStore {
   async hit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
-    return rateLimitSync(key, limit, windowMs)
+    return rateLimitSync(key, limit, windowMs);
   }
 }
 
@@ -110,22 +110,22 @@ if oldest[2] ~= nil then
   oldestScore = tonumber(oldest[2])
 end
 return {admitted, count, oldestScore}
-`.trim()
+`.trim();
 
 interface UpstashCommandResult {
-  result?: unknown
-  error?: string
+  result?: unknown;
+  error?: string;
 }
 
 export class UpstashRateLimitStore implements RateLimitStore {
   constructor(
     private readonly url: string,
-    private readonly token: string
+    private readonly token: string,
   ) {}
 
   async hit(key: string, limit: number, windowMs: number): Promise<RateLimitResult> {
-    const now = Date.now()
-    const member = `${now}-${Math.random().toString(36).slice(2)}`
+    const now = Date.now();
+    const member = `${now}-${Math.random().toString(36).slice(2)}`;
 
     try {
       // Upstash REST: EVAL <script> <numkeys> <keys...> <args...> as a JSON array.
@@ -146,44 +146,44 @@ export class UpstashRateLimitStore implements RateLimitStore {
           member,
         ]),
         cache: 'no-store',
-      })
+      });
 
       if (!res.ok) {
-        throw new Error(`Upstash HTTP ${res.status}`)
+        throw new Error(`Upstash HTTP ${res.status}`);
       }
 
-      const body = (await res.json()) as UpstashCommandResult
+      const body = (await res.json()) as UpstashCommandResult;
       if (body.error) {
-        throw new Error(body.error)
+        throw new Error(body.error);
       }
 
-      const tuple = body.result
+      const tuple = body.result;
       if (!Array.isArray(tuple) || tuple.length < 3) {
-        throw new Error('Unexpected Upstash response shape')
+        throw new Error('Unexpected Upstash response shape');
       }
 
-      const admitted = Number(tuple[0]) === 1
-      const count = Number(tuple[1])
-      const oldestScore = Number(tuple[2])
+      const admitted = Number(tuple[0]) === 1;
+      const count = Number(tuple[1]);
+      const oldestScore = Number(tuple[2]);
 
       if (admitted) {
-        return { ok: true, remaining: Math.max(0, limit - count), retryAfterSeconds: 0 }
+        return { ok: true, remaining: Math.max(0, limit - count), retryAfterSeconds: 0 };
       }
 
       const retryAfterSeconds =
         oldestScore >= 0
           ? Math.max(1, Math.ceil((oldestScore + windowMs - now) / 1000))
-          : Math.max(1, Math.ceil(windowMs / 1000))
-      return { ok: false, remaining: 0, retryAfterSeconds }
+          : Math.max(1, Math.ceil(windowMs / 1000));
+      return { ok: false, remaining: 0, retryAfterSeconds };
     } catch (err) {
       // Fail open: never block a request because the shared store is unreachable.
-      console.error('[rateLimit] Upstash store error, failing open:', err)
-      return { ok: true, remaining: limit, retryAfterSeconds: 0 }
+      console.error('[rateLimit] Upstash store error, failing open:', err);
+      return { ok: true, remaining: limit, retryAfterSeconds: 0 };
     }
   }
 }
 
-let cachedStore: RateLimitStore | null = null
+let cachedStore: RateLimitStore | null = null;
 
 /**
  * Selects the rate-limit backend at runtime: the Upstash shared store when both
@@ -191,16 +191,15 @@ let cachedStore: RateLimitStore | null = null
  * the in-memory default. The choice is cached for the process lifetime.
  */
 export function getRateLimitStore(): RateLimitStore {
-  if (cachedStore) return cachedStore
+  if (cachedStore) return cachedStore;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN
-  cachedStore =
-    url && token ? new UpstashRateLimitStore(url, token) : new InMemoryRateLimitStore()
-  return cachedStore
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  cachedStore = url && token ? new UpstashRateLimitStore(url, token) : new InMemoryRateLimitStore();
+  return cachedStore;
 }
 
 /** Resets the cached store selection — for tests. */
 export function resetRateLimitStore(): void {
-  cachedStore = null
+  cachedStore = null;
 }

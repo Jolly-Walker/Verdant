@@ -1,5 +1,5 @@
-import 'server-only'
-import { RawPosition } from '@/types/shared'
+import 'server-only';
+import type { RawPosition } from '@/types/shared';
 
 /**
  * Deduplicates positions, preferring those from protocol-specific SDKs over Zerion.
@@ -7,17 +7,17 @@ import { RawPosition } from '@/types/shared'
  * Positions from Solana token balances have protocol ID 'wallet'.
  */
 export function deduplicatePositions<T extends RawPosition>(positions: T[]): T[] {
-  const seen = new Map<string, T>()
+  const seen = new Map<string, T>();
 
   for (const pos of positions) {
     // Construct a unique key for the position
     // protocol + chain + assetAddress + positionType
-    const key = `${pos.protocol}-${pos.chain}-${pos.assetAddress || pos.asset}-${pos.positionType}`
+    const key = `${pos.protocol}-${pos.chain}-${pos.assetAddress || pos.asset}-${pos.positionType}`;
 
-    const existing = seen.get(key)
+    const existing = seen.get(key);
     if (!existing) {
-      seen.set(key, pos)
-      continue
+      seen.set(key, pos);
+      continue;
     }
 
     // Heuristic: prefer enriched positions
@@ -25,14 +25,13 @@ export function deduplicatePositions<T extends RawPosition>(positions: T[]): T[]
     // Future protocol SDK positions will likely have more metadata.
     // For now, if one has more metadata or specific flags, we could prefer it.
     // If they are both from the same source (e.g. Zerion), we just keep the first one.
-    
+
     // In the future, we might check a 'source' field.
     // For now, just keep the one that might have more data.
     if (Object.keys(pos.metadata || {}).length > Object.keys(existing.metadata || {}).length) {
-      seen.set(key, pos)
+      seen.set(key, pos);
     }
   }
 
-  return Array.from(seen.values())
+  return Array.from(seen.values());
 }
-

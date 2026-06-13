@@ -1,82 +1,78 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { Position } from '@/types/position'
-import { useSequencer } from '@/hooks/useSequencer'
-import { computeOptimalCycles } from '@/lib/sequencer/templates/deleverageAave'
-import { formatUsd, formatToken, formatPercent } from '@/lib/utils/formatting'
-import { Badge } from '../ui/Badge'
-import { TemplateParams } from '@/types/sequencer'
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useSequencer } from '@/hooks/useSequencer';
+import { computeOptimalCycles } from '@/lib/sequencer/templates/deleverageAave';
+import { formatPercent, formatToken, formatUsd } from '@/lib/utils/formatting';
+import type { Position } from '@/types/position';
+import type { TemplateParams } from '@/types/sequencer';
+import { Badge } from '../ui/Badge';
 
 interface LoopModalProps {
-  isOpen: boolean
-  onClose: () => void
-  position: Position
-  collateralPosition?: Position
+  isOpen: boolean;
+  onClose: () => void;
+  position: Position;
+  collateralPosition?: Position;
 }
 
-export function LoopModal({
-  isOpen,
-  onClose,
-  position,
-  collateralPosition
-}: LoopModalProps) {
-  const router = useRouter()
-  const { createPlan } = useSequencer()
-  const [activeTab, setActiveTab] = useState<'deleverage' | 'leverage'>('deleverage')
-  const [isExecuting, setIsExecuting] = useState(false)
+export function LoopModal({ isOpen, onClose, position, collateralPosition }: LoopModalProps) {
+  const router = useRouter();
+  const { createPlan } = useSequencer();
+  const [activeTab, setActiveTab] = useState<'deleverage' | 'leverage'>('deleverage');
+  const [isExecuting, setIsExecuting] = useState(false);
 
   // Deleverage settings
-  const [cycles, setCycles] = useState<number>(3)
+  const [cycles, setCycles] = useState<number>(3);
 
   // Leverage settings
-  const [multiplier, setMultiplier] = useState<number>(2.0)
-  const [borrowAsset, setBorrowAsset] = useState<string>(position.asset)
+  const [multiplier, setMultiplier] = useState<number>(2.0);
+  const [borrowAsset, setBorrowAsset] = useState<string>(position.asset);
 
   // Compute optimal cycles for Deleverage
   useEffect(() => {
     if (isOpen && position) {
-      const debtUsd = position.amountUsd
-      const collUsd = collateralPosition?.amountUsd || 1.0
-      const hf = position.healthFactor || 2.5
-      const lt = (hf * debtUsd) / collUsd
-      const optCycles = computeOptimalCycles(debtUsd, collUsd, lt)
-      setCycles(optCycles)
+      const debtUsd = position.amountUsd;
+      const collUsd = collateralPosition?.amountUsd || 1.0;
+      const hf = position.healthFactor || 2.5;
+      const lt = (hf * debtUsd) / collUsd;
+      const optCycles = computeOptimalCycles(debtUsd, collUsd, lt);
+      setCycles(optCycles);
     }
-  }, [isOpen, position, collateralPosition])
+  }, [isOpen, position, collateralPosition]);
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   // Deleverage math
-  const collateralPrice = collateralPosition && collateralPosition.amount > 0
-    ? collateralPosition.amountUsd / collateralPosition.amount
-    : 1
-  const debtAmountInCollateral = position.amountUsd / collateralPrice
+  const collateralPrice =
+    collateralPosition && collateralPosition.amount > 0
+      ? collateralPosition.amountUsd / collateralPosition.amount
+      : 1;
+  const debtAmountInCollateral = position.amountUsd / collateralPrice;
   const freedCollateralAmount = collateralPosition
     ? Math.max(collateralPosition.amount - debtAmountInCollateral, 0)
-    : 0
+    : 0;
   const freedCollateralUsd = collateralPosition
     ? Math.max(collateralPosition.amountUsd - position.amountUsd, 0)
-    : 0
-  const netGainVsInstant = Math.round(position.amountUsd * 0.003) // ~0.3% savings
+    : 0;
+  const netGainVsInstant = Math.round(position.amountUsd * 0.003); // ~0.3% savings
 
   // Leverage math
-  const currentCollateralUsd = collateralPosition?.amountUsd || 0
-  const newCollateralUsd = currentCollateralUsd * multiplier
-  const newDebtUsd = newCollateralUsd - currentCollateralUsd
-  const estHealthFactor = newDebtUsd > 0 ? (newCollateralUsd * 0.82) / newDebtUsd : 99.9
+  const currentCollateralUsd = collateralPosition?.amountUsd || 0;
+  const newCollateralUsd = currentCollateralUsd * multiplier;
+  const newDebtUsd = newCollateralUsd - currentCollateralUsd;
+  const estHealthFactor = newDebtUsd > 0 ? (newCollateralUsd * 0.82) / newDebtUsd : 99.9;
 
   // Health Factor styling
   const getHealthFactorColor = (hf: number) => {
-    if (hf < 1.5) return 'text-verdant-loss font-semibold'
-    if (hf < 2.0) return 'text-amber-600 font-semibold'
-    return 'text-verdant-profit font-semibold'
-  }
+    if (hf < 1.5) return 'text-verdant-loss font-semibold';
+    if (hf < 2.0) return 'text-amber-600 font-semibold';
+    return 'text-verdant-profit font-semibold';
+  };
 
   const handleExecuteDeleverage = async () => {
-    if (!collateralPosition) return
-    setIsExecuting(true)
+    if (!collateralPosition) return;
+    setIsExecuting(true);
 
     try {
       const params: TemplateParams = {
@@ -91,24 +87,24 @@ export function LoopModal({
         protocol: position.protocol,
         chain: position.chain,
         walletAddress: '',
-        amountUsd: position.amountUsd
-      }
+        amountUsd: position.amountUsd,
+      };
 
-      const plan = await createPlan('deleverageAave', params)
+      const plan = await createPlan('deleverageAave', params);
       if (plan) {
-        onClose()
-        router.push(`/sequence/${plan.id}`)
+        onClose();
+        router.push(`/sequence/${plan.id}`);
       }
     } catch (e) {
-      console.error(e)
-      alert('Failed to execute deleverage plan')
+      console.error(e);
+      alert('Failed to execute deleverage plan');
     } finally {
-      setIsExecuting(false)
+      setIsExecuting(false);
     }
-  }
+  };
 
   const handleExecuteLeverage = async () => {
-    setIsExecuting(true)
+    setIsExecuting(true);
 
     try {
       // Stub leverage with crossChainRebalance placeholder in demo mode
@@ -121,35 +117,39 @@ export function LoopModal({
         toProtocol: position.protocol,
         toChain: position.chain,
         walletAddress: '',
-        slippagePercent: 0.5
-      }
+        slippagePercent: 0.5,
+      };
 
-      const plan = await createPlan('crossChainRebalance', params)
+      const plan = await createPlan('crossChainRebalance', params);
       if (plan) {
-        onClose()
-        router.push(`/sequence/${plan.id}`)
+        onClose();
+        router.push(`/sequence/${plan.id}`);
       }
     } catch (e) {
-      console.error(e)
-      alert('Failed to execute leverage plan')
+      console.error(e);
+      alert('Failed to execute leverage plan');
     } finally {
-      setIsExecuting(false)
+      setIsExecuting(false);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-[#1A1614]/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="max-w-xl w-full bg-verdant-surface rounded-2xl shadow-organic-lg border border-[#E5E0D8] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="border-b border-[#E5E0D8] px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-verdant-text-primary">
-            Manage Position
-          </h2>
+          <h2 className="text-lg font-bold text-verdant-text-primary">Manage Position</h2>
           <button
             onClick={onClose}
             className="text-verdant-text-muted hover:text-verdant-text-primary p-1 rounded-md transition-colors"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -192,14 +192,16 @@ export function LoopModal({
                   <div className="flex justify-between">
                     <span className="text-verdant-text-muted">Debt:</span>
                     <span className="font-mono text-verdant-loss font-semibold">
-                      {formatToken(position.amount)} {position.asset} ({formatPercent(position.currentApy || position.borrowApy || 0)} APY)
+                      {formatToken(position.amount)} {position.asset} (
+                      {formatPercent(position.currentApy || position.borrowApy || 0)} APY)
                     </span>
                   </div>
                   {collateralPosition && (
                     <div className="flex justify-between">
                       <span className="text-verdant-text-muted">Collateral:</span>
                       <span className="font-mono text-verdant-text-primary font-medium">
-                        {formatToken(collateralPosition.amount)} {collateralPosition.asset} ({formatUsd(collateralPosition.amountUsd)})
+                        {formatToken(collateralPosition.amount)} {collateralPosition.asset} (
+                        {formatUsd(collateralPosition.amountUsd)})
                       </span>
                     </div>
                   )}
@@ -227,15 +229,17 @@ export function LoopModal({
                       onChange={(e) => setCycles(parseInt(e.target.value))}
                       className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
                     >
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(c => (
-                        <option key={c} value={c}>{c}</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
                       ))}
                     </select>
                   </div>
                   <div className="flex justify-between text-xs text-verdant-text-muted">
                     <span>Est. gas:</span>
                     <span className="font-mono">
-                      ~{formatUsd(cycles * 2.80)} ({cycles} × $2.80)
+                      ~{formatUsd(cycles * 2.8)} ({cycles} × $2.80)
                     </span>
                   </div>
                 </div>
@@ -250,7 +254,8 @@ export function LoopModal({
                   <div className="flex justify-between">
                     <span className="text-verdant-text-muted">Freed Collateral:</span>
                     <span className="font-mono text-verdant-profit font-semibold">
-                      ~{formatToken(freedCollateralAmount)} {collateralPosition.asset} (~{formatUsd(freedCollateralUsd)})
+                      ~{formatToken(freedCollateralAmount)} {collateralPosition.asset} (~
+                      {formatUsd(freedCollateralUsd)})
                     </span>
                   </div>
                 )}
@@ -260,7 +265,9 @@ export function LoopModal({
                 </div>
                 <div className="flex justify-between pt-1 border-t border-[#D5E8E0] text-xs text-verdant-moss font-semibold">
                   <span>Net gain vs. instant:</span>
-                  <span className="font-mono">+{formatUsd(netGainVsInstant)} (reduced liquidation risk)</span>
+                  <span className="font-mono">
+                    +{formatUsd(netGainVsInstant)} (reduced liquidation risk)
+                  </span>
                 </div>
               </div>
 
@@ -294,14 +301,20 @@ export function LoopModal({
                     <div className="flex justify-between">
                       <span className="text-verdant-text-muted">Collateral:</span>
                       <span className="font-mono text-verdant-text-primary font-semibold">
-                        {formatToken(collateralPosition.amount)} {collateralPosition.asset} ({formatUsd(collateralPosition.amountUsd)})
+                        {formatToken(collateralPosition.amount)} {collateralPosition.asset} (
+                        {formatUsd(collateralPosition.amountUsd)})
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-verdant-text-muted">Protocol:</span>
                     <span className="font-sans text-verdant-text-primary capitalize font-medium">
-                      {position.protocol === 'aave' ? 'Aave V3' : position.protocol === 'morpho' ? 'Morpho' : position.protocol} · {position.chain}
+                      {position.protocol === 'aave'
+                        ? 'Aave V3'
+                        : position.protocol === 'morpho'
+                          ? 'Morpho'
+                          : position.protocol}{' '}
+                      · {position.chain}
                     </span>
                   </div>
                 </div>
@@ -312,12 +325,10 @@ export function LoopModal({
                 <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-2">
                   Leverage Settings
                 </h3>
-                
+
                 {/* Warning Badge */}
                 <div className="mb-4">
-                  <Badge variant="warning">
-                    Leverage increases liquidation risk
-                  </Badge>
+                  <Badge variant="warning">Leverage increases liquidation risk</Badge>
                 </div>
 
                 <div className="space-y-3">
@@ -334,7 +345,7 @@ export function LoopModal({
                       <option value="3.0">3.0×</option>
                     </select>
                   </div>
-                  
+
                   <div className="flex items-center justify-between">
                     <label className="text-sm text-verdant-text-primary">Borrow Asset:</label>
                     <select
@@ -400,5 +411,5 @@ export function LoopModal({
         </div>
       </div>
     </div>
-  )
+  );
 }

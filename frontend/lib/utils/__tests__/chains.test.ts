@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { isValidAddress } from '../chains';
+import { describe, expect, it } from 'vitest';
 import { DEMO_WALLET_ADDRESS } from '../../demo/wallet';
+import { isValidAddress } from '../chains';
 
 describe('isValidAddress', () => {
   it('identifies valid EVM addresses', () => {

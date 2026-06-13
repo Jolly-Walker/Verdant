@@ -1,16 +1,16 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { SequencePlan } from '@/types/sequencer'
-import { DEMO_COST_RESULT } from '@/lib/demo/sequencer'
+import { useEffect, useState } from 'react';
+import { DEMO_COST_RESULT } from '@/lib/demo/sequencer';
+import type { SequencePlan } from '@/types/sequencer';
 
 interface UseDemoSequenceCostInput {
-  plan: SequencePlan | null
-  walletAddress?: string
-  currentApy?: number
-  targetApy?: number
-  borrowApy?: number
-  supplyApy?: number
+  plan: SequencePlan | null;
+  walletAddress?: string;
+  currentApy?: number;
+  targetApy?: number;
+  borrowApy?: number;
+  supplyApy?: number;
 }
 
 /**
@@ -19,12 +19,12 @@ interface UseDemoSequenceCostInput {
  * No API calls, no bridge quotes fetched.
  */
 export function useDemoSequenceCost(_input: UseDemoSequenceCostInput) {
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 700)
-    return () => clearTimeout(t)
-  }, [])
+    const t = setTimeout(() => setIsLoading(false), 700);
+    return () => clearTimeout(t);
+  }, []);
 
   return {
     result: isLoading ? null : DEMO_COST_RESULT,
@@ -34,5 +34,5 @@ export function useDemoSequenceCost(_input: UseDemoSequenceCostInput) {
     expiredStepIds: new Set<string>(),
     hasExpiredQuotes: false,
     refetch: () => {},
-  }
+  };
 }

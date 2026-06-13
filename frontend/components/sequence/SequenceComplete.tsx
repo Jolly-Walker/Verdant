@@ -1,13 +1,16 @@
-import React from 'react';
-import { SequencePlan } from '@/types/sequencer';
-import { getExplorerTxUrl } from '@/lib/utils/chains';
-import { Card } from '@/components/ui/Card';
-import { formatUsd } from '@/lib/utils/formatting';
 import { useRouter } from 'next/navigation';
+import React from 'react';
+import { Card } from '@/components/ui/Card';
+import { getExplorerTxUrl } from '@/lib/utils/chains';
+import { formatUsd } from '@/lib/utils/formatting';
+import type { SequencePlan } from '@/types/sequencer';
 
 export function SequenceComplete({ plan }: { plan: SequencePlan }) {
   const router = useRouter();
-  const totalGasCost = plan.steps.reduce((acc, step) => acc + (step.simulation?.gasCostUsd || 0), 0);
+  const totalGasCost = plan.steps.reduce(
+    (acc, step) => acc + (step.simulation?.gasCostUsd || 0),
+    0,
+  );
 
   return (
     <div className="max-w-2xl mx-auto py-20 px-6 text-center">
@@ -27,17 +30,19 @@ export function SequenceComplete({ plan }: { plan: SequencePlan }) {
       <Card className="mb-10 divide-y divide-[#E5E0D8] bg-verdant-surface border border-[#E5E0D8] shadow-organic">
         <div className="px-6 py-4 flex justify-between items-center text-sm">
           <span className="text-verdant-text-muted">Total switching cost</span>
-          <span className="text-verdant-text-primary font-semibold font-mono">{formatUsd(totalGasCost)}</span>
+          <span className="text-verdant-text-primary font-semibold font-mono">
+            {formatUsd(totalGasCost)}
+          </span>
         </div>
-        
+
         {plan.steps.map((step) => (
           <div key={step.id} className="px-6 py-4 flex justify-between items-center text-sm">
             <span className="text-verdant-text-muted">{step.label}</span>
             {step.txHash && (
-              <a 
-                href={getExplorerTxUrl(step.chain, step.txHash)} 
-                target="_blank" 
-                rel="noreferrer" 
+              <a
+                href={getExplorerTxUrl(step.chain, step.txHash)}
+                target="_blank"
+                rel="noreferrer"
                 className="text-verdant-profit hover:underline font-medium"
               >
                 View Tx
@@ -47,7 +52,7 @@ export function SequenceComplete({ plan }: { plan: SequencePlan }) {
         ))}
       </Card>
 
-      <button 
+      <button
         onClick={() => router.push('/dashboard')}
         className="bg-verdant-moss hover:bg-verdant-moss-dark text-white font-bold px-8 py-3 rounded-lg transition-all shadow-organic-lg"
       >

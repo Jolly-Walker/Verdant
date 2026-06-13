@@ -1,10 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import { buildBridgeAndDepositPlan } from '../templates/bridgeAndDeposit';
-import { buildRepayAndWithdrawPlan } from '../templates/repayAndWithdraw';
 import { buildCrossChainRebalancePlan } from '../templates/crossChainRebalance';
 import { buildDeleverageAavePlan } from '../templates/deleverageAave';
 import { buildExitPendlePlan } from '../templates/exitPendle';
+import { buildRepayAndWithdrawPlan } from '../templates/repayAndWithdraw';
 
 describe('Sequencer Templates', () => {
   describe('bridgeAndDeposit', () => {
@@ -18,14 +18,14 @@ describe('Sequencer Templates', () => {
         fromProtocol: 'wallet',
         toProtocol: 'aave',
         walletAddress: '0x123',
-        slippagePercent: 0.5
+        slippagePercent: 0.5,
       });
 
       expect(plan.steps.length).toBe(2);
       expect(plan.steps[0].id).toBe('bridge');
       expect(plan.steps[0].chain).toBe('ethereum');
       expect(plan.steps[0].dependsOn).toEqual([]);
-      
+
       expect(plan.steps[1].id).toBe('deposit');
       expect(plan.steps[1].chain).toBe('arbitrum');
       expect(plan.steps[1].pluginId).toBe('aave');
@@ -42,7 +42,7 @@ describe('Sequencer Templates', () => {
         fromProtocol: 'wallet',
         toProtocol: 'aave',
         walletAddress: '0x123',
-        slippagePercent: 0.5
+        slippagePercent: 0.5,
       });
 
       expect(plan.steps.length).toBe(1);
@@ -62,7 +62,7 @@ describe('Sequencer Templates', () => {
         collateralAmount: '1.5',
         protocol: 'aave',
         chain: 'ethereum',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
       });
 
       expect(plan.steps.length).toBe(2);
@@ -87,7 +87,7 @@ describe('Sequencer Templates', () => {
         toProtocol: 'morpho',
         toChain: 'base',
         walletAddress: '0x123',
-        slippagePercent: 0.5
+        slippagePercent: 0.5,
       });
 
       expect(plan.steps.length).toBe(3);
@@ -102,7 +102,7 @@ describe('Sequencer Templates', () => {
     });
   });
 
-    describe('deleverageAave', () => {
+  describe('deleverageAave', () => {
     it('creates an N-cycle plan correctly dependent on previous cycles', () => {
       const plan = buildDeleverageAavePlan({
         borrowAsset: 'USDC',
@@ -116,12 +116,12 @@ describe('Sequencer Templates', () => {
         cycles: 3,
         protocol: 'aave',
         chain: 'ethereum',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
       });
 
       // 3 cycles * 2 steps per cycle = 6 steps
       expect(plan.steps.length).toBe(6);
-      
+
       // Cycle 1
       expect(plan.steps[0].id).toBe('repay-0');
       expect(plan.steps[0].dependsOn).toEqual([]);
@@ -142,20 +142,22 @@ describe('Sequencer Templates', () => {
     });
 
     it('throws error if health factor falls below 1.05', () => {
-      expect(() => buildDeleverageAavePlan({
-        borrowAsset: 'USDC',
-        collateralAsset: 'ETH',
-        totalDebt: '3000000000', // 3000 USDC (6 decimals)
-        totalCollateral: '2500000000000000000', // 2.5 ETH (18 decimals)
-        totalDebtUsd: 3000,
-        totalCollateralUsd: 3100, // Very thin collateral margin
-        initialHealthFactor: 1.01, // Low initial HF
-        amountUsd: 3000,
-        cycles: 30,
-        protocol: 'aave',
-        chain: 'ethereum',
-        walletAddress: '0x123'
-      })).toThrow(/limit of 1.05/);
+      expect(() =>
+        buildDeleverageAavePlan({
+          borrowAsset: 'USDC',
+          collateralAsset: 'ETH',
+          totalDebt: '3000000000', // 3000 USDC (6 decimals)
+          totalCollateral: '2500000000000000000', // 2.5 ETH (18 decimals)
+          totalDebtUsd: 3000,
+          totalCollateralUsd: 3100, // Very thin collateral margin
+          initialHealthFactor: 1.01, // Low initial HF
+          amountUsd: 3000,
+          cycles: 30,
+          protocol: 'aave',
+          chain: 'ethereum',
+          walletAddress: '0x123',
+        }),
+      ).toThrow(/limit of 1.05/);
     });
   });
 
@@ -171,7 +173,7 @@ describe('Sequencer Templates', () => {
         toChain: 'arbitrum',
         toProtocol: 'aave',
         walletAddress: '0x123',
-        slippagePercent: 0.5
+        slippagePercent: 0.5,
       });
 
       expect(plan.steps.length).toBe(3);
@@ -196,7 +198,7 @@ describe('Sequencer Templates', () => {
         toChain: 'ethereum',
         toProtocol: 'aave',
         walletAddress: '0x123',
-        slippagePercent: 0.5
+        slippagePercent: 0.5,
       });
 
       expect(plan.steps.length).toBe(2);
@@ -216,33 +218,36 @@ describe('Sequencer Templates', () => {
         toChain: 'arbitrum',
         toProtocol: 'aave',
         walletAddress: '0x123',
-        slippagePercent: 0.5
+        slippagePercent: 0.5,
       });
       // No redemptionOutput → downstream steps reuse the PT amount.
-      const bridge = plan.steps.find(s => s.id === 'bridge');
-      const deposit = plan.steps.find(s => s.id === 'deposit');
+      const bridge = plan.steps.find((s) => s.id === 'bridge');
+      const deposit = plan.steps.find((s) => s.id === 'deposit');
       expect((bridge!.buildParams as { amount: string }).amount).toBe('950000000000000000');
       expect((deposit!.buildParams as { amount: string }).amount).toBe('950000000000000000');
     });
 
     it('threads the previewed redemption output (with slippage floor) into downstream steps', () => {
-      const plan = buildExitPendlePlan({
-        ptAsset: 'PT-eETH',
-        ptAddress: '0x35D1A6fD38F0839e3F9329C356391d4e0258B0A8',
-        amount: '950000000000000000', // PT amount differs from underlying output
-        amountUsd: 3000,
-        underlyingAsset: 'WETH',
-        fromChain: 'ethereum',
-        toChain: 'arbitrum',
-        toProtocol: 'aave',
-        walletAddress: '0x123',
-        slippagePercent: 0.5
-      }, '1000000000000000000'); // 1 WETH previewed out from redeeming the PT
+      const plan = buildExitPendlePlan(
+        {
+          ptAsset: 'PT-eETH',
+          ptAddress: '0x35D1A6fD38F0839e3F9329C356391d4e0258B0A8',
+          amount: '950000000000000000', // PT amount differs from underlying output
+          amountUsd: 3000,
+          underlyingAsset: 'WETH',
+          fromChain: 'ethereum',
+          toChain: 'arbitrum',
+          toProtocol: 'aave',
+          walletAddress: '0x123',
+          slippagePercent: 0.5,
+        },
+        '1000000000000000000',
+      ); // 1 WETH previewed out from redeeming the PT
 
       // 1e18 * (10000 - 50) / 10000 = 0.995e18
       const expectedAmount = '995000000000000000';
-      const bridge = plan.steps.find(s => s.id === 'bridge');
-      const deposit = plan.steps.find(s => s.id === 'deposit');
+      const bridge = plan.steps.find((s) => s.id === 'bridge');
+      const deposit = plan.steps.find((s) => s.id === 'deposit');
       expect(bridge).toBeDefined();
       expect(deposit).toBeDefined();
       expect((bridge!.buildParams as { amount: string }).amount).toBe(expectedAmount);

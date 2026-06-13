@@ -1,28 +1,32 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { useWallet } from '@/hooks/useWallet'
-import { ConnectButton } from '@/components/wallet/ConnectButton'
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { ConnectButton } from '@/components/wallet/ConnectButton';
+import { useWallet } from '@/hooks/useWallet';
 
 export default function Home() {
-  const { isConnected, isMounted, enableDebug } = useWallet()
-  const router = useRouter()
+  const { isConnected, isMounted, enableDebug } = useWallet();
+  const router = useRouter();
 
   useEffect(() => {
     if (isMounted && isConnected) {
-      router.push('/dashboard')
+      router.push('/dashboard');
     }
-  }, [isConnected, isMounted, router])
+  }, [isConnected, isMounted, router]);
 
-  if (!isMounted) return null
+  if (!isMounted) return null;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-24">
       <div className="text-center">
-        <h1 className="mb-4 text-5xl font-bold tracking-tight text-verdant-text-primary">Verdant</h1>
-        <p className="mb-8 text-lg text-verdant-text-muted">Discretionary cross-chain yield execution</p>
+        <h1 className="mb-4 text-5xl font-bold tracking-tight text-verdant-text-primary">
+          Verdant
+        </h1>
+        <p className="mb-8 text-lg text-verdant-text-muted">
+          Discretionary cross-chain yield execution
+        </p>
         <div className="flex flex-col items-center gap-4">
           {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
             <Link
@@ -42,5 +46,5 @@ export default function Home() {
         </div>
       </div>
     </div>
-  )
+  );
 }

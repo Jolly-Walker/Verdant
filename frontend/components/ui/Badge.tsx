@@ -1,16 +1,16 @@
-import React from 'react'
+import type React from 'react';
 
 interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  children: React.ReactNode
-  variant?: 'default' | 'success' | 'warning' | 'error'
+  children: React.ReactNode;
+  variant?: 'default' | 'success' | 'warning' | 'error';
 }
 
 const variantStyles: Record<string, string> = {
-  default:  'bg-verdant-surface-accent text-verdant-text-muted border-[#D5E8E0]',
-  success:  'bg-verdant-surface-accent text-verdant-profit border-[#A8D5BE]',
-  warning:  'bg-amber-50 text-amber-700 border-amber-200',
-  error:    'bg-red-50 text-verdant-loss border-red-200',
-}
+  default: 'bg-verdant-surface-accent text-verdant-text-muted border-[#D5E8E0]',
+  success: 'bg-verdant-surface-accent text-verdant-profit border-[#A8D5BE]',
+  warning: 'bg-amber-50 text-amber-700 border-amber-200',
+  error: 'bg-red-50 text-verdant-loss border-red-200',
+};
 
 export function Badge({ children, variant = 'default', className = '', ...props }: BadgeProps) {
   return (
@@ -20,5 +20,5 @@ export function Badge({ children, variant = 'default', className = '', ...props 
     >
       {children}
     </span>
-  )
+  );
 }

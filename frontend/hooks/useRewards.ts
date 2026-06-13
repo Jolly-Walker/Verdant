@@ -1,64 +1,63 @@
-'use client'
+'use client';
 
-import { useState, useCallback } from 'react'
-import { useWallet } from '@/hooks/useWallet'
-import { ChainId, Reward } from '@/types/shared'
-
-import { fetchWithTimeout } from '@/lib/utils/fetch'
+import { useCallback, useState } from 'react';
+import { useWallet } from '@/hooks/useWallet';
+import { fetchWithTimeout } from '@/lib/utils/fetch';
+import type { ChainId, Reward } from '@/types/shared';
 
 export interface AggregatedReward extends Reward {
-  protocol: string
-  chain: ChainId
+  protocol: string;
+  chain: ChainId;
 }
 
 interface UseRewardsReturn {
-  rewards: AggregatedReward[]
-  totalRewardsUsd: number
-  isLoading: boolean
-  error: string | null
-  refetch: () => void
+  rewards: AggregatedReward[];
+  totalRewardsUsd: number;
+  isLoading: boolean;
+  error: string | null;
+  refetch: () => void;
   /** Rewards grouped by protocol */
-  byProtocol: Record<string, AggregatedReward[]>
+  byProtocol: Record<string, AggregatedReward[]>;
 }
 
 export function useRewards(): UseRewardsReturn {
-  const { evmAddress, isConnected, isMounted } = useWallet()
-  const [rewards, setRewards] = useState<AggregatedReward[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const { evmAddress, isConnected, isMounted } = useWallet();
+  const [rewards, setRewards] = useState<AggregatedReward[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!isMounted || !evmAddress || !isConnected) {
-      setRewards([])
-      return
+      setRewards([]);
+      return;
     }
 
-    setIsLoading(true)
-    setError(null)
+    setIsLoading(true);
+    setError(null);
 
     try {
-      const url = new URL('/api/rewards', window.location.origin)
-      url.searchParams.set('address', evmAddress)
+      const url = new URL('/api/rewards', window.location.origin);
+      url.searchParams.set('address', evmAddress);
 
-      const res = await fetchWithTimeout(url.toString(), { timeout: 12000 })
-      if (!res.ok) throw new Error(`Rewards API error: ${res.status}`)
-      const data = await res.json()
-      setRewards(data.rewards ?? [])
+      const res = await fetchWithTimeout(url.toString(), { timeout: 12000 });
+      if (!res.ok) throw new Error(`Rewards API error: ${res.status}`);
+      const data = await res.json();
+      setRewards(data.rewards ?? []);
     } catch (err) {
-      setError('Could not load rewards. Please try again.')
-      console.error(err)
+      setError('Could not load rewards. Please try again.');
+      console.error(err);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }, [evmAddress, isConnected, isMounted])
+  }, [evmAddress, isConnected, isMounted]);
 
-  const totalRewardsUsd = rewards.reduce((sum, r) => sum + r.amountUsd, 0)
+  const totalRewardsUsd = rewards.reduce((sum, r) => sum + r.amountUsd, 0);
 
   const byProtocol = rewards.reduce<Record<string, AggregatedReward[]>>((acc, r) => {
-    if (!acc[r.protocol]) acc[r.protocol] = []
-    acc[r.protocol].push(r)
-    return acc
-  }, {})
+    if (!acc[r.protocol]) acc[r.protocol] = [];
+    acc[r.protocol].push(r);
+    return acc;
+  }, {});
 
   return {
     rewards,
@@ -67,5 +66,5 @@ export function useRewards(): UseRewardsReturn {
     error,
     refetch: fetchData,
     byProtocol,
-  }
+  };
 }

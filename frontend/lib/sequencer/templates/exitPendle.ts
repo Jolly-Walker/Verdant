@@ -1,4 +1,4 @@
-import { SequencePlan, ExitPendleParams } from '@/types/sequencer';
+import type { ExitPendleParams, SequencePlan } from '@/types/sequencer';
 
 /**
  * Builds the "exit Pendle" plan: redeem PT for the underlying asset, then move
@@ -31,7 +31,7 @@ export function buildExitPendlePlan(
     totalCostUsd: 0,
     positionSizeUsd: params.amountUsd,
     description: `Exit ${params.ptAsset} Pendle position and move to ${params.toProtocol} on ${params.toChain}`,
-    steps: []
+    steps: [],
   };
 
   // Step 1: Redeem PT for Underlying
@@ -54,8 +54,8 @@ export function buildExitPendlePlan(
         underlyingAsset: params.underlyingAsset,
         slippagePercent: params.slippagePercent,
         isWei: true,
-      }
-    }
+      },
+    },
   });
 
   // Apply the slippage buffer as a conservative floor on the previewed expected
@@ -87,7 +87,7 @@ export function buildExitPendlePlan(
         asset: params.underlyingAsset,
         amount: downstreamAmount,
         userAddress: params.walletAddress,
-      }
+      },
     });
   } else {
     // Step 2: Bridge Underlying
@@ -104,8 +104,8 @@ export function buildExitPendlePlan(
         token: params.underlyingAsset,
         amount: downstreamAmount,
         recipientAddress: params.walletAddress,
-        slippagePercent: params.slippagePercent
-      }
+        slippagePercent: params.slippagePercent,
+      },
     });
 
     // Step 3: Deposit Underlying on destination chain
@@ -123,7 +123,7 @@ export function buildExitPendlePlan(
         asset: params.underlyingAsset,
         amount: downstreamAmount,
         userAddress: params.walletAddress,
-      }
+      },
     });
   }
 

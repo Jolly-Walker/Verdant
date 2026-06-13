@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { SequenceStep } from '@/types/sequencer';
-import { getExplorerTxUrl, getChainDisplayName } from '@/lib/utils/chains';
-import { Spinner } from '@/components/ui/Spinner';
-import { Card } from '@/components/ui/Card';
-import { useSequencer } from '@/hooks/useSequencer';
 import { StepOneBridge } from '@/components/execute/StepOneBridge';
-import { ChainId } from '@/types/shared';
-
+import { Card } from '@/components/ui/Card';
+import { Spinner } from '@/components/ui/Spinner';
+import { useSequencer } from '@/hooks/useSequencer';
+import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
+import type { SequenceStep } from '@/types/sequencer';
+import type { ChainId } from '@/types/shared';
 
 interface SequenceStepCardProps {
   step: SequenceStep;
@@ -80,7 +79,12 @@ export function SequenceStepCard({
             <div className="flex items-center text-verdant-profit">
               <span className="text-sm font-medium mr-2">Complete</span>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
             </div>
           ) : step.status === 'ready' && isCurrent ? (
@@ -112,26 +116,35 @@ export function SequenceStepCard({
   };
 
   return (
-    <Card className={`p-4 border ${isCurrent ? 'border-verdant-moss/50 bg-verdant-surface-accent' : 'border-[#E5E0D8] bg-verdant-surface shadow-organic'}`}>
+    <Card
+      className={`p-4 border ${isCurrent ? 'border-verdant-moss/50 bg-verdant-surface-accent' : 'border-[#E5E0D8] bg-verdant-surface shadow-organic'}`}
+    >
       <div className="flex items-start gap-4">
-        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-          step.status === 'confirmed' ? 'bg-verdant-surface-accent text-verdant-profit border border-verdant-profit/20' :
-          isCurrent ? 'bg-verdant-moss text-white' : 'bg-verdant-surface-accent text-verdant-text-muted border border-[#E5E0D8]'
-        }`}>
+        <div
+          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+            step.status === 'confirmed'
+              ? 'bg-verdant-surface-accent text-verdant-profit border border-verdant-profit/20'
+              : isCurrent
+                ? 'bg-verdant-moss text-white'
+                : 'bg-verdant-surface-accent text-verdant-text-muted border border-[#E5E0D8]'
+          }`}
+        >
           {index + 1}
         </div>
         <div className="flex-grow">
           <div className="flex justify-between items-center mb-2">
-            <h4 className={`font-semibold ${isCurrent ? 'text-verdant-text-primary' : 'text-verdant-text-muted'}`}>
+            <h4
+              className={`font-semibold ${isCurrent ? 'text-verdant-text-primary' : 'text-verdant-text-muted'}`}
+            >
               {step.label}
             </h4>
             <span className="text-[10px] text-verdant-text-muted uppercase tracking-widest bg-verdant-surface border border-[#E5E0D8] px-2 py-0.5 rounded">
               {getChainDisplayName(step.chain)}
             </span>
           </div>
-          
+
           {renderStepContent()}
- 
+
           {error && (
             <div className="mt-4 p-3 bg-verdant-loss/10 border border-verdant-loss/30 rounded-lg">
               <p className="text-verdant-loss text-xs">{error}</p>

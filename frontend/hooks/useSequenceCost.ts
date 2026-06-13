@@ -1,38 +1,38 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { CostPreviewResult } from '@/types/quote'
-import { SequencePlan } from '@/types/sequencer'
-import { useDemoSequenceCost } from '@/hooks/useDemoSequenceCost'
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useDemoSequenceCost } from '@/hooks/useDemoSequenceCost';
+import type { CostPreviewResult } from '@/types/quote';
+import type { SequencePlan } from '@/types/sequencer';
 
 // process.env.NEXT_PUBLIC_DEMO_MODE is a build-time constant — it never
 // changes between renders, so branching on it is safe and the eslint
 // rules-of-hooks suppression below is intentional and documented.
-const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
-const STALE_WARN_MS = 30_000  // 30s → orange warning
-const STALE_EXPIRE_MS = 60_000 // 60s → disable execution
+const STALE_WARN_MS = 30_000; // 30s → orange warning
+const STALE_EXPIRE_MS = 60_000; // 60s → disable execution
 
 interface UseSequenceCostOptions {
-  plan: SequencePlan | null
-  walletAddress?: string
-  currentApy?: number
-  targetApy?: number
-  borrowApy?: number
-  supplyApy?: number
+  plan: SequencePlan | null;
+  walletAddress?: string;
+  currentApy?: number;
+  targetApy?: number;
+  borrowApy?: number;
+  supplyApy?: number;
 }
 
 interface UseSequenceCostReturn {
-  result: CostPreviewResult | null
-  isLoading: boolean
-  error: string | null
+  result: CostPreviewResult | null;
+  isLoading: boolean;
+  error: string | null;
   /** Step IDs whose bridge quotes are stale (>30s old) */
-  staleStepIds: Set<string>
+  staleStepIds: Set<string>;
   /** Step IDs whose bridge quotes are expired (>60s old) — blocks execution */
-  expiredStepIds: Set<string>
+  expiredStepIds: Set<string>;
   /** Any bridge quote is expired — caller should disable "Begin Sequence" */
-  hasExpiredQuotes: boolean
-  refetch: () => void
+  hasExpiredQuotes: boolean;
+  refetch: () => void;
 }
 
 /**
@@ -46,10 +46,10 @@ interface UseSequenceCostReturn {
 export function useSequenceCost(options: UseSequenceCostOptions): UseSequenceCostReturn {
   if (IS_DEMO) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useDemoSequenceCost(options)
+    return useDemoSequenceCost(options);
   }
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  return useRealSequenceCost(options)
+  return useRealSequenceCost(options);
 }
 
 function useRealSequenceCost({
@@ -60,21 +60,21 @@ function useRealSequenceCost({
   borrowApy,
   supplyApy,
 }: UseSequenceCostOptions): UseSequenceCostReturn {
-  const [result, setResult] = useState<CostPreviewResult | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [staleStepIds, setStaleStepIds] = useState<Set<string>>(new Set())
-  const [expiredStepIds, setExpiredStepIds] = useState<Set<string>>(new Set())
+  const [result, setResult] = useState<CostPreviewResult | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [staleStepIds, setStaleStepIds] = useState<Set<string>>(new Set());
+  const [expiredStepIds, setExpiredStepIds] = useState<Set<string>>(new Set());
 
-  const fetchIdRef = useRef(0)
-  const resultRef = useRef<CostPreviewResult | null>(null)
+  const fetchIdRef = useRef(0);
+  const resultRef = useRef<CostPreviewResult | null>(null);
 
   const fetchCost = useCallback(async () => {
-    if (!plan || !walletAddress) return
+    if (!plan || !walletAddress) return;
 
-    const fetchId = ++fetchIdRef.current
-    setIsLoading(true)
-    setError(null)
+    const fetchId = ++fetchIdRef.current;
+    setIsLoading(true);
+    setError(null);
 
     try {
       const res = await fetch('/api/sequencer/cost', {
@@ -88,84 +88,84 @@ function useRealSequenceCost({
           borrowApy,
           supplyApy,
         }),
-      })
+      });
 
-      if (fetchId !== fetchIdRef.current) return
+      if (fetchId !== fetchIdRef.current) return;
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}))
-        setError((errData as { error?: string }).error || `Cost fetch failed: ${res.status}`)
-        return
+        const errData = await res.json().catch(() => ({}));
+        setError((errData as { error?: string }).error || `Cost fetch failed: ${res.status}`);
+        return;
       }
 
-      const data = await res.json()
+      const data = await res.json();
       const parsed: CostPreviewResult = {
         ...data,
         quoteFetchedAt: new Date(data.quoteFetchedAt),
-      }
-      setResult(parsed)
-      resultRef.current = parsed
+      };
+      setResult(parsed);
+      resultRef.current = parsed;
       // Reset staleness on new fetch
-      setStaleStepIds(new Set())
-      setExpiredStepIds(new Set())
+      setStaleStepIds(new Set());
+      setExpiredStepIds(new Set());
     } catch (err) {
-      if (fetchId !== fetchIdRef.current) return
-      console.error('useSequenceCost fetch error:', err)
-      setError('Could not load cost preview. Please retry.')
+      if (fetchId !== fetchIdRef.current) return;
+      console.error('useSequenceCost fetch error:', err);
+      setError('Could not load cost preview. Please retry.');
     } finally {
       if (fetchId === fetchIdRef.current) {
-        setIsLoading(false)
+        setIsLoading(false);
       }
     }
-  }, [plan, walletAddress, currentApy, targetApy, borrowApy, supplyApy])
+  }, [plan, walletAddress, currentApy, targetApy, borrowApy, supplyApy]);
 
   // Fetch on plan change
   useEffect(() => {
-    fetchCost()
-  }, [fetchCost])
+    fetchCost();
+  }, [fetchCost]);
 
   // Staleness ticker — check every 5 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      const current = resultRef.current
-      if (!current || !plan) return
+      const current = resultRef.current;
+      if (!current || !plan) return;
 
-      const now = Date.now()
-      const newStale = new Set<string>()
-      const newExpired = new Set<string>()
+      const now = Date.now();
+      const newStale = new Set<string>();
+      const newExpired = new Set<string>();
 
       plan.steps.forEach((step, idx) => {
-        const stepCost = current.steps[idx]
-        if (!stepCost?.quoteExpiresAt) return
+        const stepCost = current.steps[idx];
+        if (!stepCost?.quoteExpiresAt) return;
 
-        const expiresAt = new Date(stepCost.quoteExpiresAt).getTime()
-        const fetchedAt = current.quoteFetchedAt.getTime()
-        const age = now - fetchedAt
+        const expiresAt = new Date(stepCost.quoteExpiresAt).getTime();
+        const fetchedAt = current.quoteFetchedAt.getTime();
+        const age = now - fetchedAt;
 
         if (age > STALE_EXPIRE_MS) {
-          newExpired.add(step.id)
-          newStale.add(step.id)
+          newExpired.add(step.id);
+          newStale.add(step.id);
         } else if (age > STALE_WARN_MS) {
-          newStale.add(step.id)
+          newStale.add(step.id);
         }
 
         // Also respect the bridge's own expiresAt
         if (now >= expiresAt) {
-          newExpired.add(step.id)
-          newStale.add(step.id)
+          newExpired.add(step.id);
+          newStale.add(step.id);
         }
-      })
+      });
 
-      setStaleStepIds(newStale)
-      setExpiredStepIds(newExpired)
-    }, 5000)
+      setStaleStepIds(newStale);
+      setExpiredStepIds(newExpired);
+    }, 5000);
 
-    return () => clearInterval(interval)
-  }, [plan])
+    return () => clearInterval(interval);
+  }, [plan]);
 
   const refetch = useCallback(() => {
-    fetchCost()
-  }, [fetchCost])
+    fetchCost();
+  }, [fetchCost]);
 
   return {
     result,
@@ -175,5 +175,5 @@ function useRealSequenceCost({
     expiredStepIds,
     hasExpiredQuotes: expiredStepIds.size > 0,
     refetch,
-  }
+  };
 }

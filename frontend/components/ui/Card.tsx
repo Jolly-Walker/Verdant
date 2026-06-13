@@ -1,9 +1,9 @@
-import React from 'react'
+import type React from 'react';
 
 interface CardProps {
-  children: React.ReactNode
-  className?: string
-  hover?: boolean
+  children: React.ReactNode;
+  className?: string;
+  hover?: boolean;
 }
 
 export function Card({ children, className = '', hover = false }: CardProps) {
@@ -15,5 +15,5 @@ export function Card({ children, className = '', hover = false }: CardProps) {
     >
       {children}
     </div>
-  )
+  );
 }

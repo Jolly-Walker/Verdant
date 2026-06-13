@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSendTransaction, useAccount } from 'wagmi';
-import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
-import { useBridges } from '@/hooks/useBridges';
-import { BridgeQuote, ChainId } from '@/types/shared';
+import { useEffect, useState } from 'react';
+import { useAccount, useSendTransaction } from 'wagmi';
 import { Spinner } from '@/components/ui/Spinner';
+import { useBridges } from '@/hooks/useBridges';
+import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
+import type { SerializedUnsignedTx } from '@/types/sequencer';
+import type { BridgeQuote, ChainId } from '@/types/shared';
 import { BridgeQuoteSelector } from './BridgeQuoteSelector';
-import { SerializedUnsignedTx } from '@/types/sequencer';
 
 interface StepOneBridgeProps {
   fromChain: ChainId;
@@ -110,7 +110,7 @@ export function StepOneBridge({
       if (status.trackingUrl) {
         setTrackingUrl(status.trackingUrl);
       }
-      
+
       if (status.status === 'complete') {
         setBridgeStatus('complete');
         onComplete(txHash);
@@ -127,7 +127,7 @@ export function StepOneBridge({
 
   const handleBridge = async () => {
     if (!selectedQuote || !serializedTx) return;
-    
+
     setIsBuildingTx(true);
     setError(null);
     try {
@@ -182,7 +182,11 @@ export function StepOneBridge({
             disabled={isSigning || !selectedQuote || !serializedTx}
             className="w-full bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
           >
-            {isSimulating ? 'Simulating route...' : isSigning ? 'Waiting for Wallet...' : `Approve & Bridge ${amount} ${token}`}
+            {isSimulating
+              ? 'Simulating route...'
+              : isSigning
+                ? 'Waiting for Wallet...'
+                : `Approve & Bridge ${amount} ${token}`}
           </button>
         </>
       ) : (
@@ -195,7 +199,7 @@ export function StepOneBridge({
                   Bridging funds to {getChainDisplayName(toChain)} via {selectedQuote?.bridgeId}...
                 </p>
                 {trackingUrl && (
-                  <a 
+                  <a
                     href={trackingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -209,12 +213,14 @@ export function StepOneBridge({
                 </p>
               </div>
             ) : (
-              <span className="text-sm text-verdant-profit font-semibold">Funds successfully bridged!</span>
+              <span className="text-sm text-verdant-profit font-semibold">
+                Funds successfully bridged!
+              </span>
             )}
           </div>
-          
+
           <div className="flex gap-2">
-            <a 
+            <a
               href={getExplorerTxUrl(fromChain, txHash)}
               target="_blank"
               rel="noopener noreferrer"
@@ -222,7 +228,7 @@ export function StepOneBridge({
             >
               View Transaction
             </a>
-            <button 
+            <button
               onClick={() => setTxHash(null)}
               className="px-4 py-2 bg-transparent text-verdant-text-muted hover:text-verdant-text-primary text-sm transition-colors"
             >

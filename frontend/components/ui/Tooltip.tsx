@@ -1,13 +1,14 @@
-import React, { useState } from 'react'
+import type React from 'react';
+import { useState } from 'react';
 
 interface TooltipProps {
-  children: React.ReactNode
-  content: string
-  className?: string
+  children: React.ReactNode;
+  content: string;
+  className?: string;
 }
 
 export function Tooltip({ children, content, className = '' }: TooltipProps) {
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(false);
 
   return (
     <div
@@ -27,5 +28,5 @@ export function Tooltip({ children, content, className = '' }: TooltipProps) {
         </div>
       )}
     </div>
-  )
+  );
 }

@@ -1,58 +1,61 @@
-import React, { useState } from "react"
-import { Position } from "@/types/position"
-import { useHarvest } from "@/hooks/useHarvest"
-import { useSequencer } from "@/hooks/useSequencer"
-import { usePositions } from "@/hooks/usePositions"
-import { Tooltip } from "../ui/Tooltip"
-import { DEFAULT_MIN_USD_THRESHOLD } from "@/constants/settings"
-import { TokenIcon } from "./TokenIcon"
-import { HealthFactor } from "@/components/ui/HealthFactor"
-import { formatUsd, formatToken, formatPercent } from "@/lib/utils/formatting"
-import { useRouter } from "next/navigation"
-
-import { TemplateId } from "@/types/sequencer"
+import { useRouter } from 'next/navigation';
+import type React from 'react';
+import { useState } from 'react';
+import { HealthFactor } from '@/components/ui/HealthFactor';
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings';
+import { useHarvest } from '@/hooks/useHarvest';
+import { usePositions } from '@/hooks/usePositions';
+import { useSequencer } from '@/hooks/useSequencer';
+import { formatPercent, formatToken, formatUsd } from '@/lib/utils/formatting';
+import type { Position } from '@/types/position';
+import type { TemplateId } from '@/types/sequencer';
+import { Tooltip } from '../ui/Tooltip';
+import { TokenIcon } from './TokenIcon';
 
 interface PositionCardProps {
-  position: Position
-  onSequence?: (template: TemplateId, params: Record<string, string>) => void
-  onOpenBuilder?: (positionId: string) => void
-  onOpenLoopModal?: (position: Position, collateral?: Position) => void
+  position: Position;
+  onSequence?: (template: TemplateId, params: Record<string, string>) => void;
+  onOpenBuilder?: (positionId: string) => void;
+  onOpenLoopModal?: (position: Position, collateral?: Position) => void;
 }
 
-export function PositionCard({ 
+export function PositionCard({
   position,
   onSequence,
   onOpenBuilder,
-  onOpenLoopModal
+  onOpenLoopModal,
 }: PositionCardProps) {
-  const router = useRouter()
-  const [isHarvesting, setIsHarvesting] = useState(false)
-  
-  // To find collateral for borrow actions
-  const { positions } = usePositions()
-  const { plan, isSimulating } = useSequencer()
-  const { harvest, isSimulating: isHarvestSimulating, isSigning } = useHarvest()
+  const router = useRouter();
+  const [isHarvesting, setIsHarvesting] = useState(false);
 
-  const isWallet = position.positionType === 'wallet'
-  const isBorrow = position.positionType === 'borrow'
-  const isPendle = position.positionType === 'pendle-pt' || position.positionType === 'pendle-yt'
-  const isPT = position.positionType === 'pendle-pt'
+  // To find collateral for borrow actions
+  const { positions } = usePositions();
+  const { plan, isSimulating } = useSequencer();
+  const { harvest, isSimulating: isHarvestSimulating, isSigning } = useHarvest();
+
+  const isWallet = position.positionType === 'wallet';
+  const isBorrow = position.positionType === 'borrow';
+  const isPendle = position.positionType === 'pendle-pt' || position.positionType === 'pendle-yt';
+  const isPT = position.positionType === 'pendle-pt';
 
   // Format unit price
-  const formattedPrice = position.priceUsd ? formatUsd(position.priceUsd) : '-'
+  const formattedPrice = position.priceUsd ? formatUsd(position.priceUsd) : '-';
 
   // Calculate rewards info for supply positions
-  const hasRewards = position.claimableRewards && position.claimableRewards.length > 0
-  const rewardsUsd = hasRewards ? position.claimableRewards.reduce((sum, r) => sum + r.amountUsd, 0) : 0
-  const canHarvest = rewardsUsd >= DEFAULT_MIN_USD_THRESHOLD
+  const hasRewards = position.claimableRewards && position.claimableRewards.length > 0;
+  const rewardsUsd = hasRewards
+    ? position.claimableRewards.reduce((sum, r) => sum + r.amountUsd, 0)
+    : 0;
+  const canHarvest = rewardsUsd >= DEFAULT_MIN_USD_THRESHOLD;
 
   // Maturity calculations for Pendle
-  const maturityDate = position.maturityDate ? new Date(position.maturityDate) : null
-  const isValidDate = maturityDate && !isNaN(maturityDate.getTime())
-  const showExpiryWarning = isPendle && isValidDate && (maturityDate!.getTime() - Date.now()) < 30 * 24 * 60 * 60 * 1000
+  const maturityDate = position.maturityDate ? new Date(position.maturityDate) : null;
+  const isValidDate = maturityDate && !isNaN(maturityDate.getTime());
+  const showExpiryWarning =
+    isPendle && isValidDate && maturityDate!.getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
   const formattedMaturity = isValidDate
     ? maturityDate!.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Unknown'
+    : 'Unknown';
 
   // Liquidation risk for borrow positions.
   //
@@ -67,53 +70,53 @@ export function PositionCard({
   // is NOT shown unless the upstream pipeline actually provides `position.liquidationPrice`
   // (it currently does not for live data), so we never fabricate one.
   const hasRealLiquidationPrice =
-    isBorrow && typeof position.liquidationPrice === 'number' && position.liquidationPrice > 0
+    isBorrow && typeof position.liquidationPrice === 'number' && position.liquidationPrice > 0;
   const priceDropToLiquidationPct =
     isBorrow && position.healthFactor !== undefined && position.healthFactor > 1
       ? (1 - 1 / position.healthFactor) * 100
-      : undefined
+      : undefined;
 
   // Identify Aave/Morpho/Euler collateral for borrow positions
   const potentialCollaterals = positions.filter(
-    p => p.chain === position.chain &&
-         p.protocol === position.protocol &&
-         p.positionType === 'supply'
-  )
-  const collateralPosition = potentialCollaterals.length > 0
-    ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
-    : undefined
+    (p) =>
+      p.chain === position.chain && p.protocol === position.protocol && p.positionType === 'supply',
+  );
+  const collateralPosition =
+    potentialCollaterals.length > 0
+      ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
+      : undefined;
 
   // Handler for Harvest action
   const handleHarvest = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!canHarvest) return
-    
-    setIsHarvesting(true)
+    e.stopPropagation();
+    if (!canHarvest) return;
+
+    setIsHarvesting(true);
     try {
-      await harvest(position.protocol as string, position.chain)
+      await harvest(position.protocol as string, position.chain);
     } catch (e) {
-      console.error(e)
-      alert("An error occurred during harvest")
+      console.error(e);
+      alert('An error occurred during harvest');
     } finally {
-      setIsHarvesting(false)
+      setIsHarvesting(false);
     }
-  }
+  };
 
   // Route a template either to the in-page sequence handler or the /sequence page.
   const dispatchTemplate = (template: TemplateId, params: Record<string, string>) => {
     if (onSequence) {
-      onSequence(template, params)
+      onSequence(template, params);
     } else {
-      router.push(`/sequence?${new URLSearchParams(params).toString()}`)
+      router.push(`/sequence?${new URLSearchParams(params).toString()}`);
     }
-  }
+  };
 
   // Handler for De-leverage action
   const handleDeleverage = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (onOpenLoopModal) {
-      onOpenLoopModal(position, collateralPosition)
-      return
+      onOpenLoopModal(position, collateralPosition);
+      return;
     }
     const params: Record<string, string> = {
       template: 'deleverageAave',
@@ -122,27 +125,27 @@ export function PositionCard({
       borrowAsset: position.asset,
       amount: position.amount.toString(),
       totalDebtUsd: position.amountUsd.toString(),
-    }
+    };
 
     if (collateralPosition) {
-      params.collateralAsset = collateralPosition.asset
-      params.collateralAmount = collateralPosition.amount.toString()
-      params.totalCollateralUsd = collateralPosition.amountUsd.toString()
+      params.collateralAsset = collateralPosition.asset;
+      params.collateralAmount = collateralPosition.amount.toString();
+      params.totalCollateralUsd = collateralPosition.amountUsd.toString();
     }
 
     if (position.healthFactor !== undefined) {
-      params.healthFactor = position.healthFactor.toString()
+      params.healthFactor = position.healthFactor.toString();
     }
 
-    dispatchTemplate('deleverageAave', params)
-  }
+    dispatchTemplate('deleverageAave', params);
+  };
 
   // Handler for Repay action
   const handleRepay = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (onOpenBuilder) {
-      onOpenBuilder(position.id)
-      return
+      onOpenBuilder(position.id);
+      return;
     }
     const params: Record<string, string> = {
       template: 'repayAndWithdraw',
@@ -150,22 +153,22 @@ export function PositionCard({
       chain: position.chain,
       borrowAsset: position.asset,
       borrowAmount: position.amount.toString(),
-    }
+    };
 
     if (collateralPosition) {
-      params.collateralAsset = collateralPosition.asset
-      params.collateralAmount = collateralPosition.amount.toString()
+      params.collateralAsset = collateralPosition.asset;
+      params.collateralAmount = collateralPosition.amount.toString();
     }
 
-    dispatchTemplate('repayAndWithdraw', params)
-  }
+    dispatchTemplate('repayAndWithdraw', params);
+  };
 
   // Handler for Exit Pendle action
   const handleExitPendle = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (onOpenBuilder) {
-      onOpenBuilder(position.id)
-      return
+      onOpenBuilder(position.id);
+      return;
     }
     const params = {
       template: 'exitPendle' as TemplateId,
@@ -173,17 +176,17 @@ export function PositionCard({
       amount: position.amount.toString(),
       ptAddress: position.assetAddress || '',
       chain: position.chain,
-    }
+    };
 
-    dispatchTemplate('exitPendle', params)
-  }
+    dispatchTemplate('exitPendle', params);
+  };
 
   // Handler for Manage/Rebalance action (Supply positions)
   const handleManageSupply = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (onOpenBuilder) {
-      onOpenBuilder(position.id)
-      return
+      onOpenBuilder(position.id);
+      return;
     }
     const params = {
       template: 'crossChainRebalance' as TemplateId,
@@ -192,17 +195,17 @@ export function PositionCard({
       amountUsd: position.amountUsd.toString(),
       fromProtocol: position.protocol,
       fromChain: position.chain,
-    }
+    };
 
-    dispatchTemplate('crossChainRebalance', params)
-  }
+    dispatchTemplate('crossChainRebalance', params);
+  };
 
   // Handler for Wallet Deposit action
   const handleDepositWallet = (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     if (onOpenBuilder) {
-      onOpenBuilder(position.id)
-      return
+      onOpenBuilder(position.id);
+      return;
     }
     const params = {
       template: 'bridgeAndDeposit' as TemplateId,
@@ -210,20 +213,23 @@ export function PositionCard({
       amount: position.amount.toString(),
       amountUsd: position.amountUsd.toString(),
       fromChain: position.chain,
-    }
+    };
 
-    dispatchTemplate('bridgeAndDeposit', params)
-  }
+    dispatchTemplate('bridgeAndDeposit', params);
+  };
 
-  const currentStep = plan?.steps[0]
-  const isReady = currentStep?.status === 'ready'
+  const currentStep = plan?.steps[0];
+  const isReady = currentStep?.status === 'ready';
 
   return (
     <tr className="border-b border-[#E5E0D8]/40 hover:bg-[#FAF9F6]/50 transition-colors last:border-b-0">
       {/* 1. ASSET COLUMN */}
       <td className="px-5 py-4">
         <div className="flex items-center gap-3">
-          <TokenIcon symbol={isPendle ? (position.underlyingAsset || 'ETH') : position.asset} className="w-8 h-8" />
+          <TokenIcon
+            symbol={isPendle ? position.underlyingAsset || 'ETH' : position.asset}
+            className="w-8 h-8"
+          />
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-verdant-text-primary text-sm">
@@ -254,16 +260,17 @@ export function PositionCard({
 
       {/* 2. PRICE COLUMN */}
       <td className="px-5 py-4 text-right">
-        <span className="font-mono text-sm text-verdant-text-primary">
-          {formattedPrice}
-        </span>
+        <span className="font-mono text-sm text-verdant-text-primary">{formattedPrice}</span>
       </td>
 
       {/* 3. VALUE/BALANCE COLUMN */}
       <td className="px-5 py-4 text-right">
         <div className="flex flex-col items-end">
-          <span className={`font-mono text-sm font-bold ${isBorrow ? 'text-verdant-loss' : 'text-verdant-text-primary'}`}>
-            {isBorrow ? '-' : ''}{formatUsd(position.amountUsd)}
+          <span
+            className={`font-mono text-sm font-bold ${isBorrow ? 'text-verdant-loss' : 'text-verdant-text-primary'}`}
+          >
+            {isBorrow ? '-' : ''}
+            {formatUsd(position.amountUsd)}
           </span>
           <span className="font-mono text-xs text-verdant-text-muted mt-0.5">
             {formatToken(position.amount)} {position.asset}
@@ -281,10 +288,13 @@ export function PositionCard({
         <div className="flex flex-col items-end">
           {!isWallet ? (
             <>
-              <span className={`font-mono text-sm font-semibold ${isBorrow ? 'text-verdant-loss' : 'text-verdant-profit'}`}>
-                {isBorrow ? '-' : '+'}{formatPercent(position.currentApy)}
+              <span
+                className={`font-mono text-sm font-semibold ${isBorrow ? 'text-verdant-loss' : 'text-verdant-profit'}`}
+              >
+                {isBorrow ? '-' : '+'}
+                {formatPercent(position.currentApy)}
               </span>
-              
+
               {/* Contextual subtext under APY: visual health-factor gauge + liquidation risk */}
               {isBorrow && position.healthFactor !== undefined && (
                 <div className="mt-1">
@@ -310,7 +320,9 @@ export function PositionCard({
               )}
 
               {isPendle && (
-                <span className={`font-mono text-[10px] mt-0.5 ${showExpiryWarning ? 'text-verdant-loss font-semibold animate-pulse' : 'text-verdant-text-muted'}`}>
+                <span
+                  className={`font-mono text-[10px] mt-0.5 ${showExpiryWarning ? 'text-verdant-loss font-semibold animate-pulse' : 'text-verdant-text-muted'}`}
+                >
                   {showExpiryWarning ? '⚠️ ' : ''}Maturity: {formattedMaturity}
                 </span>
               )}
@@ -325,7 +337,7 @@ export function PositionCard({
       <td className="px-5 py-4 text-right">
         <div className="flex justify-end gap-2 items-center">
           {isWallet && (
-            <button 
+            <button
               onClick={handleDepositWallet}
               className="text-xs bg-verdant-moss hover:bg-verdant-moss-dark text-white px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
             >
@@ -353,7 +365,7 @@ export function PositionCard({
           )}
 
           {isPendle && (
-            <button 
+            <button
               onClick={handleExitPendle}
               className="text-xs border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
             >
@@ -364,17 +376,29 @@ export function PositionCard({
           {!isWallet && !isBorrow && !isPendle && (
             <>
               {hasRewards && (
-                <Tooltip content={!canHarvest ? `Minimum harvest is $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()}` : ""}>
-                  <button 
+                <Tooltip
+                  content={
+                    !canHarvest
+                      ? `Minimum harvest is $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()}`
+                      : ''
+                  }
+                >
+                  <button
                     onClick={handleHarvest}
                     disabled={!canHarvest || isHarvesting || isSimulating}
                     className="text-xs bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
                   >
-                    {isHarvestSimulating ? "Simulating..." : isSigning ? "Signing..." : isReady ? "Sign Harvest" : "Harvest"}
+                    {isHarvestSimulating
+                      ? 'Simulating...'
+                      : isSigning
+                        ? 'Signing...'
+                        : isReady
+                          ? 'Sign Harvest'
+                          : 'Harvest'}
                   </button>
                 </Tooltip>
               )}
-              <button 
+              <button
                 onClick={handleManageSupply}
                 className="text-xs border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
               >
@@ -385,5 +409,5 @@ export function PositionCard({
         </div>
       </td>
     </tr>
-  )
+  );
 }

@@ -1,8 +1,8 @@
-import 'server-only'
-import { ProtocolPlugin, RewardFetcher, ClaimParams } from '../types/protocol-plugin'
-import { ChainId, Reward, UnsignedTx, RawPosition, TxBuildParams } from '@/types/shared'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
-import { encodeFunctionData, parseAbi } from 'viem'
+import 'server-only';
+import { encodeFunctionData, parseAbi } from 'viem';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import type { ChainId, RawPosition, Reward, TxBuildParams, UnsignedTx } from '@/types/shared';
+import type { ClaimParams, ProtocolPlugin, RewardFetcher } from '../types/protocol-plugin';
 
 /**
  * Pendle YieldToken ABI — subset for redeeming accrued interest and rewards.
@@ -12,46 +12,46 @@ const PENDLE_YT_ABI = parseAbi([
   'function redeemDueInterestAndRewards(address user, bool redeemInterest, bool redeemRewards) returns (uint256 interestOut, uint256[] rewardsOut)',
   'function getRewardTokens() view returns (address[])',
   'function userInterest(address user) view returns (uint128 lastPYIndex, uint256 accruedInterest)',
-])
+]);
 
 /**
  * Pendle API base URLs.
  * Source: https://api-v2.pendle.finance/core/docs
  */
-const PENDLE_API_BASE = 'https://api-v2.pendle.finance/core/v1'
-const PENDLE_API_CORE = 'https://api-v2.pendle.finance/core'
+const PENDLE_API_BASE = 'https://api-v2.pendle.finance/core/v1';
+const PENDLE_API_CORE = 'https://api-v2.pendle.finance/core';
 
 /** Chain ID numeric mapping for Pendle API */
 const PENDLE_CHAIN_IDS: Record<string, number> = {
   ethereum: 1,
   arbitrum: 42161,
-}
+};
 
 /** EVM numeric chain IDs for transaction building */
 const EVM_CHAIN_IDS: Record<string, number> = {
   ethereum: 1,
   arbitrum: 42161,
   base: 8453,
-}
+};
 
 interface PendleUserPosition {
-  marketAddress: string
-  ytAddress: string
-  pendingYield?: { token: string; amount: number; amountUsd: number }
+  marketAddress: string;
+  ytAddress: string;
+  pendingYield?: { token: string; amount: number; amountUsd: number };
 }
 
 interface PendleBalance {
-  ytBalance?: string | number
-  market?: { address: string }
-  marketAddress?: string
-  yt?: { address: string }
-  ytAddress?: string
-  underlyingAsset?: string
+  ytBalance?: string | number;
+  market?: { address: string };
+  marketAddress?: string;
+  yt?: { address: string };
+  ytAddress?: string;
+  underlyingAsset?: string;
   pendingYield?: {
-    token?: { symbol: string }
-    amount?: string | number
-    amountUsd?: string | number
-  }
+    token?: { symbol: string };
+    amount?: string | number;
+    amountUsd?: string | number;
+  };
 }
 
 /**
@@ -59,19 +59,19 @@ interface PendleBalance {
  */
 async function fetchPendleUserRewards(
   address: string,
-  chainId: number
+  chainId: number,
 ): Promise<PendleUserPosition[]> {
   try {
-    const url = `${PENDLE_API_BASE}/${chainId}/user-balances/${address}`
+    const url = `${PENDLE_API_BASE}/${chainId}/user-balances/${address}`;
     const res = await fetch(url, {
       next: { revalidate: 60 },
       signal: AbortSignal.timeout(15_000),
-    })
-    if (!res.ok) return []
-    const data = await res.json()
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
 
     // Pendle API response structure: { balances: [{ market, ytBalance, pendingYields }] }
-    const balances: PendleBalance[] = data.balances ?? data.results ?? []
+    const balances: PendleBalance[] = data.balances ?? data.results ?? [];
     return balances
       .filter((b) => Number(b.ytBalance ?? 0) > 0 || Number(b.pendingYield?.amount ?? 0) > 0)
       .map((b) => ({
@@ -84,17 +84,17 @@ async function fetchPendleUserRewards(
               amountUsd: Number(b.pendingYield.amountUsd ?? 0),
             }
           : undefined,
-      }))
+      }));
   } catch {
-    return []
+    return [];
   }
 }
 
 interface PendleConvertResult {
-  to: string
-  data: string
-  value: string
-  amountOut?: string
+  to: string;
+  data: string;
+  value: string;
+  amountOut?: string;
 }
 
 /**
@@ -103,12 +103,12 @@ interface PendleConvertResult {
  * Source: https://docs.pendle.finance/Developers/Backend/HostedSdk
  */
 async function fetchPendleConvert(opts: {
-  chainId: number
-  receiver: string
-  slippage: number // decimal, e.g. 0.01 = 1%
-  tokenIn: string
-  amountIn: string // smallest units
-  tokenOut: string
+  chainId: number;
+  receiver: string;
+  slippage: number; // decimal, e.g. 0.01 = 1%
+  tokenIn: string;
+  amountIn: string; // smallest units
+  tokenOut: string;
 }): Promise<PendleConvertResult> {
   const qs = new URLSearchParams({
     receiver: opts.receiver,
@@ -117,23 +117,23 @@ async function fetchPendleConvert(opts: {
     amountsIn: opts.amountIn,
     tokensOut: opts.tokenOut,
     enableAggregator: 'true',
-  })
-  const url = `${PENDLE_API_CORE}/v2/sdk/${opts.chainId}/convert?${qs.toString()}`
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) })
-  if (!res.ok) throw new Error(`Pendle convert API error: ${res.status}`)
+  });
+  const url = `${PENDLE_API_CORE}/v2/sdk/${opts.chainId}/convert?${qs.toString()}`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
+  if (!res.ok) throw new Error(`Pendle convert API error: ${res.status}`);
 
-  const json = await res.json()
+  const json = await res.json();
   // The Convert API returns { tx: { to, data, value }, data: { amountOut } }.
-  const tx = json.tx ?? json.transactions?.[0]
+  const tx = json.tx ?? json.transactions?.[0];
   if (!tx?.to || !tx?.data) {
-    throw new Error('Pendle convert API returned no transaction')
+    throw new Error('Pendle convert API returned no transaction');
   }
   return {
     to: tx.to,
     data: tx.data,
     value: String(tx.value ?? '0'),
     amountOut: json.data?.amountOut != null ? String(json.data.amountOut) : undefined,
-  }
+  };
 }
 
 /**
@@ -147,16 +147,16 @@ async function fetchPendleConvert(opts: {
  * let the mandatory simulation gate re-validate at execution.
  */
 export async function previewPendleRedemption(opts: {
-  chain: ChainId
-  receiver: string
-  ptAddress: string
-  amountIn: string // PT amount in smallest units
-  underlyingAddress: string
-  slippagePercent: number
+  chain: ChainId;
+  receiver: string;
+  ptAddress: string;
+  amountIn: string; // PT amount in smallest units
+  underlyingAddress: string;
+  slippagePercent: number;
 }): Promise<string | null> {
-  const chainId = PENDLE_CHAIN_IDS[opts.chain]
-  if (!chainId) return null
-  if (!opts.ptAddress || !opts.underlyingAddress) return null
+  const chainId = PENDLE_CHAIN_IDS[opts.chain];
+  if (!chainId) return null;
+  if (!opts.ptAddress || !opts.underlyingAddress) return null;
 
   try {
     const result = await fetchPendleConvert({
@@ -166,10 +166,10 @@ export async function previewPendleRedemption(opts: {
       tokenIn: opts.ptAddress,
       amountIn: opts.amountIn,
       tokenOut: opts.underlyingAddress,
-    })
-    return result.amountOut ?? null
+    });
+    return result.amountOut ?? null;
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -188,24 +188,24 @@ export const pendlePlugin: ProtocolPlugin = {
     // the rewards path uses. Field availability varies by market; entries are
     // mapped defensively and unknown shapes are skipped rather than guessed.
     fetchPositions: async (address: string, chain: ChainId): Promise<RawPosition[]> => {
-      const chainId = PENDLE_CHAIN_IDS[chain]
-      if (!chainId) return []
+      const chainId = PENDLE_CHAIN_IDS[chain];
+      if (!chainId) return [];
 
       try {
         const res = await fetch(`${PENDLE_API_BASE}/${chainId}/user-balances/${address}`, {
           next: { revalidate: 60 },
           signal: AbortSignal.timeout(15_000),
-        })
-        if (!res.ok) return []
-        const data = await res.json()
-        const balances: PendleBalance[] = data.balances ?? data.results ?? []
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const balances: PendleBalance[] = data.balances ?? data.results ?? [];
 
-        const positions: RawPosition[] = []
+        const positions: RawPosition[] = [];
         for (const b of balances) {
-          const ytBalance = Number(b.ytBalance ?? 0)
-          if (ytBalance <= 0) continue
-          const marketAddress = b.market?.address ?? b.marketAddress ?? ''
-          const ytAddress = b.yt?.address ?? b.ytAddress ?? ''
+          const ytBalance = Number(b.ytBalance ?? 0);
+          if (ytBalance <= 0) continue;
+          const marketAddress = b.market?.address ?? b.marketAddress ?? '';
+          const ytAddress = b.yt?.address ?? b.ytAddress ?? '';
           positions.push({
             id: `pendle-yt-${chain}-${marketAddress || ytAddress}`,
             protocol: 'pendle',
@@ -218,11 +218,11 @@ export const pendlePlugin: ProtocolPlugin = {
             positionType: 'pendle-yt',
             claimableRewards: [],
             metadata: { marketAddress, ytAddress },
-          })
+          });
         }
-        return positions
+        return positions;
       } catch {
-        return []
+        return [];
       }
     },
   },
@@ -231,45 +231,45 @@ export const pendlePlugin: ProtocolPlugin = {
     // supplies the PT/SY token (extraParams.tokenIn) and the desired output
     // token (extraParams.tokenOut, or resolved from `asset`). Amounts are wei.
     buildTx: async (params: TxBuildParams): Promise<UnsignedTx[]> => {
-      const chainId = PENDLE_CHAIN_IDS[params.chain]
-      const evmChainId = EVM_CHAIN_IDS[params.chain]
+      const chainId = PENDLE_CHAIN_IDS[params.chain];
+      const evmChainId = EVM_CHAIN_IDS[params.chain];
       if (!chainId || !evmChainId) {
-        throw new Error(`Pendle is not supported on ${params.chain}`)
+        throw new Error(`Pendle is not supported on ${params.chain}`);
       }
 
       // Accept either tokenIn or the template's ptAddress for the input token.
       const tokenIn =
         (params.extraParams?.tokenIn as string | undefined) ??
-        (params.extraParams?.ptAddress as string | undefined)
+        (params.extraParams?.ptAddress as string | undefined);
 
       // Output token: an explicit address, else resolve the underlyingAsset /
       // asset symbol against the token registry.
       const resolveAddress = (value?: string): string | undefined => {
-        if (!value) return undefined
-        if (/^0x[a-fA-F0-9]{40}$/.test(value)) return value
-        return SUPPORTED_TOKENS[value.toUpperCase()]?.addresses[params.chain]
-      }
-      const underlyingSymbol = params.extraParams?.underlyingAsset as string | undefined
+        if (!value) return undefined;
+        if (/^0x[a-fA-F0-9]{40}$/.test(value)) return value;
+        return SUPPORTED_TOKENS[value.toUpperCase()]?.addresses[params.chain];
+      };
+      const underlyingSymbol = params.extraParams?.underlyingAsset as string | undefined;
       const tokenOut =
         (params.extraParams?.tokenOut as string | undefined) ??
         resolveAddress(underlyingSymbol) ??
-        resolveAddress(params.asset)
+        resolveAddress(params.asset);
 
       if (!tokenIn || !tokenOut) {
         throw new Error(
-          'Pendle buildTx requires extraParams.tokenIn/ptAddress and a resolvable output token'
-        )
+          'Pendle buildTx requires extraParams.tokenIn/ptAddress and a resolvable output token',
+        );
       }
 
       const decimals =
-        SUPPORTED_TOKENS[(underlyingSymbol ?? params.asset).toUpperCase()]?.decimals ?? 18
-      const isWei = params.extraParams?.isWei === true
+        SUPPORTED_TOKENS[(underlyingSymbol ?? params.asset).toUpperCase()]?.decimals ?? 18;
+      const isWei = params.extraParams?.isWei === true;
       const amountIn = isWei
         ? params.amount
-        : BigInt(Math.floor(Number(params.amount) * Math.pow(10, decimals))).toString()
+        : BigInt(Math.floor(Number(params.amount) * 10 ** decimals)).toString();
       const slippage = (params.extraParams?.slippagePercent as number | undefined)
         ? (params.extraParams!.slippagePercent as number) / 100
-        : 0.01
+        : 0.01;
 
       const result = await fetchPendleConvert({
         chainId,
@@ -278,7 +278,7 @@ export const pendlePlugin: ProtocolPlugin = {
         tokenIn,
         amountIn,
         tokenOut,
-      })
+      });
 
       return [
         {
@@ -288,59 +288,59 @@ export const pendlePlugin: ProtocolPlugin = {
           value: BigInt(result.value),
           description: `Redeem ${params.amount} ${params.asset} on Pendle`,
         },
-      ]
+      ];
     },
     describeAction: (params) => {
       if (params.action === 'withdraw') {
-        return `Redeem ${params.asset} on Pendle`
+        return `Redeem ${params.asset} on Pendle`;
       }
-      return `Pendle ${params.action}`
+      return `Pendle ${params.action}`;
     },
   },
   rewards: {
     fetchRewards: async (address: string, chain: ChainId): Promise<Reward[]> => {
-      const chainId = PENDLE_CHAIN_IDS[chain]
-      if (!chainId) return []
+      const chainId = PENDLE_CHAIN_IDS[chain];
+      if (!chainId) return [];
 
-      const positions = await fetchPendleUserRewards(address, chainId)
-      const rewards: Reward[] = []
+      const positions = await fetchPendleUserRewards(address, chainId);
+      const rewards: Reward[] = [];
 
       for (const pos of positions) {
-        if (!pos.pendingYield) continue
-        const { token, amount, amountUsd } = pos.pendingYield
-        if (amount <= 0) continue
+        if (!pos.pendingYield) continue;
+        const { token, amount, amountUsd } = pos.pendingYield;
+        if (amount <= 0) continue;
 
         rewards.push({
           token,
           amount: amount.toFixed(8),
           amountUsd,
-        })
+        });
       }
 
-      return rewards
+      return rewards;
     },
 
     buildClaimTx: async (params: ClaimParams): Promise<UnsignedTx[]> => {
-      const { address, chain } = params
-      const chainId = PENDLE_CHAIN_IDS[chain]
-      const evmChainId = EVM_CHAIN_IDS[chain]
+      const { address, chain } = params;
+      const chainId = PENDLE_CHAIN_IDS[chain];
+      const evmChainId = EVM_CHAIN_IDS[chain];
       if (!chainId || !evmChainId) {
-        throw new Error(`Pendle rewards not supported on ${chain}`)
+        throw new Error(`Pendle rewards not supported on ${chain}`);
       }
 
-      const positions = await fetchPendleUserRewards(address, chainId)
-      const txs: UnsignedTx[] = []
+      const positions = await fetchPendleUserRewards(address, chainId);
+      const txs: UnsignedTx[] = [];
 
       for (const pos of positions) {
-        if (!pos.pendingYield || !pos.ytAddress) continue
-        if (pos.pendingYield.amount <= 0) continue
+        if (!pos.pendingYield || !pos.ytAddress) continue;
+        if (pos.pendingYield.amount <= 0) continue;
 
         // Call redeemDueInterestAndRewards on the YT contract
         const claimData = encodeFunctionData({
           abi: PENDLE_YT_ABI,
           functionName: 'redeemDueInterestAndRewards',
           args: [address as `0x${string}`, true, true],
-        })
+        });
 
         txs.push({
           chainId: evmChainId,
@@ -348,10 +348,10 @@ export const pendlePlugin: ProtocolPlugin = {
           data: claimData,
           value: 0n,
           description: `Claim Pendle YT interest & rewards (market ${pos.marketAddress.slice(0, 10)}...)`,
-        })
+        });
       }
 
-      return txs
+      return txs;
     },
   } satisfies RewardFetcher,
-}
+};

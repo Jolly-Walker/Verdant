@@ -1,4 +1,4 @@
-import { SequencePlan, CrossChainRebalanceParams } from '@/types/sequencer';
+import type { CrossChainRebalanceParams, SequencePlan } from '@/types/sequencer';
 
 export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams): SequencePlan {
   return {
@@ -24,7 +24,7 @@ export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams):
           asset: params.asset,
           amount: params.amount,
           userAddress: params.walletAddress,
-        }
+        },
       },
       {
         id: 'bridge',
@@ -40,7 +40,7 @@ export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams):
           amount: params.amount,
           recipientAddress: params.walletAddress,
           slippagePercent: params.slippagePercent,
-        }
+        },
       },
       {
         id: 'deposit',
@@ -56,8 +56,8 @@ export function buildCrossChainRebalancePlan(params: CrossChainRebalanceParams):
           asset: params.asset,
           amount: params.amount,
           userAddress: params.walletAddress,
-        }
-      }
-    ]
+        },
+      },
+    ],
   };
 }

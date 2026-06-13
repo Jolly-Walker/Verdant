@@ -1,5 +1,5 @@
 import 'server-only';
-import { ChainId } from '@/types/shared';
+import type { ChainId } from '@/types/shared';
 import { fetchWithTimeout } from '../utils/fetch';
 
 export const AAVE_SUBGRAPH_URLS: Partial<Record<ChainId, string>> = {
@@ -33,7 +33,10 @@ export interface AaveUserData {
  * Fetches Aave V3 user data from the subgraph.
  * Provides richer data than direct RPC, specifically per-reserve collateral info.
  */
-export async function fetchAaveUserData(address: string, chain: ChainId): Promise<AaveUserData | null> {
+export async function fetchAaveUserData(
+  address: string,
+  chain: ChainId,
+): Promise<AaveUserData | null> {
   const url = AAVE_SUBGRAPH_URLS[chain];
   if (!url) return null;
 
@@ -74,7 +77,7 @@ export async function fetchAaveUserData(address: string, chain: ChainId): Promis
     }
 
     const { data, errors } = await response.json();
-    
+
     if (errors && errors.length > 0) {
       console.error(`Subgraph errors on ${chain}:`, errors);
       return null;

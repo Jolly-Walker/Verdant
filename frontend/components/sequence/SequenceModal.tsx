@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useSequencer } from '@/hooks/useSequencer';
 import { useRouter } from 'next/navigation';
-import { TemplateParams, TemplateId } from '@/types/sequencer';
-import { ChainId, ProtocolId } from '@/types/shared';
+import React, { useEffect, useState } from 'react';
 import { TemplateSelector } from '@/components/sequence/TemplateSelector';
 import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import { useSequencer } from '@/hooks/useSequencer';
 import { computeOptimalCycles } from '@/lib/sequencer/templates/deleverageAave';
+import type { TemplateId, TemplateParams } from '@/types/sequencer';
+import type { ChainId, ProtocolId } from '@/types/shared';
 
 interface SequenceModalProps {
   isOpen: boolean;
@@ -202,7 +202,12 @@ export function SequenceModal({
             className="text-verdant-text-muted hover:text-verdant-text-primary transition-colors p-1 rounded-lg hover:bg-verdant-surface-accent"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -217,165 +222,201 @@ export function SequenceModal({
 
           {selectedTemplate === 'exitPendle' && !ptAddress ? (
             <div className="bg-verdant-surface-accent border border-verdant-loss/20 rounded-xl p-8 text-center">
-              <p className="text-verdant-loss">Please use the Exit button from your Pendle position.</p>
+              <p className="text-verdant-loss">
+                Please use the Exit button from your Pendle position.
+              </p>
             </div>
-          ) : selectedTemplate && (
-            <div className="bg-verdant-surface-accent border border-[#E5E0D8] rounded-xl p-6 space-y-4">
-              <h3 className="font-bold text-lg mb-4 text-verdant-text-primary">Configure Parameters</h3>
+          ) : (
+            selectedTemplate && (
+              <div className="bg-verdant-surface-accent border border-[#E5E0D8] rounded-xl p-6 space-y-4">
+                <h3 className="font-bold text-lg mb-4 text-verdant-text-primary">
+                  Configure Parameters
+                </h3>
 
-              <div className="space-y-4">
-                {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') ? (
-                  <>
+                <div className="space-y-4">
+                  {selectedTemplate === 'repayAndWithdraw' ||
+                  selectedTemplate === 'deleverageAave' ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                          Borrow Asset (to repay)
+                        </label>
+                        <select
+                          className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
+                          value={borrowAsset}
+                          onChange={(e) => setBorrowAsset(e.target.value)}
+                        >
+                          <option value="USDC">USDC</option>
+                          <option value="USDT">USDT</option>
+                          <option value="DAI">DAI</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                          Collateral Asset (to withdraw)
+                        </label>
+                        <select
+                          className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
+                          value={collateralAsset}
+                          onChange={(e) => setCollateralAsset(e.target.value)}
+                        >
+                          <option value="ETH">ETH</option>
+                          <option value="wstETH">wstETH</option>
+                          <option value="WBTC">WBTC</option>
+                        </select>
+                      </div>
+                    </>
+                  ) : (
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Borrow Asset (to repay)</label>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                        Asset
+                      </label>
                       <select
                         className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                        value={borrowAsset}
-                        onChange={(e) => setBorrowAsset(e.target.value)}
+                        value={asset}
+                        onChange={(e) => setAsset(e.target.value)}
                       >
                         <option value="USDC">USDC</option>
-                        <option value="USDT">USDT</option>
-                        <option value="DAI">DAI</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Collateral Asset (to withdraw)</label>
-                      <select
-                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                        value={collateralAsset}
-                        onChange={(e) => setCollateralAsset(e.target.value)}
-                      >
                         <option value="ETH">ETH</option>
-                        <option value="wstETH">wstETH</option>
-                        <option value="WBTC">WBTC</option>
                       </select>
                     </div>
-                  </>
-                ) : (
+                  )}
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Asset</label>
-                    <select
-                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                      value={asset}
-                      onChange={(e) => setAsset(e.target.value)}
-                    >
-                      <option value="USDC">USDC</option>
-                      <option value="ETH">ETH</option>
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
-                    {selectedTemplate === 'deleverageAave' ? 'Total Debt Amount' : 'Amount'}
-                  </label>
-                  <input
-                    type="number"
-                    className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                  />
-                </div>
-                {selectedTemplate === 'deleverageAave' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Unwind Cycles</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                      {selectedTemplate === 'deleverageAave' ? 'Total Debt Amount' : 'Amount'}
+                    </label>
                     <input
                       type="number"
-                      min="1"
-                      max="10"
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
-                      value={cycles}
-                      onChange={(e) => setCycles(parseInt(e.target.value) || 1)}
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
                     />
-                    <p className="text-xs text-verdant-text-muted mt-1">Higher cycles are safer but cost more gas.</p>
                   </div>
-                )}
-                {(selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') && (
-                  <>
+                  {selectedTemplate === 'deleverageAave' && (
                     <div>
-                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Total Collateral Amount</label>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                        Unwind Cycles
+                      </label>
                       <input
                         type="number"
+                        min="1"
+                        max="10"
                         className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
-                        value={collateralAmount}
-                        onChange={(e) => setCollateralAmount(e.target.value)}
+                        value={cycles}
+                        onChange={(e) => setCycles(parseInt(e.target.value) || 1)}
                       />
+                      <p className="text-xs text-verdant-text-muted mt-1">
+                        Higher cycles are safer but cost more gas.
+                      </p>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Current Health Factor</label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
-                        value={healthFactor}
-                        onChange={(e) => setHealthFactor(parseFloat(e.target.value) || 2.5)}
-                      />
-                    </div>
-                  </>
-                )}
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">From Chain</label>
-                  <select
-                    className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                    value={fromChain}
-                    onChange={(e) => setFromChain(e.target.value as ChainId)}
-                  >
-                    <option value="ethereum">Ethereum</option>
-                    <option value="arbitrum">Arbitrum</option>
-                    <option value="base">Base</option>
-                  </select>
-                </div>
-                {(selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave') && (
+                  )}
+                  {(selectedTemplate === 'repayAndWithdraw' ||
+                    selectedTemplate === 'deleverageAave') && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                          Total Collateral Amount
+                        </label>
+                        <input
+                          type="number"
+                          className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
+                          value={collateralAmount}
+                          onChange={(e) => setCollateralAmount(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                          Current Health Factor
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary font-mono"
+                          value={healthFactor}
+                          onChange={(e) => setHealthFactor(parseFloat(e.target.value) || 2.5)}
+                        />
+                      </div>
+                    </>
+                  )}
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">From Protocol</label>
+                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                      From Chain
+                    </label>
                     <select
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                      value={fromProtocol}
-                      onChange={(e) => setFromProtocol(e.target.value as ProtocolId)}
-                    >
-                      <option value="aave">Aave V3</option>
-                      <option value="morpho">Morpho</option>
-                      <option value="euler">Euler</option>
-                    </select>
-                  </div>
-                )}
-                {(selectedTemplate === 'bridgeAndDeposit' || selectedTemplate === 'crossChainRebalance' || selectedTemplate === 'exitPendle') && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">To Chain</label>
-                    <select
-                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                      value={toChain}
-                      onChange={(e) => setToChain(e.target.value as ChainId)}
+                      value={fromChain}
+                      onChange={(e) => setFromChain(e.target.value as ChainId)}
                     >
                       <option value="ethereum">Ethereum</option>
                       <option value="arbitrum">Arbitrum</option>
                       <option value="base">Base</option>
                     </select>
                   </div>
-                )}
-                {selectedTemplate !== 'repayAndWithdraw' && selectedTemplate !== 'deleverageAave' && selectedTemplate !== 'exitPendle' && (
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">Destination Protocol</label>
-                    <select
-                      className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
-                      value={toProtocol}
-                      onChange={(e) => setToProtocol(e.target.value as ProtocolId)}
-                    >
-                      <option value="aave">Aave V3</option>
-                      <option value="morpho">Morpho</option>
-                      <option value="euler">Euler</option>
-                    </select>
-                  </div>
-                )}
-              </div>
+                  {(selectedTemplate === 'crossChainRebalance' ||
+                    selectedTemplate === 'repayAndWithdraw' ||
+                    selectedTemplate === 'deleverageAave') && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                        From Protocol
+                      </label>
+                      <select
+                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
+                        value={fromProtocol}
+                        onChange={(e) => setFromProtocol(e.target.value as ProtocolId)}
+                      >
+                        <option value="aave">Aave V3</option>
+                        <option value="morpho">Morpho</option>
+                        <option value="euler">Euler</option>
+                      </select>
+                    </div>
+                  )}
+                  {(selectedTemplate === 'bridgeAndDeposit' ||
+                    selectedTemplate === 'crossChainRebalance' ||
+                    selectedTemplate === 'exitPendle') && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                        To Chain
+                      </label>
+                      <select
+                        className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
+                        value={toChain}
+                        onChange={(e) => setToChain(e.target.value as ChainId)}
+                      >
+                        <option value="ethereum">Ethereum</option>
+                        <option value="arbitrum">Arbitrum</option>
+                        <option value="base">Base</option>
+                      </select>
+                    </div>
+                  )}
+                  {selectedTemplate !== 'repayAndWithdraw' &&
+                    selectedTemplate !== 'deleverageAave' &&
+                    selectedTemplate !== 'exitPendle' && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                          Destination Protocol
+                        </label>
+                        <select
+                          className="w-full bg-verdant-surface border border-[#E5E0D8] rounded p-2 text-verdant-text-primary"
+                          value={toProtocol}
+                          onChange={(e) => setToProtocol(e.target.value as ProtocolId)}
+                        >
+                          <option value="aave">Aave V3</option>
+                          <option value="morpho">Morpho</option>
+                          <option value="euler">Euler</option>
+                        </select>
+                      </div>
+                    )}
+                </div>
 
-              <button
-                onClick={handleSubmit}
-                disabled={isSubmitting}
-                className="mt-8 w-full bg-verdant-moss text-white font-bold py-3 rounded-lg hover:bg-verdant-moss-dark disabled:opacity-50 transition-colors"
-              >
-                {isSubmitting ? 'Creating Plan...' : 'Create Sequence Plan'}
-              </button>
-            </div>
+                <button
+                  onClick={handleSubmit}
+                  disabled={isSubmitting}
+                  className="mt-8 w-full bg-verdant-moss text-white font-bold py-3 rounded-lg hover:bg-verdant-moss-dark disabled:opacity-50 transition-colors"
+                >
+                  {isSubmitting ? 'Creating Plan...' : 'Create Sequence Plan'}
+                </button>
+              </div>
+            )
           )}
         </div>
       </div>

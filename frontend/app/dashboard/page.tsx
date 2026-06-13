@@ -1,35 +1,40 @@
-'use client'
+'use client';
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useWallet } from '@/hooks/useWallet'
-import { ConnectButton } from '@/components/wallet/ConnectButton'
-import { PositionList } from '@/components/positions/PositionList'
-import { usePositions } from '@/hooks/usePositions'
-import { formatUsd } from '@/lib/utils/formatting'
-import { useSequenceModal } from '@/hooks/useSequenceModal'
-import { SequenceModal } from '@/components/sequence/SequenceModal'
-import { useSequenceBuilderModal } from '@/hooks/useSequenceBuilderModal'
-import { useLoopModal } from '@/hooks/useLoopModal'
-import { SequenceBuilderModal } from '@/components/sequenceBuilder/SequenceBuilderModal'
-import { LoopModal } from '@/components/loop/LoopModal'
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { LoopModal } from '@/components/loop/LoopModal';
+import { PositionList } from '@/components/positions/PositionList';
+import { SequenceModal } from '@/components/sequence/SequenceModal';
+import { SequenceBuilderModal } from '@/components/sequenceBuilder/SequenceBuilderModal';
+import { ConnectButton } from '@/components/wallet/ConnectButton';
+import { useLoopModal } from '@/hooks/useLoopModal';
+import { usePositions } from '@/hooks/usePositions';
+import { useSequenceBuilderModal } from '@/hooks/useSequenceBuilderModal';
+import { useSequenceModal } from '@/hooks/useSequenceModal';
+import { useWallet } from '@/hooks/useWallet';
+import { formatUsd } from '@/lib/utils/formatting';
 
 export default function Dashboard() {
-  const { isConnected, disconnect, isMounted } = useWallet()
-  const router = useRouter()
-  const { positions, isLoading, error, refetch, totalValueUsd, totalRewardsUsd } = usePositions()
-  const { isOpen, options, openModal, closeModal } = useSequenceModal()
-  const { isOpen: isBuilderOpen, builderPositionId, openBuilder, closeBuilder } = useSequenceBuilderModal()
-  const { isOpen: isLoopOpen, loopPosition, loopCollateral, openLoop, closeLoop } = useLoopModal()
+  const { isConnected, disconnect, isMounted } = useWallet();
+  const router = useRouter();
+  const { positions, isLoading, error, refetch, totalValueUsd, totalRewardsUsd } = usePositions();
+  const { isOpen, options, openModal, closeModal } = useSequenceModal();
+  const {
+    isOpen: isBuilderOpen,
+    builderPositionId,
+    openBuilder,
+    closeBuilder,
+  } = useSequenceBuilderModal();
+  const { isOpen: isLoopOpen, loopPosition, loopCollateral, openLoop, closeLoop } = useLoopModal();
 
   useEffect(() => {
     if (isMounted && !isConnected) {
-      router.push('/')
+      router.push('/');
     }
-  }, [isConnected, isMounted, router])
+  }, [isConnected, isMounted, router]);
 
   if (!isMounted || !isConnected) {
-    return null
+    return null;
   }
 
   return (
@@ -42,12 +47,16 @@ export default function Dashboard() {
               <div className="flex items-center gap-4 text-sm">
                 <div>
                   <span className="text-verdant-text-muted">Portfolio </span>
-                  <span className="font-semibold text-verdant-text-primary font-mono">{formatUsd(totalValueUsd)}</span>
+                  <span className="font-semibold text-verdant-text-primary font-mono">
+                    {formatUsd(totalValueUsd)}
+                  </span>
                 </div>
                 {totalRewardsUsd > 1 && (
                   <div>
                     <span className="text-verdant-text-muted">Claimable </span>
-                    <span className="font-semibold text-verdant-profit font-mono">{formatUsd(totalRewardsUsd)}</span>
+                    <span className="font-semibold text-verdant-profit font-mono">
+                      {formatUsd(totalRewardsUsd)}
+                    </span>
                   </div>
                 )}
               </div>
@@ -95,9 +104,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        <PositionList 
-          positions={positions} 
-          isLoading={isLoading} 
+        <PositionList
+          positions={positions}
+          isLoading={isLoading}
           onSequence={(template, params) => openModal({ template, params })}
           onOpenBuilder={(positionId) => openBuilder({ positionId })}
           onOpenLoop={(position, collateral) => openLoop(position, collateral)}
@@ -126,5 +135,5 @@ export default function Dashboard() {
         />
       )}
     </div>
-  )
+  );
 }

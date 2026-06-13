@@ -1,18 +1,19 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
-import { TokenState } from '@/lib/sequenceBuilder/types'
-import { estimateDemoSwapFee } from '@/lib/sequenceBuilder/fixtures'
-import { formatUsd, formatToken } from '@/lib/utils/formatting'
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import { estimateDemoSwapFee } from '@/lib/sequenceBuilder/fixtures';
+import type { TokenState } from '@/lib/sequenceBuilder/types';
+import { formatToken, formatUsd } from '@/lib/utils/formatting';
 
 interface SwapCardProps {
-  tokenIn: TokenState
-  selectedToToken?: string
-  selectedFeeUsd?: number
-  isActive: boolean
-  onSelect: (toToken: string, feeUsd: number, tokenOut: TokenState) => void
-  onFocus: () => void
+  tokenIn: TokenState;
+  selectedToToken?: string;
+  selectedFeeUsd?: number;
+  isActive: boolean;
+  onSelect: (toToken: string, feeUsd: number, tokenOut: TokenState) => void;
+  onFocus: () => void;
 }
 
 const TOKEN_PRICES: Record<string, number> = {
@@ -23,7 +24,7 @@ const TOKEN_PRICES: Record<string, number> = {
   WBTC: 65000.0,
   SOL: 140.0,
   LINK: 15.0,
-}
+};
 
 export function SwapCard({
   tokenIn,
@@ -31,49 +32,47 @@ export function SwapCard({
   selectedFeeUsd,
   isActive,
   onSelect,
-  onFocus
+  onFocus,
 }: SwapCardProps) {
   // Filter tokens available on this chain and not equal to tokenIn
-  const availableTokens = Object.keys(SUPPORTED_TOKENS).filter(
-    symbol => {
-      const config = SUPPORTED_TOKENS[symbol]
-      return config.addresses[tokenIn.chain] !== undefined && symbol !== tokenIn.token
-    }
-  )
+  const availableTokens = Object.keys(SUPPORTED_TOKENS).filter((symbol) => {
+    const config = SUPPORTED_TOKENS[symbol];
+    return config.addresses[tokenIn.chain] !== undefined && symbol !== tokenIn.token;
+  });
 
-  const [toToken, setToToken] = useState<string>(selectedToToken || availableTokens[0] || 'WETH')
+  const [toToken, setToToken] = useState<string>(selectedToToken || availableTokens[0] || 'WETH');
 
-  const feeUsd = estimateDemoSwapFee(tokenIn.amountUsd)
-  const outputAmountUsd = Math.max(tokenIn.amountUsd - feeUsd, 0)
-  
-  const toPrice = TOKEN_PRICES[toToken] || 1
-  const outputAmount = outputAmountUsd / toPrice
+  const feeUsd = estimateDemoSwapFee(tokenIn.amountUsd);
+  const outputAmountUsd = Math.max(tokenIn.amountUsd - feeUsd, 0);
+
+  const toPrice = TOKEN_PRICES[toToken] || 1;
+  const outputAmount = outputAmountUsd / toPrice;
 
   const handleTokenChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const symbol = e.target.value
-    setToToken(symbol)
-  }
+    const symbol = e.target.value;
+    setToToken(symbol);
+  };
 
   // Effect to automatically emit selection if we change token
   useEffect(() => {
     if (toToken) {
-      const currentToPrice = TOKEN_PRICES[toToken] || 1
-      const currentOutputAmount = outputAmountUsd / currentToPrice
+      const currentToPrice = TOKEN_PRICES[toToken] || 1;
+      const currentOutputAmount = outputAmountUsd / currentToPrice;
 
       onSelect(toToken, feeUsd, {
         token: toToken,
         chain: tokenIn.chain,
         amount: currentOutputAmount,
         amountUsd: outputAmountUsd,
-        positionType: 'wallet'
-      })
+        positionType: 'wallet',
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toToken, tokenIn.amountUsd])
+  }, [toToken, tokenIn.amountUsd]);
 
   // Complete (read-only) view
   if (!isActive && selectedToToken) {
-    const actualFeeUsd = selectedFeeUsd !== undefined ? selectedFeeUsd : feeUsd
+    const actualFeeUsd = selectedFeeUsd !== undefined ? selectedFeeUsd : feeUsd;
     return (
       <div
         onClick={onFocus}
@@ -87,14 +86,17 @@ export function SwapCard({
             {tokenIn.token} → {selectedToToken}
           </div>
           <div className="text-xs text-verdant-text-muted mt-1 font-mono">
-            1inch · <span className="font-semibold text-verdant-text-primary">{formatUsd(actualFeeUsd)} fee</span>
+            1inch ·{' '}
+            <span className="font-semibold text-verdant-text-primary">
+              {formatUsd(actualFeeUsd)} fee
+            </span>
           </div>
         </div>
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
           Rate: 1 {selectedToToken} = {formatUsd(toPrice)}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -118,7 +120,7 @@ export function SwapCard({
             onChange={handleTokenChange}
             className="w-full bg-verdant-canvas text-verdant-text-primary text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none"
           >
-            {availableTokens.map(symbol => (
+            {availableTokens.map((symbol) => (
               <option key={symbol} value={symbol}>
                 {symbol} ({SUPPORTED_TOKENS[symbol]?.name || ''})
               </option>
@@ -134,9 +136,7 @@ export function SwapCard({
           </div>
           <div className="flex justify-between">
             <span>Est. Fee:</span>
-            <span className="font-mono text-verdant-text-primary">
-              {formatUsd(feeUsd)} (0.04%)
-            </span>
+            <span className="font-mono text-verdant-text-primary">{formatUsd(feeUsd)} (0.04%)</span>
           </div>
           <div className="flex justify-between mt-1 font-mono text-[9px] text-verdant-profit">
             <span>Receive:</span>
@@ -147,5 +147,5 @@ export function SwapCard({
         </div>
       </div>
     </div>
-  )
+  );
 }

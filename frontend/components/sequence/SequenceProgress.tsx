@@ -1,11 +1,17 @@
 'use client';
 
-import React from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { SequencePlan } from '@/types/sequencer';
+import React from 'react';
 import { Spinner } from '@/components/ui/Spinner';
+import type { SequencePlan } from '@/types/sequencer';
 
-export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; currentStepId: string | null }) {
+export function SequenceProgress({
+  plan,
+  currentStepId,
+}: {
+  plan: SequencePlan;
+  currentStepId: string | null;
+}) {
   const prefersReducedMotion = useReducedMotion();
 
   const totalSteps = plan.steps.length;
@@ -28,9 +34,7 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
           initial={false}
           animate={{ scaleX: fillFraction }}
           transition={
-            prefersReducedMotion
-              ? { duration: 0 }
-              : { type: 'spring', stiffness: 120, damping: 24 }
+            prefersReducedMotion ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 24 }
           }
         />
 
@@ -40,13 +44,21 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
           const isFailed = step.status === 'failed';
 
           return (
-            <div key={step.id} className="flex flex-col items-center relative z-10 bg-verdant-canvas px-4">
+            <div
+              key={step.id}
+              className="flex flex-col items-center relative z-10 bg-verdant-canvas px-4"
+            >
               <motion.div
                 className={`w-10 h-10 rounded-full flex items-center justify-center border-2
-                  ${isCompleted ? 'bg-verdant-profit border-verdant-profit text-white' :
-                    isFailed ? 'bg-verdant-loss border-verdant-loss text-white' :
-                    isActive ? 'bg-verdant-canvas border-verdant-moss text-verdant-moss' :
-                    'bg-verdant-canvas border-[#E5E0D8] text-verdant-text-muted'}`}
+                  ${
+                    isCompleted
+                      ? 'bg-verdant-profit border-verdant-profit text-white'
+                      : isFailed
+                        ? 'bg-verdant-loss border-verdant-loss text-white'
+                        : isActive
+                          ? 'bg-verdant-canvas border-verdant-moss text-verdant-moss'
+                          : 'bg-verdant-canvas border-[#E5E0D8] text-verdant-text-muted'
+                  }`}
                 style={{ transition: 'background-color 0.4s, border-color 0.4s, color 0.4s' }}
                 initial={false}
                 animate={
@@ -61,12 +73,17 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
                   prefersReducedMotion
                     ? { duration: 0 }
                     : isActive && !isCompleted
-                    ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }
-                    : { duration: 0.4, ease: 'easeOut' }
+                      ? { duration: 1.6, repeat: Infinity, ease: 'easeInOut' }
+                      : { duration: 0.4, ease: 'easeOut' }
                 }
               >
                 {isCompleted ? (
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
                     <motion.path
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -82,11 +99,24 @@ export function SequenceProgress({ plan, currentStepId }: { plan: SequencePlan; 
                     />
                   </svg>
                 ) : isFailed ? (
-                  <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="w-6 h-6 text-white"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={3}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 ) : step.status === 'simulating' || step.status === 'signing' ? (
-                  <Spinner size="sm" className={isActive ? 'text-verdant-moss' : 'text-verdant-text-muted'} />
+                  <Spinner
+                    size="sm"
+                    className={isActive ? 'text-verdant-moss' : 'text-verdant-text-muted'}
+                  />
                 ) : (
                   <span className="font-semibold">{index + 1}</span>
                 )}

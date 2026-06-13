@@ -1,33 +1,27 @@
-import 'server-only'
-import { fetchPoolApys, DefillamaPool } from './defillama'
-import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { CHAIN_REGISTRY } from '@/lib/plugins/chains'
-import { DepositDestination } from '@/lib/sequenceBuilder/types'
-import { ChainId, ProtocolId } from '@/types/shared'
+import 'server-only';
+import { CHAIN_REGISTRY } from '@/lib/plugins/chains';
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols';
+import type { DepositDestination } from '@/lib/sequenceBuilder/types';
+import type { ChainId, ProtocolId } from '@/types/shared';
+import { type DefillamaPool, fetchPoolApys } from './defillama';
 
-const MIN_TVL_USD = 1_000_000
-const EXCLUDED_CATEGORIES = ['Liquidity Pool', 'LP']
-const INCLUDED_EXPOSURE: Array<DefillamaPool['exposure']> = ['single', null]
+const MIN_TVL_USD = 1_000_000;
+const EXCLUDED_CATEGORIES = ['Liquidity Pool', 'LP'];
+const INCLUDED_EXPOSURE: Array<DefillamaPool['exposure']> = ['single', null];
 
 // DeFi Llama category strings that correspond to lending/supply/staking
-const INCLUDED_CATEGORIES = [
-  'Lending',
-  'CDP',
-  'Staking',
-  'Yield',
-  'Restaking',
-]
+const INCLUDED_CATEGORIES = ['Lending', 'CDP', 'Staking', 'Yield', 'Restaking'];
 
 /**
  * Derives a Verdant ChainId from DeFi Llama's chain name string.
  * Built from the chain registry — no hardcoding.
  */
 function buildChainLookup(): Record<string, ChainId> {
-  const lookup: Record<string, ChainId> = {}
+  const lookup: Record<string, ChainId> = {};
   for (const plugin of Object.values(CHAIN_REGISTRY)) {
-    lookup[plugin.defillamaChain.toLowerCase()] = plugin.id
+    lookup[plugin.defillamaChain.toLowerCase()] = plugin.id;
   }
-  return lookup
+  return lookup;
 }
 
 /**
@@ -35,11 +29,11 @@ function buildChainLookup(): Record<string, ChainId> {
  * Derived from the protocol registry — no hardcoding.
  */
 function buildProtocolLookup(): Record<string, ProtocolId> {
-  const lookup: Record<string, ProtocolId> = {}
+  const lookup: Record<string, ProtocolId> = {};
   for (const plugin of Object.values(PROTOCOL_REGISTRY)) {
-    lookup[plugin.defillamaSlug.toLowerCase()] = plugin.id
+    lookup[plugin.defillamaSlug.toLowerCase()] = plugin.id;
   }
-  return lookup
+  return lookup;
 }
 
 /**
@@ -54,38 +48,34 @@ function buildProtocolLookup(): Record<string, ProtocolId> {
  * Returns null if the symbol appears to be multi-asset.
  */
 function extractInputToken(symbol: string): string | null {
-  if (symbol.includes('-')) return null  // LP pair
+  if (symbol.includes('-')) return null; // LP pair
   const cleaned = symbol
-    .replace(/\(.*?\)/g, '')   // remove parenthetical annotations
-    .replace(/[+*]/g, '')      // remove modifier characters
+    .replace(/\(.*?\)/g, '') // remove parenthetical annotations
+    .replace(/[+*]/g, '') // remove modifier characters
     .trim()
-    .toUpperCase()
-  if (!cleaned) return null
-  return cleaned
+    .toUpperCase();
+  if (!cleaned) return null;
+  return cleaned;
 }
 
 /**
  * Derives a display name from the pool data.
  * Format: '{ProtocolDisplayName} — {poolMeta or symbol}'
  */
-function buildDisplayName(
-  pool: DefillamaPool,
-  protocolDisplayName: string,
-  token: string
-): string {
+function buildDisplayName(pool: DefillamaPool, protocolDisplayName: string, token: string): string {
   if (pool.poolMeta) {
     // poolMeta contains vault-specific names like 'Gauntlet USDC Core'
-    return `${protocolDisplayName} — ${pool.poolMeta}`
+    return `${protocolDisplayName} — ${pool.poolMeta}`;
   }
   // Fall back to the already-extracted token symbol
-  return `${protocolDisplayName} — ${token}`
+  return `${protocolDisplayName} — ${token}`;
 }
 
 // Receipt-token symbol prefix per protocol (e.g. aUSDC, eUSDC)
 const RECEIPT_TOKEN_PREFIX: Partial<Record<ProtocolId, string>> = {
   aave: 'a',
   euler: 'e',
-}
+};
 
 /**
  * Extracts lock period information from a pool.
@@ -96,25 +86,25 @@ const RECEIPT_TOKEN_PREFIX: Partial<Record<ProtocolId, string>> = {
  * extracted if a number precedes 'day' or 'd' in the meta text.
  */
 function extractLockInfo(pool: DefillamaPool): {
-  lockPeriodDays: number | null
-  lockDescription: string | null
+  lockPeriodDays: number | null;
+  lockDescription: string | null;
 } {
-  if (!pool.poolMeta) return { lockPeriodDays: null, lockDescription: null }
+  if (!pool.poolMeta) return { lockPeriodDays: null, lockDescription: null };
 
-  const meta = pool.poolMeta.toLowerCase()
-  const lockKeywords = ['lock', 'vest', 'locked', 'vesting', 'unbonding', 'cooldown']
-  const hasLock = lockKeywords.some(kw => meta.includes(kw))
+  const meta = pool.poolMeta.toLowerCase();
+  const lockKeywords = ['lock', 'vest', 'locked', 'vesting', 'unbonding', 'cooldown'];
+  const hasLock = lockKeywords.some((kw) => meta.includes(kw));
 
-  if (!hasLock) return { lockPeriodDays: null, lockDescription: null }
+  if (!hasLock) return { lockPeriodDays: null, lockDescription: null };
 
   // Try to extract a day count: "90d", "90 days", "90-day"
-  const dayMatch = meta.match(/(\d+)\s*-?\s*d(ay)?s?/)
-  const lockPeriodDays = dayMatch ? parseInt(dayMatch[1], 10) : null
+  const dayMatch = meta.match(/(\d+)\s*-?\s*d(ay)?s?/);
+  const lockPeriodDays = dayMatch ? parseInt(dayMatch[1], 10) : null;
 
   return {
     lockPeriodDays,
-    lockDescription: pool.poolMeta,  // show the original text in the UI
-  }
+    lockDescription: pool.poolMeta, // show the original text in the UI
+  };
 }
 
 /**
@@ -122,25 +112,25 @@ function extractLockInfo(pool: DefillamaPool): {
  */
 function isEligible(pool: DefillamaPool): boolean {
   // Must be above TVL floor
-  if (pool.tvlUsd < MIN_TVL_USD) return false
+  if (pool.tvlUsd < MIN_TVL_USD) return false;
 
   // Must be audited
-  if (!pool.audits) return false
+  if (!pool.audits) return false;
 
   // Must be single-asset exposure (excludes LPs)
-  if (!INCLUDED_EXPOSURE.includes(pool.exposure)) return false
+  if (!INCLUDED_EXPOSURE.includes(pool.exposure)) return false;
 
-  const category = pool.category?.toLowerCase()
+  const category = pool.category?.toLowerCase();
   if (category) {
     // Must not be an LP category even if exposure was null
-    if (EXCLUDED_CATEGORIES.some(c => category.includes(c.toLowerCase()))) return false
+    if (EXCLUDED_CATEGORIES.some((c) => category.includes(c.toLowerCase()))) return false;
     // Must be a lending/supply/staking category (uncategorised pools pass)
-    if (!INCLUDED_CATEGORIES.some(c => category.includes(c.toLowerCase()))) return false
+    if (!INCLUDED_CATEGORIES.some((c) => category.includes(c.toLowerCase()))) return false;
   }
 
   // Parseable single-asset symbol is re-checked in the main loop (extractInputToken)
 
-  return true
+  return true;
 }
 
 /**
@@ -152,47 +142,47 @@ function isEligible(pool: DefillamaPool): boolean {
  */
 export async function fetchDepositDestinations(
   filterToken?: string,
-  filterChain?: ChainId
+  filterChain?: ChainId,
 ): Promise<DepositDestination[]> {
-  const pools = await fetchPoolApys()
-  const chainLookup = buildChainLookup()
-  const protocolLookup = buildProtocolLookup()
+  const pools = await fetchPoolApys();
+  const chainLookup = buildChainLookup();
+  const protocolLookup = buildProtocolLookup();
 
-  const destinations: DepositDestination[] = []
+  const destinations: DepositDestination[] = [];
 
   for (const pool of pools) {
-    if (!isEligible(pool)) continue
+    if (!isEligible(pool)) continue;
 
     // Match chain
-    const chainId = chainLookup[pool.chain.toLowerCase()]
-    if (!chainId) continue  // chain not supported by Verdant
-    if (filterChain && chainId !== filterChain) continue
+    const chainId = chainLookup[pool.chain.toLowerCase()];
+    if (!chainId) continue; // chain not supported by Verdant
+    if (filterChain && chainId !== filterChain) continue;
 
     // Match protocol
-    const protocolId = protocolLookup[pool.project.toLowerCase()]
-    if (!protocolId) continue  // protocol not registered
-    const protocolPlugin = PROTOCOL_REGISTRY[protocolId]
+    const protocolId = protocolLookup[pool.project.toLowerCase()];
+    if (!protocolId) continue; // protocol not registered
+    const protocolPlugin = PROTOCOL_REGISTRY[protocolId];
 
     // Ensure the protocol supports supply/deposit operations
-    if (!protocolPlugin.supportedPositionTypes.includes('supply')) continue
+    if (!protocolPlugin.supportedPositionTypes.includes('supply')) continue;
 
     // Match token
-    const token = extractInputToken(pool.symbol)
-    if (!token) continue
-    if (filterToken && token !== filterToken.toUpperCase()) continue
+    const token = extractInputToken(pool.symbol);
+    if (!token) continue;
+    if (filterToken && token !== filterToken.toUpperCase()) continue;
 
-    const { lockPeriodDays, lockDescription } = extractLockInfo(pool)
+    const { lockPeriodDays, lockDescription } = extractLockInfo(pool);
 
     // Derive receipt token outputTokenSymbol (e.g. aUSDC, eUSDC)
-    const receiptPrefix = RECEIPT_TOKEN_PREFIX[protocolId]
-    const outputTokenSymbol = receiptPrefix ? `${receiptPrefix}${token}` : pool.symbol
+    const receiptPrefix = RECEIPT_TOKEN_PREFIX[protocolId];
+    const outputTokenSymbol = receiptPrefix ? `${receiptPrefix}${token}` : pool.symbol;
 
     destinations.push({
-      id: pool.pool,              // DeFi Llama UUID — stable
+      id: pool.pool, // DeFi Llama UUID — stable
       protocol: protocolId,
       chain: chainId,
       token,
-      apy: pool.apy / 100,       // DeFi Llama returns percentage, convert to decimal
+      apy: pool.apy / 100, // DeFi Llama returns percentage, convert to decimal
       apyMean30d: pool.apyMean30d != null ? pool.apyMean30d / 100 : null,
       apyBase: pool.apyBase != null ? pool.apyBase / 100 : null,
       apyReward: pool.apyReward != null ? pool.apyReward / 100 : null,
@@ -203,9 +193,9 @@ export async function fetchDepositDestinations(
       rewardTokens: pool.rewardTokens ?? [],
       lockPeriodDays,
       lockDescription,
-    })
+    });
   }
 
   // Sort: highest current APY first
-  return destinations.sort((a, b) => b.apy - a.apy)
+  return destinations.sort((a, b) => b.apy - a.apy);
 }

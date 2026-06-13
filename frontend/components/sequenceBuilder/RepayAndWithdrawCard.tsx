@@ -1,17 +1,17 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
-import { Position } from '@/types/position'
-import { TokenState } from '@/lib/sequenceBuilder/types'
-import { formatUsd, formatToken } from '@/lib/utils/formatting'
+import React, { useState } from 'react';
+import type { TokenState } from '@/lib/sequenceBuilder/types';
+import { formatToken, formatUsd } from '@/lib/utils/formatting';
+import type { Position } from '@/types/position';
 
 interface RepayAndWithdrawCardProps {
-  tokenIn: TokenState
-  userPositions: Position[]
-  selectedPositionId?: string
-  isActive: boolean
-  onSelect: (positionId: string, tokenOut: TokenState) => void
-  onFocus: () => void
+  tokenIn: TokenState;
+  userPositions: Position[];
+  selectedPositionId?: string;
+  isActive: boolean;
+  onSelect: (positionId: string, tokenOut: TokenState) => void;
+  onFocus: () => void;
 }
 
 export function RepayAndWithdrawCard({
@@ -20,30 +20,29 @@ export function RepayAndWithdrawCard({
   selectedPositionId,
   isActive,
   onSelect,
-  onFocus
+  onFocus,
 }: RepayAndWithdrawCardProps) {
   const matchingBorrows = userPositions.filter(
-    p => p.positionType === 'borrow' &&
-         p.chain === tokenIn.chain &&
-         p.asset === tokenIn.token
-  )
+    (p) => p.positionType === 'borrow' && p.chain === tokenIn.chain && p.asset === tokenIn.token,
+  );
 
-  const [selectedId, setSelectedId] = useState<string | null>(selectedPositionId || null)
+  const [selectedId, setSelectedId] = useState<string | null>(selectedPositionId || null);
 
   const getCollateralPosition = (borrowPos: Position) => {
     const potentialCollaterals = userPositions.filter(
-      p => p.chain === borrowPos.chain &&
-           p.protocol === borrowPos.protocol &&
-           p.positionType === 'supply'
-    )
+      (p) =>
+        p.chain === borrowPos.chain &&
+        p.protocol === borrowPos.protocol &&
+        p.positionType === 'supply',
+    );
     return potentialCollaterals.length > 0
       ? [...potentialCollaterals].sort((a, b) => b.amountUsd - a.amountUsd)[0]
-      : undefined
-  }
+      : undefined;
+  };
 
   const handleRowClick = (pos: Position) => {
-    setSelectedId(pos.id)
-    const collateral = getCollateralPosition(pos)
+    setSelectedId(pos.id);
+    const collateral = getCollateralPosition(pos);
     if (collateral) {
       onSelect(pos.id, {
         token: collateral.asset,
@@ -51,8 +50,8 @@ export function RepayAndWithdrawCard({
         amount: collateral.amount,
         amountUsd: collateral.amountUsd,
         sourcePositionId: collateral.id,
-        positionType: 'supply'
-      })
+        positionType: 'supply',
+      });
     } else {
       // Emit fallback empty state if no collateral found
       onSelect(pos.id, {
@@ -60,17 +59,22 @@ export function RepayAndWithdrawCard({
         chain: pos.chain,
         amount: 0,
         amountUsd: 0,
-        positionType: 'supply'
-      })
+        positionType: 'supply',
+      });
     }
-  }
+  };
 
-  const selectedPosition = userPositions.find(p => p.id === selectedPositionId)
-  const collateralPosition = selectedPosition ? getCollateralPosition(selectedPosition) : undefined
+  const selectedPosition = userPositions.find((p) => p.id === selectedPositionId);
+  const collateralPosition = selectedPosition ? getCollateralPosition(selectedPosition) : undefined;
 
   // Complete (read-only) view
   if (!isActive && selectedPosition) {
-    const displayProtocol = selectedPosition.protocol === 'aave' ? 'Aave' : selectedPosition.protocol === 'morpho' ? 'Morpho' : selectedPosition.protocol
+    const displayProtocol =
+      selectedPosition.protocol === 'aave'
+        ? 'Aave'
+        : selectedPosition.protocol === 'morpho'
+          ? 'Morpho'
+          : selectedPosition.protocol;
     return (
       <div
         onClick={onFocus}
@@ -81,7 +85,8 @@ export function RepayAndWithdrawCard({
             REPAY & WITHDRAW
           </div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug">
-            {displayProtocol} {selectedPosition.asset} debt · <span className="font-mono">{formatUsd(selectedPosition.amountUsd)}</span>
+            {displayProtocol} {selectedPosition.asset} debt ·{' '}
+            <span className="font-mono">{formatUsd(selectedPosition.amountUsd)}</span>
           </div>
         </div>
         <div className="mt-4 pt-2 border-t border-[#D5E8E0]">
@@ -102,7 +107,7 @@ export function RepayAndWithdrawCard({
           )}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -113,10 +118,15 @@ export function RepayAndWithdrawCard({
         </div>
 
         <div className="space-y-2 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
-          {matchingBorrows.map(pos => {
-            const isSel = pos.id === selectedId
-            const displayProtocol = pos.protocol === 'aave' ? 'Aave V3' : pos.protocol === 'morpho' ? 'Morpho' : pos.protocol
-            const col = getCollateralPosition(pos)
+          {matchingBorrows.map((pos) => {
+            const isSel = pos.id === selectedId;
+            const displayProtocol =
+              pos.protocol === 'aave'
+                ? 'Aave V3'
+                : pos.protocol === 'morpho'
+                  ? 'Morpho'
+                  : pos.protocol;
+            const col = getCollateralPosition(pos);
             return (
               <div
                 key={pos.id}
@@ -142,7 +152,7 @@ export function RepayAndWithdrawCard({
                   </div>
                 )}
               </div>
-            )
+            );
           })}
 
           {matchingBorrows.length === 0 && (
@@ -153,5 +163,5 @@ export function RepayAndWithdrawCard({
         </div>
       </div>
     </div>
-  )
+  );
 }

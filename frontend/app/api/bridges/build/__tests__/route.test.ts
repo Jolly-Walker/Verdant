@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { POST } from '../route';
 import { NextRequest } from 'next/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { simulateTransaction } from '@/lib/simulation/simulate';
+import { POST } from '../route';
 
 vi.mock('server-only', () => ({}));
 
@@ -13,14 +13,14 @@ vi.mock('@/lib/plugins/bridges', () => ({
         to: '0xContract',
         data: '0xData',
         value: 1000000000000000000n,
-        description: 'Test Bridge'
-      })
-    }
-  }
+        description: 'Test Bridge',
+      }),
+    },
+  },
 }));
 
 vi.mock('@/lib/simulation/simulate', () => ({
-  simulateTransaction: vi.fn()
+  simulateTransaction: vi.fn(),
 }));
 
 describe('Bridge Build API Route', () => {
@@ -31,7 +31,7 @@ describe('Bridge Build API Route', () => {
   const createMockRequest = (body: Record<string, unknown>) => {
     return new NextRequest('http://localhost/api/bridges/build', {
       method: 'POST',
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
   };
 
@@ -49,7 +49,7 @@ describe('Bridge Build API Route', () => {
   it('returns 400 if validation fails due to missing walletAddress', async () => {
     const req = createMockRequest({
       bridgeId: 'across',
-      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 }),
     });
 
     const res = await POST(req);
@@ -62,7 +62,7 @@ describe('Bridge Build API Route', () => {
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0xMismatch',
-      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 }),
     });
 
     const res = await POST(req);
@@ -75,7 +75,7 @@ describe('Bridge Build API Route', () => {
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0x123',
-      quote: fullQuote({ recipientAddress: '0x123', originChainId: 999999 }) // Unsupported chain ID
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 999999 }), // Unsupported chain ID
     });
 
     const res = await POST(req);
@@ -88,13 +88,13 @@ describe('Bridge Build API Route', () => {
     vi.mocked(simulateTransaction).mockResolvedValue({
       success: false,
       revertReason: 'Insufficient balance',
-      simulatedAt: new Date()
+      simulatedAt: new Date(),
     });
 
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0x123',
-      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 }),
     });
 
     const res = await POST(req);
@@ -108,13 +108,13 @@ describe('Bridge Build API Route', () => {
       success: true,
       gasEstimate: 21000n,
       gasCostUsd: 0.5,
-      simulatedAt: new Date()
+      simulatedAt: new Date(),
     });
 
     const req = createMockRequest({
       bridgeId: 'across',
       walletAddress: '0x123',
-      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 })
+      quote: fullQuote({ recipientAddress: '0x123', originChainId: 1 }),
     });
 
     const res = await POST(req);

@@ -1,17 +1,17 @@
-'use client'
+'use client';
 
-import React, { useState } from 'react'
-import { Position } from '@/types/position'
-import { TokenState } from '@/lib/sequenceBuilder/types'
-import { formatUsd, formatPercent } from '@/lib/utils/formatting'
+import React, { useState } from 'react';
+import type { TokenState } from '@/lib/sequenceBuilder/types';
+import { formatPercent, formatUsd } from '@/lib/utils/formatting';
+import type { Position } from '@/types/position';
 
 interface RepayCardProps {
-  tokenIn: TokenState
-  userPositions: Position[]
-  selectedPositionId?: string
-  isActive: boolean
-  onSelect: (positionId: string) => void
-  onFocus: () => void
+  tokenIn: TokenState;
+  userPositions: Position[];
+  selectedPositionId?: string;
+  isActive: boolean;
+  onSelect: (positionId: string) => void;
+  onFocus: () => void;
 }
 
 export function RepayCard({
@@ -20,22 +20,20 @@ export function RepayCard({
   selectedPositionId,
   isActive,
   onSelect,
-  onFocus
+  onFocus,
 }: RepayCardProps) {
   const matchingBorrows = userPositions.filter(
-    p => p.positionType === 'borrow' &&
-         p.chain === tokenIn.chain &&
-         p.asset === tokenIn.token
-  )
+    (p) => p.positionType === 'borrow' && p.chain === tokenIn.chain && p.asset === tokenIn.token,
+  );
 
-  const [selectedId, setSelectedId] = useState<string | null>(selectedPositionId || null)
+  const [selectedId, setSelectedId] = useState<string | null>(selectedPositionId || null);
 
   const handleRowClick = (pos: Position) => {
-    setSelectedId(pos.id)
-    onSelect(pos.id)
-  }
+    setSelectedId(pos.id);
+    onSelect(pos.id);
+  };
 
-  const selectedPosition = userPositions.find(p => p.id === selectedPositionId)
+  const selectedPosition = userPositions.find((p) => p.id === selectedPositionId);
 
   // Complete (read-only) view
   if (!isActive && selectedPosition) {
@@ -49,17 +47,25 @@ export function RepayCard({
             REPAY
           </div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug">
-            {selectedPosition.protocol === 'aave' ? 'Aave V3' : selectedPosition.protocol === 'morpho' ? 'Morpho' : selectedPosition.protocol} — {selectedPosition.asset} Debt
+            {selectedPosition.protocol === 'aave'
+              ? 'Aave V3'
+              : selectedPosition.protocol === 'morpho'
+                ? 'Morpho'
+                : selectedPosition.protocol}{' '}
+            — {selectedPosition.asset} Debt
           </div>
           <div className="text-xs text-verdant-text-muted mt-1 capitalize">
-            {selectedPosition.chain} · <span className="font-mono text-verdant-loss font-semibold">{formatPercent(selectedPosition.currentApy || selectedPosition.borrowApy || 0)} APY</span>
+            {selectedPosition.chain} ·{' '}
+            <span className="font-mono text-verdant-loss font-semibold">
+              {formatPercent(selectedPosition.currentApy || selectedPosition.borrowApy || 0)} APY
+            </span>
           </div>
         </div>
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-loss font-semibold">
           {formatUsd(selectedPosition.amountUsd)} owed
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -70,9 +76,14 @@ export function RepayCard({
         </div>
 
         <div className="space-y-2 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
-          {matchingBorrows.map(pos => {
-            const isSel = pos.id === selectedId
-            const displayProtocol = pos.protocol === 'aave' ? 'Aave V3' : pos.protocol === 'morpho' ? 'Morpho' : pos.protocol
+          {matchingBorrows.map((pos) => {
+            const isSel = pos.id === selectedId;
+            const displayProtocol =
+              pos.protocol === 'aave'
+                ? 'Aave V3'
+                : pos.protocol === 'morpho'
+                  ? 'Morpho'
+                  : pos.protocol;
             return (
               <div
                 key={pos.id}
@@ -96,9 +107,9 @@ export function RepayCard({
                   {formatPercent(pos.currentApy || pos.borrowApy || 0)} borrow APY
                 </div>
               </div>
-            )
+            );
           })}
-          
+
           {matchingBorrows.length === 0 && (
             <div className="text-xs text-verdant-text-muted text-center py-6">
               No matching debt positions on {tokenIn.chain}.
@@ -107,5 +118,5 @@ export function RepayCard({
         </div>
       </div>
     </div>
-  )
+  );
 }

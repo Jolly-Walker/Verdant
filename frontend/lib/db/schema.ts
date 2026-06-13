@@ -6,7 +6,7 @@
  * Numeric columns are returned by the driver as strings (Postgres `numeric` has
  * arbitrary precision); repositories convert them to `number` at their boundary.
  */
-import { sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -17,9 +17,9 @@ import {
   timestamp,
   unique,
   uuid,
-} from 'drizzle-orm/pg-core'
-import type { SerializedSequenceStep, SequencePlan } from '@/types/sequencer'
-import type { BridgeQuote } from '@/types/shared'
+} from 'drizzle-orm/pg-core';
+import type { SequencePlan, SerializedSequenceStep } from '@/types/sequencer';
+import type { BridgeQuote } from '@/types/shared';
 
 /** 001_user_settings.sql, 009_add_min_usd_threshold.sql */
 export const userSettings = pgTable('user_settings', {
@@ -27,7 +27,7 @@ export const userSettings = pgTable('user_settings', {
   minUsdThreshold: numeric('min_usd_threshold').default('1'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-})
+});
 
 /** 002_auto_compound_settings.sql */
 export const autoCompoundSettings = pgTable(
@@ -44,8 +44,8 @@ export const autoCompoundSettings = pgTable(
   },
   (t) => ({
     walletProtocolChainAsset: unique().on(t.walletAddress, t.protocol, t.chain, t.asset),
-  })
-)
+  }),
+);
 
 /** 005_sequence_plans.sql, 010_add_position_size_usd.sql */
 export const sequencePlans = pgTable(
@@ -66,8 +66,8 @@ export const sequencePlans = pgTable(
   (t) => ({
     walletIdx: index('idx_sequence_plans_wallet').on(t.walletAddress),
     statusIdx: index('idx_sequence_plans_status').on(t.status),
-  })
-)
+  }),
+);
 
 /** 003_execution_history.sql, 006_update_execution_history.sql */
 export const executionHistory = pgTable(
@@ -93,8 +93,8 @@ export const executionHistory = pgTable(
   },
   (t) => ({
     planIdx: index('idx_execution_history_plan_id').on(t.planId),
-  })
-)
+  }),
+);
 
 /** 004_harvest_history.sql, 008_harvest_history_update.sql */
 export const harvestHistory = pgTable(
@@ -114,10 +114,10 @@ export const harvestHistory = pgTable(
     walletProtocolIdx: index('harvest_history_wallet_protocol_idx').on(
       t.walletAddress,
       t.protocol,
-      sql`${t.createdAt} DESC`
+      sql`${t.createdAt} DESC`,
     ),
-  })
-)
+  }),
+);
 
 /** 007_bridge_quotes_cache.sql */
 export const bridgeQuotesCache = pgTable(
@@ -139,7 +139,7 @@ export const bridgeQuotesCache = pgTable(
       t.toChain,
       t.token,
       t.amountWei,
-      t.recipient
+      t.recipient,
     ),
-  })
-)
+  }),
+);

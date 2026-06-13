@@ -1,23 +1,18 @@
-'use client'
+'use client';
 
-import React from 'react'
-import { TokenState } from '@/lib/sequenceBuilder/types'
-import { formatUsd, formatToken } from '@/lib/utils/formatting'
+import React from 'react';
+import type { TokenState } from '@/lib/sequenceBuilder/types';
+import { formatToken, formatUsd } from '@/lib/utils/formatting';
 
 interface WithdrawCardProps {
-  tokenIn: TokenState
-  isActive: boolean
-  onConfirm: (tokenOut: TokenState) => void
-  onFocus: () => void
+  tokenIn: TokenState;
+  isActive: boolean;
+  onConfirm: (tokenOut: TokenState) => void;
+  onFocus: () => void;
 }
 
-export function WithdrawCard({
-  tokenIn,
-  isActive,
-  onConfirm,
-  onFocus
-}: WithdrawCardProps) {
-  const protocolLabel = tokenIn.sourcePositionId ? 'Aave' : 'Protocol'
+export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: WithdrawCardProps) {
+  const protocolLabel = tokenIn.sourcePositionId ? 'Aave' : 'Protocol';
 
   const handleConfirm = () => {
     onConfirm({
@@ -25,9 +20,9 @@ export function WithdrawCard({
       chain: tokenIn.chain,
       amount: tokenIn.amount,
       amountUsd: tokenIn.amountUsd,
-      positionType: 'wallet'
-    })
-  }
+      positionType: 'wallet',
+    });
+  };
 
   // Complete (read-only) view
   if (!isActive) {
@@ -51,7 +46,7 @@ export function WithdrawCard({
           {formatUsd(tokenIn.amountUsd)} → {formatToken(tokenIn.amount)} {tokenIn.token}
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -67,8 +62,7 @@ export function WithdrawCard({
 
         <div className="space-y-1 text-[11px] text-verdant-text-muted mt-2">
           <div>
-            Protocol:{' '}
-            <span className="font-medium text-verdant-text-primary">{protocolLabel}</span>
+            Protocol: <span className="font-medium text-verdant-text-primary">{protocolLabel}</span>
           </div>
           <div>
             Chain:{' '}
@@ -77,8 +71,7 @@ export function WithdrawCard({
             </span>
           </div>
           <div>
-            Asset:{' '}
-            <span className="font-medium text-verdant-text-primary">{tokenIn.token}</span>
+            Asset: <span className="font-medium text-verdant-text-primary">{tokenIn.token}</span>
           </div>
           <div className="pt-2 font-mono font-bold text-verdant-text-primary text-xs">
             {formatToken(tokenIn.amount)} {tokenIn.token}
@@ -96,5 +89,5 @@ export function WithdrawCard({
         Confirm Withdraw
       </button>
     </div>
-  )
+  );
 }

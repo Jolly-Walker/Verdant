@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Verdant is a discretionary multi-chain DeFi portfolio manager (Next.js 14 App Router, TypeScript). The app and all tooling live in `frontend/` — run every command from there. `SPECS.md` is the product/architecture source of truth; `AGENTS.md` holds hard rules that have caused real bugs when ignored (see "Non-negotiable conventions" below).
+Verdant is a discretionary multi-chain DeFi portfolio manager (Next.js 14 App Router, TypeScript) for on-chain power users managing $100K–$10M across Ethereum, Arbitrum, Base, and Solana. The user makes every allocation decision; Verdant makes executing them fast and transparent via an N-step transaction sequencer with mandatory pre-signature simulation. The app and all tooling live in `frontend/` — run every command from there. `SPECS.md` is the product/architecture source of truth. Hard rules that have caused real bugs when ignored live in "Non-negotiable conventions" below; product scope and security guardrails are in "Scope & guardrails".
 
 ## Commands
 
@@ -56,10 +56,19 @@ DB access is Drizzle ORM over `postgres-js` (`lib/db/client.ts` lazy server-only
 ### Demo mode
 `NEXT_PUBLIC_DEMO_MODE` is a build-time constant. `useWallet`/`usePositions`/`useSequencer`/`useSequenceCost` branch at the top to `useDemo*` variants (fixtures in `lib/demo/`) to avoid conditional-hook violations. Demo mocks only wallet + transaction execution; read-only data (APYs, destinations) still hits real APIs.
 
-## Non-negotiable conventions (from AGENTS.md — these have caused real bugs)
+## Non-negotiable conventions (these have caused real bugs)
 
 - **Never ship a stubbed route or plugin** that returns fake success. A route must call the real `lib/` implementation; simulation must actually simulate.
 - **No `as any` / `as unknown as X`** to silence types. The only allowed cast is to a named type with a comment explaining why (e.g. validated-JSON → build-param union, re-checked at execution).
 - **Registries contain only named imports** — never inline plugin object literals.
 - **Before deleting any file, grep for importers** (`grep -rn "the-file" --include=*.ts --include=*.tsx`) and fix them in the same change.
 - **Adding a new chain requires updating all of:** `lib/plugins/chains/{chain}.ts`, `lib/plugins/chains/index.ts`, `lib/server/rpc.ts`, `lib/simulation/simulate.ts`, `lib/wagmi.ts` (EVM only), `lib/plugins/tokens.ts`. Missing one breaks a different layer silently.
+
+## Scope & guardrails
+
+Verdant is **discretionary** — the user makes every allocation decision. Never build autonomous behavior. **Out of scope (do not build):** vaults / LP deposits / NAV accounting, any novel smart contracts (use only audited protocol ABIs — Verdant deploys none), yield discovery or strategy recommendations, autonomous rebalancing, batched atomic cross-chain execution (all steps are sequential), and a mobile app.
+
+Security constraints:
+- **Never request, store, or log** private keys or seed phrases, and never hold user funds in a Verdant-controlled address.
+- **Simulate before every signature** — a step reaches the sign prompt only after passing the simulation gate, and the next step unlocks only after on-chain confirmation.
+- **Sensitive API keys are server-side only** — never exposed to the client bundle (see the server-only boundary above).

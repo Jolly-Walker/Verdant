@@ -1,65 +1,63 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import { Position } from '@/types/position'
-import { TokenState, BuilderStep } from '@/lib/sequenceBuilder/types'
-import { TokenIcon } from '../positions/TokenIcon'
-import { formatUsd, formatToken } from '@/lib/utils/formatting'
+import type React from 'react';
+import { useEffect, useState } from 'react';
+import type { BuilderStep, TokenState } from '@/lib/sequenceBuilder/types';
+import { formatToken, formatUsd } from '@/lib/utils/formatting';
+import type { Position } from '@/types/position';
+import { TokenIcon } from '../positions/TokenIcon';
 
 interface SourceCardProps {
-  step: BuilderStep & { kind: 'source' }
-  isActive: boolean
-  userPositions: Position[]
-  onSelect: (tokenOut: TokenState) => void
-  onFocus: () => void
+  step: BuilderStep & { kind: 'source' };
+  isActive: boolean;
+  userPositions: Position[];
+  onSelect: (tokenOut: TokenState) => void;
+  onFocus: () => void;
 }
 
-export function SourceCard({
-  step,
-  isActive,
-  userPositions,
-  onSelect,
-  onFocus
-}: SourceCardProps) {
+export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }: SourceCardProps) {
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(
-    step.tokenOut.sourcePositionId || (step.tokenOut.positionType === 'wallet' ? 'wallet-' + step.tokenOut.token + '-' + step.tokenOut.chain : null)
-  )
+    step.tokenOut.sourcePositionId ||
+      (step.tokenOut.positionType === 'wallet'
+        ? 'wallet-' + step.tokenOut.token + '-' + step.tokenOut.chain
+        : null),
+  );
   const [amountStr, setAmountStr] = useState<string>(
-    step.tokenOut.amount > 0 ? step.tokenOut.amount.toString() : ''
-  )
+    step.tokenOut.amount > 0 ? step.tokenOut.amount.toString() : '',
+  );
 
   // Filter positions
-  const walletPositions = userPositions.filter(p => p.positionType === 'wallet')
-  const supplyPositions = userPositions.filter(p => p.positionType === 'supply')
+  const walletPositions = userPositions.filter((p) => p.positionType === 'wallet');
+  const supplyPositions = userPositions.filter((p) => p.positionType === 'supply');
 
   // Find currently selected position
-  const selectedPosition = userPositions.find(p => {
+  const selectedPosition = userPositions.find((p) => {
     if (p.positionType === 'wallet') {
-      return 'wallet-' + p.asset + '-' + p.chain === selectedPositionId
+      return 'wallet-' + p.asset + '-' + p.chain === selectedPositionId;
     }
-    return p.id === selectedPositionId
-  })
+    return p.id === selectedPositionId;
+  });
 
   // Synchronize internal state with step prop changes (e.g. pre-seeding)
   useEffect(() => {
     if (step.tokenOut.amount > 0) {
-      setAmountStr(step.tokenOut.amount.toString())
+      setAmountStr(step.tokenOut.amount.toString());
     }
     if (step.tokenOut.sourcePositionId) {
-      setSelectedPositionId(step.tokenOut.sourcePositionId)
+      setSelectedPositionId(step.tokenOut.sourcePositionId);
     } else if (step.tokenOut.positionType === 'wallet' && step.tokenOut.token) {
-      setSelectedPositionId('wallet-' + step.tokenOut.token + '-' + step.tokenOut.chain)
+      setSelectedPositionId('wallet-' + step.tokenOut.token + '-' + step.tokenOut.chain);
     }
-  }, [step])
+  }, [step]);
 
   const handlePositionClick = (pos: Position) => {
-    const id = pos.positionType === 'wallet' ? 'wallet-' + pos.asset + '-' + pos.chain : pos.id
-    setSelectedPositionId(id)
+    const id = pos.positionType === 'wallet' ? 'wallet-' + pos.asset + '-' + pos.chain : pos.id;
+    setSelectedPositionId(id);
     // Default to max amount
-    setAmountStr(pos.amount.toString())
-    
+    setAmountStr(pos.amount.toString());
+
     // Auto emit if amount is already valid
-    const amt = pos.amount
+    const amt = pos.amount;
     if (amt > 0) {
       onSelect({
         token: pos.asset,
@@ -67,50 +65,52 @@ export function SourceCard({
         amount: amt,
         amountUsd: amt * (pos.priceUsd || 1),
         sourcePositionId: pos.positionType === 'supply' ? pos.id : undefined,
-        positionType: pos.positionType === 'supply' ? 'supply' : 'wallet'
-      })
+        positionType: pos.positionType === 'supply' ? 'supply' : 'wallet',
+      });
     }
-  }
+  };
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value
+    const val = e.target.value;
     // allow decimal string
     if (val === '' || /^\d*\.?\d*$/.test(val)) {
-      setAmountStr(val)
+      setAmountStr(val);
       if (selectedPosition) {
-        const numericVal = parseFloat(val)
+        const numericVal = parseFloat(val);
         if (!isNaN(numericVal) && numericVal > 0 && numericVal <= selectedPosition.amount) {
           onSelect({
             token: selectedPosition.asset,
             chain: selectedPosition.chain,
             amount: numericVal,
             amountUsd: numericVal * (selectedPosition.priceUsd || 1),
-            sourcePositionId: selectedPosition.positionType === 'supply' ? selectedPosition.id : undefined,
-            positionType: selectedPosition.positionType === 'supply' ? 'supply' : 'wallet'
-          })
+            sourcePositionId:
+              selectedPosition.positionType === 'supply' ? selectedPosition.id : undefined,
+            positionType: selectedPosition.positionType === 'supply' ? 'supply' : 'wallet',
+          });
         }
       }
     }
-  }
+  };
 
   const handleMaxClick = () => {
     if (selectedPosition) {
-      const maxVal = selectedPosition.amount.toString()
-      setAmountStr(maxVal)
+      const maxVal = selectedPosition.amount.toString();
+      setAmountStr(maxVal);
       onSelect({
         token: selectedPosition.asset,
         chain: selectedPosition.chain,
         amount: selectedPosition.amount,
         amountUsd: selectedPosition.amount * (selectedPosition.priceUsd || 1),
-        sourcePositionId: selectedPosition.positionType === 'supply' ? selectedPosition.id : undefined,
-        positionType: selectedPosition.positionType === 'supply' ? 'supply' : 'wallet'
-      })
+        sourcePositionId:
+          selectedPosition.positionType === 'supply' ? selectedPosition.id : undefined,
+        positionType: selectedPosition.positionType === 'supply' ? 'supply' : 'wallet',
+      });
     }
-  }
+  };
 
   // Check if we are complete (not active, and step has tokenOut filled)
   if (!isActive && step.tokenOut.amount > 0) {
-    const isWallet = step.tokenOut.positionType === 'wallet'
+    const isWallet = step.tokenOut.positionType === 'wallet';
     return (
       <div
         onClick={onFocus}
@@ -126,9 +126,7 @@ export function SourceCard({
               {step.tokenOut.token}
             </span>
           </div>
-          <div className="text-xs text-verdant-text-muted capitalize">
-            {step.tokenOut.chain}
-          </div>
+          <div className="text-xs text-verdant-text-muted capitalize">{step.tokenOut.chain}</div>
           <div className="text-xs text-verdant-text-muted font-mono mt-1">
             {isWallet ? 'Wallet' : 'Aave supply'}
           </div>
@@ -142,7 +140,7 @@ export function SourceCard({
           </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -151,7 +149,7 @@ export function SourceCard({
         <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
           SOURCE
         </div>
-        
+
         {/* List of positions */}
         <div className="space-y-2 max-h-36 overflow-y-auto pr-1 mb-3 scrollbar-thin">
           {supplyPositions.length > 0 && (
@@ -159,8 +157,8 @@ export function SourceCard({
               <div className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider mb-1">
                 Protocol Positions
               </div>
-              {supplyPositions.map(pos => {
-                const isSel = pos.id === selectedPositionId
+              {supplyPositions.map((pos) => {
+                const isSel = pos.id === selectedPositionId;
                 return (
                   <div
                     key={pos.id}
@@ -174,8 +172,12 @@ export function SourceCard({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <TokenIcon symbol={pos.asset} className="w-4 h-4 shrink-0" />
                       <div className="truncate">
-                        <div className="font-medium text-verdant-text-primary truncate">{pos.asset}</div>
-                        <div className="text-[9px] text-verdant-text-muted truncate capitalize">{pos.chain}</div>
+                        <div className="font-medium text-verdant-text-primary truncate">
+                          {pos.asset}
+                        </div>
+                        <div className="text-[9px] text-verdant-text-muted truncate capitalize">
+                          {pos.chain}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -184,7 +186,7 @@ export function SourceCard({
                       </div>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -194,9 +196,9 @@ export function SourceCard({
               <div className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider mb-1">
                 Wallet
               </div>
-              {walletPositions.map(pos => {
-                const id = 'wallet-' + pos.asset + '-' + pos.chain
-                const isSel = id === selectedPositionId
+              {walletPositions.map((pos) => {
+                const id = 'wallet-' + pos.asset + '-' + pos.chain;
+                const isSel = id === selectedPositionId;
                 return (
                   <div
                     key={pos.id}
@@ -210,8 +212,12 @@ export function SourceCard({
                     <div className="flex items-center gap-1.5 min-w-0">
                       <TokenIcon symbol={pos.asset} className="w-4 h-4 shrink-0" />
                       <div className="truncate">
-                        <div className="font-medium text-verdant-text-primary truncate">{pos.asset}</div>
-                        <div className="text-[9px] text-verdant-text-muted truncate capitalize">{pos.chain}</div>
+                        <div className="font-medium text-verdant-text-primary truncate">
+                          {pos.asset}
+                        </div>
+                        <div className="text-[9px] text-verdant-text-muted truncate capitalize">
+                          {pos.chain}
+                        </div>
                       </div>
                     </div>
                     <div className="text-right shrink-0">
@@ -220,7 +226,7 @@ export function SourceCard({
                       </div>
                     </div>
                   </div>
-                )
+                );
               })}
             </div>
           )}
@@ -253,5 +259,5 @@ export function SourceCard({
         </div>
       )}
     </div>
-  )
+  );
 }

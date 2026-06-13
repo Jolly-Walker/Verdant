@@ -1,16 +1,16 @@
-'use client'
+'use client';
 
-import { useState, useEffect } from 'react'
-import { useAccount, useDisconnect } from 'wagmi'
-import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react'
-import { DEMO_WALLET_ADDRESS } from '@/lib/demo/wallet'
+import { useWallet as useSolanaWallet } from '@solana/wallet-adapter-react';
+import { useEffect, useState } from 'react';
+import { useAccount, useDisconnect } from 'wagmi';
+import { DEMO_WALLET_ADDRESS } from '@/lib/demo/wallet';
 
-const SPOOF_ADDRESS = '0x3a6e410eb151673c3746ef073f1b475d10376e72' as `0x${string}`
+const SPOOF_ADDRESS = '0x3a6e410eb151673c3746ef073f1b475d10376e72' as `0x${string}`;
 
 // process.env.NEXT_PUBLIC_DEMO_MODE is a build-time constant — it never
 // changes between renders, so branching on it is safe and the eslint
 // rules-of-hooks suppression below is intentional and documented.
-const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true'
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 export function useWallet() {
   // Demo mode: bypass all real wallet logic and return a fixed identity.
@@ -18,10 +18,10 @@ export function useWallet() {
   // across renders — conditional hook calls are safe here.
   if (IS_DEMO) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useDemoWallet()
+    return useDemoWallet();
   }
   // eslint-disable-next-line react-hooks/rules-of-hooks
-  return useRealWallet()
+  return useRealWallet();
 }
 
 function useDemoWallet() {
@@ -34,45 +34,51 @@ function useDemoWallet() {
     isSolanaConnected: false,
     isMounted: true,
     enableDebug: () => {},
-    disconnect: () => { window.location.href = '/' },
-  }
+    disconnect: () => {
+      window.location.href = '/';
+    },
+  };
 }
 
 function useRealWallet() {
-  const { address: evmAddress, isConnected: isEvmConnected } = useAccount()
-  const { disconnect: wagmiDisconnect } = useDisconnect()
-  const { publicKey, connected: isSolanaConnected, disconnect: solanaDisconnect } = useSolanaWallet()
-  
-  const [isDebug, setIsDebug] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
+  const { address: evmAddress, isConnected: isEvmConnected } = useAccount();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const {
+    publicKey,
+    connected: isSolanaConnected,
+    disconnect: solanaDisconnect,
+  } = useSolanaWallet();
+
+  const [isDebug, setIsDebug] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    setIsDebug(localStorage.getItem('verdant_debug') === 'true')
-    setIsMounted(true)
-  }, [])
+    setIsDebug(localStorage.getItem('verdant_debug') === 'true');
+    setIsMounted(true);
+  }, []);
 
   const enableDebug = () => {
-    localStorage.setItem('verdant_debug', 'true')
-    setIsDebug(true)
-    window.location.href = '/dashboard'
-  }
+    localStorage.setItem('verdant_debug', 'true');
+    setIsDebug(true);
+    window.location.href = '/dashboard';
+  };
 
   const disconnect = () => {
     if (isDebug) {
-      localStorage.removeItem('verdant_debug')
-      setIsDebug(false)
-      window.location.href = '/'
+      localStorage.removeItem('verdant_debug');
+      setIsDebug(false);
+      window.location.href = '/';
     } else {
-      wagmiDisconnect()
-      solanaDisconnect()
+      wagmiDisconnect();
+      solanaDisconnect();
     }
-  }
+  };
 
-  const solanaAddress = publicKey?.toBase58()
-  const isConnected = isMounted && isDebug ? true : (isEvmConnected || isSolanaConnected)
-  
+  const solanaAddress = publicKey?.toBase58();
+  const isConnected = isMounted && isDebug ? true : isEvmConnected || isSolanaConnected;
+
   // Primary address is EVM if connected, else Solana
-  const address = isMounted && isDebug ? SPOOF_ADDRESS : (evmAddress || solanaAddress)
+  const address = isMounted && isDebug ? SPOOF_ADDRESS : evmAddress || solanaAddress;
 
   return {
     address,
@@ -83,6 +89,6 @@ function useRealWallet() {
     isSolanaConnected,
     isMounted,
     enableDebug,
-    disconnect
-  }
+    disconnect,
+  };
 }

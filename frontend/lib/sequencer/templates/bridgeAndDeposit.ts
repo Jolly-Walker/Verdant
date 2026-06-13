@@ -1,8 +1,8 @@
-import { SequencePlan, BridgeAndDepositParams } from '@/types/sequencer';
+import type { BridgeAndDepositParams, SequencePlan } from '@/types/sequencer';
 
 export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): SequencePlan {
   const isSameChain = params.fromChain === params.toChain;
-  
+
   const plan: SequencePlan = {
     id: crypto.randomUUID(),
     walletAddress: params.walletAddress,
@@ -10,10 +10,10 @@ export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): Seque
     status: 'draft',
     totalCostUsd: 0,
     positionSizeUsd: params.amountUsd,
-    description: isSameChain 
+    description: isSameChain
       ? `Deposit ${params.asset} into ${params.toProtocol} on ${params.toChain}`
       : `Bridge and deposit ${params.asset} from ${params.fromChain} to ${params.toChain}`,
-    steps: []
+    steps: [],
   };
 
   if (isSameChain) {
@@ -31,7 +31,7 @@ export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): Seque
         asset: params.asset,
         amount: params.amount,
         userAddress: params.walletAddress,
-      }
+      },
     });
   } else {
     plan.steps.push({
@@ -48,9 +48,9 @@ export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): Seque
         amount: params.amount,
         recipientAddress: params.walletAddress,
         slippagePercent: params.slippagePercent,
-      }
+      },
     });
-    
+
     plan.steps.push({
       id: 'deposit',
       label: `Deposit ${params.asset} into ${params.toProtocol} on ${params.toChain}`,
@@ -65,7 +65,7 @@ export function buildBridgeAndDepositPlan(params: BridgeAndDepositParams): Seque
         asset: params.asset,
         amount: params.amount,
         userAddress: params.walletAddress,
-      }
+      },
     });
   }
 

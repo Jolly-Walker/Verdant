@@ -1,19 +1,19 @@
-import { Position } from '@/types/position'
+import type { Position } from '@/types/position';
 
 // Realistic whale portfolio (~$475K) designed for the demo flow.
 // Position 1 (Aave USDC on Arbitrum) is the source of the cross-chain rebalance sequence.
 // Position 4 (Morpho USDC on Base) is the destination.
 
 // Real USDC contract addresses per chain
-const USDC_ARBITRUM = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831'
-const USDC_ETHEREUM = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
-const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
-const WETH_ETHEREUM = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
-const PT_STETH = '0x7d372819240d14fb477f17b964f95f33beb4c704'
-const EULER_TOKEN = '0xd9fcd98c322942075a5c3860693e9f4f03aae07b'
+const USDC_ARBITRUM = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
+const USDC_ETHEREUM = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+const WETH_ETHEREUM = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2';
+const PT_STETH = '0x7d372819240d14fb477f17b964f95f33beb4c704';
+const EULER_TOKEN = '0xd9fcd98c322942075a5c3860693e9f4f03aae07b';
 
 // 60 days from now for Pendle maturity (avoids the <30d warning)
-const PENDLE_MATURITY = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
+const PENDLE_MATURITY = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString();
 
 export const DEMO_POSITIONS: Position[] = [
   {
@@ -27,7 +27,7 @@ export const DEMO_POSITIONS: Position[] = [
     amountUsd: 180000,
     currentApy: 4.2,
     positionType: 'supply',
-    priceUsd: 1.00,
+    priceUsd: 1.0,
     claimableRewards: [],
     metadata: { supplyApy: 4.2 },
   },
@@ -57,7 +57,7 @@ export const DEMO_POSITIONS: Position[] = [
     amountUsd: 42000,
     currentApy: 5.1,
     positionType: 'borrow',
-    priceUsd: 1.00,
+    priceUsd: 1.0,
     healthFactor: 1.82,
     liquidationPrice: 1420,
     borrowApy: 5.1,
@@ -75,7 +75,7 @@ export const DEMO_POSITIONS: Position[] = [
     amountUsd: 67000,
     currentApy: 6.8,
     positionType: 'supply',
-    priceUsd: 1.00,
+    priceUsd: 1.0,
     claimableRewards: [],
     metadata: { supplyApy: 6.8 },
   },
@@ -123,7 +123,7 @@ export const DEMO_POSITIONS: Position[] = [
     amountUsd: 31000,
     currentApy: 5.9,
     positionType: 'supply',
-    priceUsd: 1.00,
+    priceUsd: 1.0,
     claimableRewards: [
       {
         token: 'EULER',
@@ -133,7 +133,7 @@ export const DEMO_POSITIONS: Position[] = [
     ],
     metadata: { supplyApy: 5.9, rewardToken: EULER_TOKEN },
   },
-]
+];
 
-export const DEMO_TOTAL_VALUE_USD = 475000
-export const DEMO_TOTAL_REWARDS_USD = 87
+export const DEMO_TOTAL_VALUE_USD = 475000;
+export const DEMO_TOTAL_REWARDS_USD = 87;
