@@ -1,101 +1,181 @@
-import { NextResponse } from 'next/server'
-import { z } from 'zod'
-import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans'
-import { simulateTransaction } from '@/lib/simulation/simulate'
-import { applyStepUpdate, computePlanStatus, serializeSequenceStep } from '@/lib/sequencer/engine'
-import { getNativeAssetPrice } from '@/lib/data/prices'
-import { createPublicClient, http } from 'viem'
-import { mainnet, arbitrum, base } from 'viem/chains'
-import { getRpcUrl } from '@/lib/server/rpc'
-import { ChainId, TxBuildParams, BridgeQuoteParams } from '@/types/shared'
-import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols'
-import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { detectWarnings } from '@/lib/utils/warnings'
-import { Warning } from '@/types/quote'
+import { NextResponse } from 'next/server';
+import { createPublicClient, http } from 'viem';
+import { arbitrum, base, mainnet } from 'viem/chains';
+import { z } from 'zod';
+import { getNativeAssetPrice } from '@/lib/data/prices';
+import { getSequencePlan, updateSequencePlanStep } from '@/lib/data/sequencePlans';
+import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
+import { PROTOCOL_REGISTRY } from '@/lib/plugins/protocols';
+import { SWAP_REGISTRY } from '@/lib/plugins/swaps';
+import { applyStepUpdate, computePlanStatus, serializeSequenceStep } from '@/lib/sequencer/engine';
+import { enforceRateLimit } from '@/lib/server/rateLimit';
+import { getRpcUrl } from '@/lib/server/rpc';
+import { simulateTransaction } from '@/lib/simulation/simulate';
+import { detectWarnings } from '@/lib/utils/warnings';
+import { parseJson } from '@/lib/validation/http';
+import type { Warning } from '@/types/quote';
+import type { BridgeQuoteParams, ChainId, TxBuildParams } from '@/types/shared';
 
 const SimulateStepSchema = z.object({
-  planId: z.string().uuid(),
+  planId: z.uuid(),
   stepId: z.string(),
-  walletAddress: z.string()
-})
+  walletAddress: z.string(),
+});
 
 const getClient = (chain: ChainId) => {
-  const rpcUrl = getRpcUrl(chain)
-  let viemChain
+  const rpcUrl = getRpcUrl(chain);
+  let viemChain;
   switch (chain) {
     case 'ethereum':
-      viemChain = mainnet
-      break
+      viemChain = mainnet;
+      break;
     case 'arbitrum':
-      viemChain = arbitrum
-      break
+      viemChain = arbitrum;
+      break;
     case 'base':
-      viemChain = base
-      break
+      viemChain = base;
+      break;
     default:
-      viemChain = mainnet
+      viemChain = mainnet;
   }
   return createPublicClient({
     chain: viemChain,
     transport: http(rpcUrl, { timeout: 10000 }),
-  })
+  });
+};
+
+function validateBuildParams(
+  pluginId: string,
+  buildParams: TxBuildParams | BridgeQuoteParams,
+): string | null {
+  // Spread into a plain record so the shared field checks work across the union.
+  const p: Record<string, unknown> = { ...buildParams };
+  // Protocol steps
+  if (['aave', 'morpho', 'euler'].includes(pluginId)) {
+    if (!p.action) return 'Missing action in buildParams';
+    if (!p.chain) return 'Missing chain in buildParams';
+    if (!p.asset) return 'Missing asset in buildParams';
+    if (!p.amount || p.amount === '0') return 'Missing or zero amount in buildParams';
+    if (!p.userAddress) return 'Missing userAddress in buildParams';
+  }
+  // Bridge steps
+  if (['across', 'layerzero', 'nearIntents', 'chainlink'].includes(pluginId)) {
+    if (!p.fromChain) return 'Missing fromChain in buildParams';
+    if (!p.toChain) return 'Missing toChain in buildParams';
+    if (!p.token) return 'Missing token in buildParams';
+    if (!p.amount || p.amount === '0') return 'Missing or zero amount in buildParams';
+    if (!p.recipientAddress) return 'Missing recipientAddress in buildParams';
+  }
+  // Swap steps
+  if (pluginId === '1inch') {
+    if (!p.extraParams) return 'Missing extraParams for swap';
+    const ep = p.extraParams as Record<string, unknown>;
+    if (!ep.toToken) return 'Missing toToken in swap extraParams';
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
+  // SPECS §19: 10 req/min per IP for step simulation.
+  const limited = await enforceRateLimit(req, { bucket: 'simulate', limit: 10 });
+  if (limited) return limited;
+
+  const parsed = await parseJson(req, SimulateStepSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const { planId, stepId, walletAddress } = parsed.data;
+
   try {
-    const body = await req.json()
-    const result = SimulateStepSchema.safeParse(body)
-    
-    if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
-    }
-
-    const { planId, stepId, walletAddress } = result.data
-
-    const plan = await getSequencePlan(planId)
+    const plan = await getSequencePlan(planId);
     if (!plan) {
-      return NextResponse.json({ error: 'Plan not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Plan not found' }, { status: 404 });
     }
 
     // Auth check
     if (plan.walletAddress.toLowerCase() !== walletAddress.toLowerCase()) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const step = plan.steps.find(s => s.id === stepId)
+    const step = plan.steps.find((s) => s.id === stepId);
     if (!step) {
-      return NextResponse.json({ error: 'Step not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Step not found' }, { status: 404 });
+    }
+
+    const paramsError = validateBuildParams(step.pluginId, step.buildParams);
+    if (paramsError) {
+      return NextResponse.json(
+        { error: `Invalid step configuration: ${paramsError}` },
+        { status: 400 },
+      );
     }
 
     if (!step.unsignedTx) {
       if (PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]) {
-        const plugin = PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY]
-        const txs = await plugin.builder.buildTx(step.buildParams as TxBuildParams)
+        const plugin = PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY];
+        const txs = await plugin.builder.buildTx(step.buildParams as TxBuildParams);
         if (txs && txs.length > 0) {
-          step.unsignedTx = txs[0]
+          step.unsignedTx = txs[0];
         }
       } else if (BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]) {
-        const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
-        const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams)
+        const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY];
+        const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams);
         if (quote) {
           // Check quote expiry (Issue 3)
           if (new Date(quote.expiresAt).getTime() < Date.now() + 5000) {
-            return NextResponse.json({ error: 'Bridge quote expired. Please retry simulation.' }, { status: 400 })
+            return NextResponse.json(
+              { error: 'Bridge quote expired. Please retry simulation.' },
+              { status: 400 },
+            );
           }
-          step.unsignedTx = await plugin.buildBridgeTx(quote)
+          step.unsignedTx = await plugin.buildBridgeTx(quote);
         }
+      } else if (SWAP_REGISTRY[step.pluginId]) {
+        // Swap plugin found — not yet implemented, return clear error
+        return NextResponse.json(
+          {
+            error: `Swap via '${step.pluginId}' is not yet available for on-chain execution. This feature is coming soon.`,
+          },
+          { status: 400 },
+        );
       }
 
       if (!step.unsignedTx) {
-        return NextResponse.json({ error: 'Step has no transaction to simulate and failed to build one' }, { status: 400 })
+        // Check if plugin is known but has no tx built
+        const isKnownProtocol =
+          !!PROTOCOL_REGISTRY[step.pluginId as keyof typeof PROTOCOL_REGISTRY];
+        const isKnownBridge = !!BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY];
+
+        if (!isKnownProtocol && !isKnownBridge) {
+          return NextResponse.json(
+            {
+              error: `Plugin '${step.pluginId}' is not registered. This action type is not yet supported for on-chain execution.`,
+            },
+            { status: 400 },
+          );
+        }
+
+        return NextResponse.json(
+          {
+            error: 'Step has no transaction to simulate and failed to build one',
+          },
+          { status: 400 },
+        );
       }
     }
 
     // Detect stub data (Issue 7)
-    if (step.unsignedTx.data === '0x' && step.unsignedTx.value === 0n && step.pluginId === 'pendle') {
-      return NextResponse.json({ 
-        error: 'Transaction builder returned stub data — this template is not ready for execution' 
-      }, { status: 400 })
+    if (
+      step.unsignedTx.data === '0x' &&
+      step.unsignedTx.value === 0n &&
+      step.pluginId === 'pendle'
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Transaction builder returned stub data — this template is not ready for execution',
+        },
+        { status: 400 },
+      );
     }
 
     // Perform simulation
@@ -105,58 +185,64 @@ export async function POST(req: Request) {
       from: plan.walletAddress,
       data: step.unsignedTx.data,
       value: step.unsignedTx.value.toString(),
-    })
+    });
 
     // Detect warnings
-    let warnings: Warning[] = []
-    const amountUsd = 'amountUsd' in step.buildParams ? (step.buildParams as { amountUsd: number }).amountUsd : 0
-    
+    let warnings: Warning[] = [];
+    const amountUsd =
+      'amountUsd' in step.buildParams ? (step.buildParams as { amountUsd: number }).amountUsd : 0;
+
     if (BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]) {
-      const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY]
-      const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams)
+      const plugin = BRIDGE_REGISTRY[step.pluginId as keyof typeof BRIDGE_REGISTRY];
+      const quote = await plugin.getQuote(step.buildParams as BridgeQuoteParams);
       if (quote) {
-        warnings = detectWarnings({
-          steps: [{
-            stepLabel: step.label,
-            chain: step.chain,
-            gasCostUsd: 0,
-            bridgeFeeUsd: quote.feeUsd,
-            slippageUsd: amountUsd * (quote.slippagePercent / 100)
-          }]
-        }, amountUsd)
+        warnings = detectWarnings(
+          {
+            steps: [
+              {
+                stepLabel: step.label,
+                chain: step.chain,
+                gasCostUsd: 0,
+                bridgeFeeUsd: quote.feeUsd,
+                slippageUsd: amountUsd * (quote.slippagePercent / 100),
+              },
+            ],
+          },
+          amountUsd,
+        );
       }
     } else {
-      warnings = detectWarnings({}, amountUsd)
+      warnings = detectWarnings({}, amountUsd);
     }
 
-    let gasCostUsd = 0
+    let gasCostUsd = 0;
     if (simResult.success && simResult.gasEstimate && step.chain !== 'solana') {
       try {
-        const client = getClient(step.chain)
-        
+        const client = getClient(step.chain);
+
         // Timeout for price fetch
         const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> => {
           return Promise.race([
             promise,
-            new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms))
+            new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms)),
           ]);
         };
 
         const [gasPrice, nativePrice] = await Promise.all([
           client.getGasPrice(),
-          withTimeout(getNativeAssetPrice(step.chain), 5000)
-        ])
-        
-        const costNative = simResult.gasEstimate * gasPrice
+          withTimeout(getNativeAssetPrice(step.chain), 5000),
+        ]);
+
+        const costNative = simResult.gasEstimate * gasPrice;
         // For EVM chains, native asset has 18 decimals
-        gasCostUsd = Number(costNative) * nativePrice / 1e18
+        gasCostUsd = (Number(costNative) * nativePrice) / 1e18;
       } catch (e) {
-        console.error('Failed to calculate gas cost in USD:', e)
+        console.error('Failed to calculate gas cost in USD:', e);
       }
     }
 
-    const newStatus: 'ready' | 'failed' = simResult.success ? 'ready' : 'failed'
-    
+    const newStatus: 'ready' | 'failed' = simResult.success ? 'ready' : 'failed';
+
     const updateData = {
       status: newStatus,
       simulation: {
@@ -166,34 +252,39 @@ export async function POST(req: Request) {
         gasCostUsd: gasCostUsd,
         simulatedAt: simResult.simulatedAt || new Date(),
         stateChanges: simResult.stateChanges,
-        warnings: warnings.length > 0 ? warnings : undefined
-      }
-    }
+        warnings: warnings.length > 0 ? warnings : undefined,
+      },
+    };
 
-    const updatedPlan = applyStepUpdate(plan, stepId, updateData)
-    const newPlanStatus = computePlanStatus(updatedPlan)
+    const updatedPlan = applyStepUpdate(plan, stepId, updateData);
+    const newPlanStatus = computePlanStatus(updatedPlan);
 
-    const success = await updateSequencePlanStep(planId, stepId, updatedPlan.steps, newPlanStatus)
-    
+    const success = await updateSequencePlanStep(planId, stepId, updatedPlan.steps, newPlanStatus);
+
     if (!success) {
-      return NextResponse.json({ error: 'Failed to save simulation result to database' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to save simulation result to database' },
+        { status: 500 },
+      );
     }
 
-    const returnStep = updatedPlan.steps.find(s => s.id === stepId)
-    
+    const returnStep = updatedPlan.steps.find((s) => s.id === stepId);
+
     if (!returnStep) {
-      return NextResponse.json({ error: 'Updated step not found' }, { status: 500 })
+      return NextResponse.json({ error: 'Updated step not found' }, { status: 500 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       simulation: {
         ...updateData.simulation,
-        gasEstimate: updateData.simulation.gasEstimate ? updateData.simulation.gasEstimate.toString() : undefined
+        gasEstimate: updateData.simulation.gasEstimate
+          ? updateData.simulation.gasEstimate.toString()
+          : undefined,
       },
-      updatedStep: serializeSequenceStep(returnStep)
-    })
+      updatedStep: serializeSequenceStep(returnStep),
+    });
   } catch (error) {
-    console.error('Error in /api/sequencer/simulate:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in /api/sequencer/simulate:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

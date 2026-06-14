@@ -1,24 +1,31 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('server-only', () => ({}))
+vi.mock('server-only', () => ({}));
 
-import { chainlinkBridgePlugin } from '../chainlink'
-import { BridgeQuoteParams, BridgeQuote, ChainId } from '@/types/shared'
-import { getPublicClient } from '@/lib/server/rpc'
+import { getPublicClient } from '@/lib/server/rpc';
+import type { BridgeQuote, BridgeQuoteParams, ChainId } from '@/types/shared';
+import { chainlinkBridgePlugin } from '../chainlink';
 
 vi.mock('@/lib/server/rpc', () => ({
   getPublicClient: vi.fn(),
-}))
+}));
+
+vi.mock('@/lib/data/prices', () => ({
+  getNativeAssetPrice: vi.fn().mockResolvedValue(3000), // ETH @ $3000
+}));
 
 describe('chainlinkBridgePlugin', () => {
   const mockPublicClient = {
     readContract: vi.fn(),
-  }
+    getTransactionReceipt: vi.fn(),
+  };
 
   beforeEach(() => {
-    vi.mocked(getPublicClient).mockReturnValue(mockPublicClient as unknown as ReturnType<typeof getPublicClient>)
-    mockPublicClient.readContract.mockResolvedValue(1000000000000000n) // 0.001 ETH fee
-  })
+    vi.mocked(getPublicClient).mockReturnValue(
+      mockPublicClient as unknown as ReturnType<typeof getPublicClient>,
+    );
+    mockPublicClient.readContract.mockResolvedValue(1000000000000000n); // 0.001 ETH fee
+  });
 
   const mockQuoteParams: BridgeQuoteParams = {
     fromChain: 'ethereum',
@@ -27,38 +34,54 @@ describe('chainlinkBridgePlugin', () => {
     amount: '100000000',
     recipientAddress: '0x1234567890123456789012345678901234567890',
     slippagePercent: 0.1,
-  }
+  };
 
-  it('should return a quote correctly', async () => {
-    const quote = await chainlinkBridgePlugin.getQuote(mockQuoteParams)
+  it('should return a quote with a real on-chain fee priced in USD', async () => {
+    const quote = await chainlinkBridgePlugin.getQuote(mockQuoteParams);
 
-    expect(quote).not.toBeNull()
-    expect(quote?.bridgeId).toBe('chainlink')
-    expect(quote?.feeUsd).toBe(2.5)
+    expect(quote).not.toBeNull();
+    expect(quote?.bridgeId).toBe('chainlink');
+    // 0.001 ETH fee × $3000 = $3.00
+    expect(quote?.feeUsd).toBeCloseTo(3.0, 6);
     // @ts-expect-error - accessing rawQuote
-    expect(quote?.rawQuote.destSelector).toBe(4949039107694359620n)
+    expect(quote?.rawQuote.destSelector).toBe(4949039107694359620n);
+    expect(mockPublicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: 'getFee' }),
+    );
 
-    const now = Date.now()
-    expect(quote?.expiresAt.getTime()).toBeGreaterThanOrEqual(now + 89000)
-    expect(quote?.expiresAt.getTime()).toBeLessThanOrEqual(now + 91000)
-  })
+    const now = Date.now();
+    expect(quote?.expiresAt.getTime()).toBeGreaterThanOrEqual(now + 89000);
+    expect(quote?.expiresAt.getTime()).toBeLessThanOrEqual(now + 91000);
+  });
 
   it('should return a quote for LINK correctly', async () => {
     const linkQuoteParams: BridgeQuoteParams = {
       ...mockQuoteParams,
       token: 'LINK',
       amount: '1000000000000000000', // 1 LINK
-    }
-    const quote = await chainlinkBridgePlugin.getQuote(linkQuoteParams)
+    };
+    const quote = await chainlinkBridgePlugin.getQuote(linkQuoteParams);
 
-    expect(quote).not.toBeNull()
-    expect(quote?.bridgeId).toBe('chainlink')
-    expect(quote?.feeUsd).toBe(2.5)
+    expect(quote).not.toBeNull();
+    expect(quote?.bridgeId).toBe('chainlink');
+    expect(quote?.feeUsd).toBeCloseTo(3.0, 6);
     // @ts-expect-error - accessing rawQuote
-    expect(quote?.rawQuote.token).toBe('LINK')
+    expect(quote?.rawQuote.token).toBe('LINK');
     // @ts-expect-error - accessing rawQuote
-    expect(quote?.rawQuote.amount).toBe('1000000000000000000')
-  })
+    expect(quote?.rawQuote.amount).toBe('1000000000000000000');
+  });
+
+  it('should return null when the on-chain fee query fails', async () => {
+    mockPublicClient.readContract.mockRejectedValueOnce(new Error('rpc down'));
+    const quote = await chainlinkBridgePlugin.getQuote(mockQuoteParams);
+    expect(quote).toBeNull();
+  });
+
+  it('should report failed when the source send reverted', async () => {
+    mockPublicClient.getTransactionReceipt.mockResolvedValueOnce({ status: 'reverted' });
+    const status = await chainlinkBridgePlugin.pollStatus('0x123', 'ethereum');
+    expect(status.status).toBe('failed');
+  });
 
   it('should build a bridge transaction for ERC20 correctly', async () => {
     const mockQuote: Partial<BridgeQuote> = {
@@ -76,25 +99,25 @@ describe('chainlinkBridgePlugin', () => {
         amount: '100000000',
         recipientAddress: '0x1234567890123456789012345678901234567890',
       },
-    }
+    };
 
-    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
+    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote);
 
-    expect(tx.chainId).toBe(1)
-    expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d')
-    expect(tx.data).toBeDefined()
-    expect(tx.value).toBe(1000000000000000n) // Just the fee
-    expect(tx.description).toContain('Bridge USDC')
+    expect(tx.chainId).toBe(1);
+    expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d');
+    expect(tx.data).toBeDefined();
+    expect(tx.value).toBe(1000000000000000n); // Just the fee
+    expect(tx.description).toContain('Bridge USDC');
     expect(mockPublicClient.readContract).toHaveBeenCalledWith(
       expect.objectContaining({
         functionName: 'getFee',
-      })
-    )
-  })
+      }),
+    );
+  });
 
   it('should build a bridge transaction for ETH correctly', async () => {
-    const amount = 1000000000000000000n
-    const fee = 1000000000000000n
+    const amount = 1000000000000000000n;
+    const fee = 1000000000000000n;
     const mockQuote: Partial<BridgeQuote> = {
       bridgeId: 'chainlink',
       feeUsd: 2.5,
@@ -110,14 +133,14 @@ describe('chainlinkBridgePlugin', () => {
         amount: amount.toString(),
         recipientAddress: '0x1234567890123456789012345678901234567890',
       },
-    }
+    };
 
-    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
+    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote);
 
-    expect(tx.chainId).toBe(1)
-    expect(tx.value).toBe(amount + fee) // Amount + fee
-    expect(tx.description).toContain('Bridge ETH')
-  })
+    expect(tx.chainId).toBe(1);
+    expect(tx.value).toBe(amount + fee); // Amount + fee
+    expect(tx.description).toContain('Bridge ETH');
+  });
 
   it('should build a bridge transaction for LINK correctly', async () => {
     const mockQuote: Partial<BridgeQuote> = {
@@ -135,30 +158,30 @@ describe('chainlinkBridgePlugin', () => {
         amount: '1000000000000000000',
         recipientAddress: '0x1234567890123456789012345678901234567890',
       },
-    }
+    };
 
-    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)
+    const tx = await chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote);
 
-    expect(tx.chainId).toBe(1)
-    expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d')
-    expect(tx.data).toBeDefined()
-    expect(tx.value).toBe(1000000000000000n) // Just the fee
-    expect(tx.description).toContain('Bridge LINK')
-  })
+    expect(tx.chainId).toBe(1);
+    expect(tx.to).toBe('0x80226fc079A2dea56C78548F56E2e88ba1146f7d');
+    expect(tx.data).toBeDefined();
+    expect(tx.value).toBe(1000000000000000n); // Just the fee
+    expect(tx.description).toContain('Bridge LINK');
+  });
 
   it('should return pending status with tracking URL', async () => {
-    const status = await chainlinkBridgePlugin.pollStatus('0x123', 'ethereum')
-    expect(status.status).toBe('pending')
-    expect(status.trackingUrl).toBe('https://ccip.chain.link/tx/0x123')
-  })
+    const status = await chainlinkBridgePlugin.pollStatus('0x123', 'ethereum');
+    expect(status.status).toBe('pending');
+    expect(status.trackingUrl).toBe('https://ccip.chain.link/tx/0x123');
+  });
 
   it('should return null for unsupported route (solana)', async () => {
     const quote = await chainlinkBridgePlugin.getQuote({
       ...mockQuoteParams,
-      toChain: 'solana'
-    })
-    expect(quote).toBeNull()
-  })
+      toChain: 'solana',
+    });
+    expect(quote).toBeNull();
+  });
 
   it('should throw for unknown fromChain in buildBridgeTx', async () => {
     const mockQuote: Partial<BridgeQuote> = {
@@ -167,12 +190,13 @@ describe('chainlinkBridgePlugin', () => {
         fromChain: 'solana' as unknown as ChainId,
         token: 'USDC',
         amount: '1000000',
-        destSelector: 4949039107694359620n
-      }
-    }
-    await expect(chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote))
-      .rejects.toThrow('No CCIP router for solana')
-  })
+        destSelector: 4949039107694359620n,
+      },
+    };
+    await expect(chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)).rejects.toThrow(
+      'No CCIP router for solana',
+    );
+  });
 
   it('should throw for unsupported token on fromChain in buildBridgeTx', async () => {
     const mockQuote: Partial<BridgeQuote> = {
@@ -181,10 +205,11 @@ describe('chainlinkBridgePlugin', () => {
         fromChain: 'ethereum',
         token: 'UNSUPPORTED',
         amount: '1000000',
-        destSelector: 4949039107694359620n
-      }
-    }
-    await expect(chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote))
-      .rejects.toThrow('Token UNSUPPORTED not supported on ethereum')
-  })
-})
+        destSelector: 4949039107694359620n,
+      },
+    };
+    await expect(chainlinkBridgePlugin.buildBridgeTx(mockQuote as BridgeQuote)).rejects.toThrow(
+      'Token UNSUPPORTED not supported on ethereum',
+    );
+  });
+});

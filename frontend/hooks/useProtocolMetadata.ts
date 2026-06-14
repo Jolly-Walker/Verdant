@@ -1,16 +1,16 @@
-import { PROTOCOL_DISPLAY_MAP } from '@/lib/plugins/protocols/metadata'
-import { ProtocolId } from '@/types/shared'
+import { PROTOCOL_DISPLAY_MAP } from '@/lib/plugins/protocols/metadata';
+import type { ProtocolId } from '@/types/shared';
 
 export function useProtocolMetadata() {
   const getProtocolMetadata = (protocolId: ProtocolId) => {
-    return PROTOCOL_DISPLAY_MAP[protocolId]
-  }
+    return PROTOCOL_DISPLAY_MAP[protocolId];
+  };
 
-  const allProtocols = Object.values(PROTOCOL_DISPLAY_MAP)
-  
+  const allProtocols = Object.values(PROTOCOL_DISPLAY_MAP);
+
   return {
     getProtocolMetadata,
     allProtocols,
-    protocolIds: Object.keys(PROTOCOL_DISPLAY_MAP) as ProtocolId[]
-  }
+    protocolIds: Object.keys(PROTOCOL_DISPLAY_MAP) as ProtocolId[],
+  };
 }

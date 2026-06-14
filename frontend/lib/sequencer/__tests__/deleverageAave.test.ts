@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { buildDeleverageAavePlan, computeOptimalCycles } from '../templates/deleverageAave';
 
 describe('deleverageAave template', () => {
   describe('BigInt precision', () => {
     it('handles amounts greater than Number.MAX_SAFE_INTEGER correctly', () => {
       // 2^53 - 1 = 9007199254740991
-      const largeAmount = '10000000000000000001'; 
+      const largeAmount = '10000000000000000001';
       const plan = buildDeleverageAavePlan({
         borrowAsset: 'USDC',
         collateralAsset: 'ETH',
@@ -18,7 +18,7 @@ describe('deleverageAave template', () => {
         cycles: 1,
         protocol: 'aave',
         chain: 'ethereum',
-        walletAddress: '0x123'
+        walletAddress: '0x123',
       });
 
       expect(plan.steps[0].buildParams.amount).toBe(largeAmount);

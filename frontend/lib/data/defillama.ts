@@ -3,48 +3,58 @@
  * Docs: https://defillama.com/docs/api
  */
 
-const YIELDS_API = 'https://yields.llama.fi/pools'
+const YIELDS_API = 'https://yields.llama.fi/pools';
+const YIELDS_BORROW_API = 'https://yields.llama.fi/poolsBorrow';
 
 export interface DefillamaPool {
-  pool: string
-  project: string
-  chain: string
-  symbol: string
-  apy: number
-  apyBase: number | null
-  apyReward: number | null
-  tvlUsd: number
-  totalSupplyUsd: number | null
-  totalBorrowUsd: number | null
-  stablecoin: boolean
+  pool: string; // pool UUID — use as stable ID
+  project: string; // e.g. 'aave-v3'
+  chain: string; // DeFi Llama chain name e.g. 'Ethereum'
+  symbol: string; // e.g. 'USDC', 'WETH-USDC' for LPs
+  apy: number; // current APY, percentage (not decimal)
+  apyBase: number | null; // base APY (lending rate), percentage
+  apyReward: number | null; // reward APY on top, percentage
+  apyMean30d: number | null; // 30-day mean APY, percentage
+  tvlUsd: number;
+  totalSupplyUsd: number | null;
+  totalBorrowUsd: number | null;
+  stablecoin: boolean;
+  // Filtering fields
+  audits: string | null; // null = not audited; any string = audited
+  exposure: 'single' | 'multi' | null; // 'multi' = LP, exclude
+  poolMeta: string | null; // free text, may contain lock/vesting info
+  underlyingTokens: string[] | null; // token contract addresses
+  rewardTokens: string[] | null; // reward token addresses
+  ilRisk: 'yes' | 'no' | null; // IL risk flag (LPs)
+  category: string | null; // 'Lending', 'Staking', 'CDP', etc.
 }
 
-let poolCache: { data: DefillamaPool[]; fetchedAt: number } | null = null
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
+let poolCache: { data: DefillamaPool[]; fetchedAt: number } | null = null;
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 /**
  * Fetch all pools from Defillama Yields API (with in-memory caching and timeout).
  */
 export async function fetchPoolApys(): Promise<DefillamaPool[]> {
   if (poolCache && Date.now() - poolCache.fetchedAt < CACHE_TTL_MS) {
-    return poolCache.data
+    return poolCache.data;
   }
 
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 10_000)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
 
-  let res: Response
+  let res: Response;
   try {
-    res = await fetch(YIELDS_API, { signal: controller.signal })
+    res = await fetch(YIELDS_API, { signal: controller.signal });
   } finally {
-    clearTimeout(timeoutId)
+    clearTimeout(timeoutId);
   }
 
   if (!res.ok) {
-    throw new Error(`Defillama API error: ${res.status}`)
+    throw new Error(`Defillama API error: ${res.status}`);
   }
 
-  const json = await res.json()
+  const json = await res.json();
   const pools: DefillamaPool[] = (json.data || []).map((p: Record<string, unknown>) => ({
     pool: p.pool as string,
     project: p.project as string,
@@ -53,68 +63,113 @@ export async function fetchPoolApys(): Promise<DefillamaPool[]> {
     apy: (p.apy as number) || 0,
     apyBase: (p.apyBase as number) ?? null,
     apyReward: (p.apyReward as number) ?? null,
+    apyMean30d: (p.apyMean30d as number) ?? null,
     tvlUsd: (p.tvlUsd as number) || 0,
     totalSupplyUsd: (p.totalSupplyUsd as number) ?? null,
     totalBorrowUsd: (p.totalBorrowUsd as number) ?? null,
     stablecoin: (p.stablecoin as boolean) || false,
-  }))
+    audits: (p.audits as string | null) ?? null,
+    exposure: (p.exposure as 'single' | 'multi') ?? null,
+    poolMeta: (p.poolMeta as string) ?? null,
+    underlyingTokens: (p.underlyingTokens as string[]) ?? null,
+    rewardTokens: (p.rewardTokens as string[]) ?? null,
+    ilRisk: (p.ilRisk as 'yes' | 'no') ?? null,
+    category: (p.category as string) ?? null,
+  }));
 
-  poolCache = { data: pools, fetchedAt: Date.now() }
-  return pools
+  poolCache = { data: pools, fetchedAt: Date.now() };
+  return pools;
 }
 
-/** Defillama chain name mapping */
-const CHAIN_MAP: Record<string, string> = {
-  ethereum: 'Ethereum',
-  arbitrum: 'Arbitrum',
+let borrowCache: { data: Map<string, number>; fetchedAt: number } | null = null;
+
+/** Clears the in-memory pool/borrow caches — for tests. */
+export function resetDefillamaCache(): void {
+  poolCache = null;
+  borrowCache = null;
 }
 
-/** Defillama project slug mapping */
-const PROJECT_MAP: Record<string, string> = {
-  aave: 'aave-v3',
-  morpho: 'morpho-blue',
-  pendle: 'pendle',
-  euler: 'euler',
+/**
+ * Fetch the borrow-APY map (pool UUID → borrow APR as a decimal) from
+ * Defillama's /poolsBorrow endpoint. Cached for 15 minutes. Fails soft to an
+ * empty map so a borrow-rate outage never blocks position display.
+ */
+export async function fetchBorrowApyMap(): Promise<Map<string, number>> {
+  if (borrowCache && Date.now() - borrowCache.fetchedAt < CACHE_TTL_MS) {
+    return borrowCache.data;
+  }
+
+  const map = new Map<string, number>();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10_000);
+    let res: Response;
+    try {
+      res = await fetch(YIELDS_BORROW_API, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (res.ok) {
+      const json = await res.json();
+      for (const p of json.data || []) {
+        const apyBaseBorrow = (p.apyBaseBorrow as number) ?? null;
+        if (p.pool && apyBaseBorrow !== null) {
+          map.set(p.pool as string, apyBaseBorrow / 100); // percentage → decimal
+        }
+      }
+    }
+  } catch {
+    // Fall through to empty map.
+  }
+
+  borrowCache = { data: map, fetchedAt: Date.now() };
+  return map;
 }
 
 /**
  * Find the best matching pool for a given protocol/chain/asset combo.
- * Returns APY (decimal), TVL, and utilisation ratio for the highest-TVL match.
+ * Returns supply APY (decimal), borrow APY (decimal, if the pool is borrowable),
+ * TVL, utilisation ratio, and the pool UUID for the highest-TVL match.
  */
 export async function findPoolApy(
-  protocol: string,
-  chain: string,
-  asset: string
-): Promise<{ apy: number; tvlUsd: number; utilisationDecimal: number | null } | null> {
-  const pools = await fetchPoolApys()
-  const projectSlug = PROJECT_MAP[protocol] || protocol
-  const chainName = CHAIN_MAP[chain] || chain
-
-  const assetUpper = asset.toUpperCase()
+  defillamaSlug: string, // was: protocol string looked up in PROJECT_MAP
+  defillamaChain: string, // was: chain string looked up in CHAIN_MAP
+  asset: string,
+): Promise<{
+  poolId: string;
+  apy: number;
+  borrowApyDecimal: number | null;
+  tvlUsd: number;
+  utilisationDecimal: number | null;
+} | null> {
+  const [pools, borrowMap] = await Promise.all([fetchPoolApys(), fetchBorrowApyMap()]);
+  const assetUpper = asset.toUpperCase();
 
   const matches = pools.filter((p) => {
-    const matchProject = p.project.toLowerCase() === projectSlug.toLowerCase()
-    const matchChain = p.chain.toLowerCase() === chainName.toLowerCase()
-    const matchSymbol = p.symbol.toUpperCase().includes(assetUpper)
-    return matchProject && matchChain && matchSymbol
-  })
+    const matchProject = p.project.toLowerCase() === defillamaSlug.toLowerCase();
+    const matchChain = p.chain.toLowerCase() === defillamaChain.toLowerCase();
+    const matchSymbol = p.symbol.toUpperCase().includes(assetUpper);
+    return matchProject && matchChain && matchSymbol;
+  });
 
   if (matches.length === 0) {
-    return null
+    return null;
   }
 
   // Return the highest-TVL match
-  const best = matches.reduce((a, b) => (a.tvlUsd > b.tvlUsd ? a : b))
+  const best = matches.reduce((a, b) => (a.tvlUsd > b.tvlUsd ? a : b));
 
   // Compute utilisation = borrows / supply (lending pools only)
-  let utilisationDecimal: number | null = null
+  let utilisationDecimal: number | null = null;
   if (best.totalSupplyUsd && best.totalSupplyUsd > 0 && best.totalBorrowUsd !== null) {
-    utilisationDecimal = best.totalBorrowUsd / best.totalSupplyUsd
+    utilisationDecimal = best.totalBorrowUsd / best.totalSupplyUsd;
   }
 
   return {
+    poolId: best.pool,
     apy: best.apy / 100, // Convert percentage to decimal
+    borrowApyDecimal: borrowMap.get(best.pool) ?? null,
     tvlUsd: best.tvlUsd,
     utilisationDecimal,
-  }
+  };
 }

@@ -1,15 +1,15 @@
-import { describe, it, expect } from 'vitest';
-import { SequencePlan, SequenceStep, StepStatus } from '@/types/sequencer';
-import { ChainId } from '@/types/shared';
-import { 
-  getActiveStep, 
-  canSimulateStep, 
-  canExecuteStep, 
-  applyStepUpdate, 
-  computePlanStatus, 
-  validatePlan,
+import { describe, expect, it } from 'vitest';
+import type { SequencePlan, SequenceStep, StepStatus } from '@/types/sequencer';
+import type { ChainId } from '@/types/shared';
+import {
+  applyStepUpdate,
+  canExecuteStep,
+  canSimulateStep,
+  computePlanStatus,
+  deserializeSequencePlan,
+  getActiveStep,
   serializeSequencePlan,
-  deserializeSequencePlan
+  validatePlan,
 } from '../engine';
 
 const createBasePlan = (): SequencePlan => ({
@@ -19,7 +19,7 @@ const createBasePlan = (): SequencePlan => ({
   steps: [],
   status: 'draft',
   totalCostUsd: 0,
-  description: 'Test Plan'
+  description: 'Test Plan',
 });
 
 const createStep = (id: string, status: StepStatus, dependsOn: string[] = []): SequenceStep => ({
@@ -29,14 +29,21 @@ const createStep = (id: string, status: StepStatus, dependsOn: string[] = []): S
   status,
   dependsOn,
   pluginId: 'aave',
-  buildParams: { action: 'supply', protocol: 'aave', chain: 'ethereum', asset: 'USDC', amount: '100', userAddress: '0x123' },
+  buildParams: {
+    action: 'supply',
+    protocol: 'aave',
+    chain: 'ethereum',
+    asset: 'USDC',
+    amount: '100',
+    userAddress: '0x123',
+  },
   unsignedTx: {
     chainId: 'ethereum',
     to: '0xTo',
     data: '0xData',
     value: 1000000000000000000n, // 1 ETH
-    description: 'Test Tx'
-  }
+    description: 'Test Tx',
+  },
 });
 
 describe('Sequencer Engine', () => {
@@ -48,11 +55,11 @@ describe('Sequencer Engine', () => {
         success: true,
         gasEstimate: 21000n,
         gasCostUsd: 0.5,
-        simulatedAt: new Date('2026-05-17T01:00:00.000Z')
+        simulatedAt: new Date('2026-05-17T01:00:00.000Z'),
       };
 
       const serialized = serializeSequencePlan(plan);
-      
+
       // Check serialization
       expect(typeof serialized.createdAt).toBe('string');
       expect(typeof serialized.steps[0].unsignedTx?.value).toBe('string');
@@ -70,45 +77,37 @@ describe('Sequencer Engine', () => {
       expect(typeof deserialized.steps[0].simulation?.gasEstimate).toBe('bigint');
       expect(deserialized.steps[0].simulation?.gasEstimate).toBe(21000n);
       expect(deserialized.steps[0].simulation?.simulatedAt).toBeInstanceOf(Date);
-      expect(deserialized.steps[0].simulation?.simulatedAt.toISOString()).toBe('2026-05-17T01:00:00.000Z');
+      expect(deserialized.steps[0].simulation?.simulatedAt.toISOString()).toBe(
+        '2026-05-17T01:00:00.000Z',
+      );
     });
   });
 
   describe('getActiveStep', () => {
     it('returns the first pending step with no dependencies', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'pending')
-      ];
+      plan.steps = [createStep('1', 'pending')];
       const active = getActiveStep(plan);
       expect(active?.id).toBe('1');
     });
 
     it('returns null if all steps are confirmed', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'confirmed')
-      ];
+      plan.steps = [createStep('1', 'confirmed')];
       const active = getActiveStep(plan);
       expect(active).toBeNull();
     });
 
     it('returns step whose dependencies are confirmed', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'confirmed'),
-        createStep('2', 'pending', ['1'])
-      ];
+      plan.steps = [createStep('1', 'confirmed'), createStep('2', 'pending', ['1'])];
       const active = getActiveStep(plan);
       expect(active?.id).toBe('2');
     });
 
     it('does not return step if dependencies are not confirmed', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'pending'),
-        createStep('2', 'pending', ['1'])
-      ];
+      plan.steps = [createStep('1', 'pending'), createStep('2', 'pending', ['1'])];
       // Active should be 1, because its dependencies are empty (all confirmed)
       const active = getActiveStep(plan);
       expect(active?.id).toBe('1');
@@ -118,27 +117,19 @@ describe('Sequencer Engine', () => {
   describe('canSimulateStep', () => {
     it('returns true if step is pending and dependencies are confirmed', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'confirmed'),
-        createStep('2', 'pending', ['1'])
-      ];
+      plan.steps = [createStep('1', 'confirmed'), createStep('2', 'pending', ['1'])];
       expect(canSimulateStep(plan, '2')).toBe(true);
     });
 
     it('returns false if step is not pending', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'ready')
-      ];
+      plan.steps = [createStep('1', 'ready')];
       expect(canSimulateStep(plan, '1')).toBe(false);
     });
 
     it('returns false if dependencies are not confirmed', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'ready'),
-        createStep('2', 'pending', ['1'])
-      ];
+      plan.steps = [createStep('1', 'ready'), createStep('2', 'pending', ['1'])];
       expect(canSimulateStep(plan, '2')).toBe(false);
     });
   });
@@ -151,7 +142,7 @@ describe('Sequencer Engine', () => {
         success: true,
         gasEstimate: 21000n,
         gasCostUsd: 0.5,
-        simulatedAt: new Date()
+        simulatedAt: new Date(),
       };
       plan.steps = [step];
       expect(canExecuteStep(plan, '1')).toBe(true);
@@ -159,9 +150,7 @@ describe('Sequencer Engine', () => {
 
     it('returns false if step is not ready', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'simulating')
-      ];
+      plan.steps = [createStep('1', 'simulating')];
       expect(canExecuteStep(plan, '1')).toBe(false);
     });
   });
@@ -170,9 +159,9 @@ describe('Sequencer Engine', () => {
     it('returns a new plan with updated step', () => {
       const plan = createBasePlan();
       plan.steps = [createStep('1', 'pending')];
-      
+
       const updated = applyStepUpdate(plan, '1', { status: 'ready' });
-      
+
       expect(updated).not.toBe(plan); // Should be a new object
       expect(updated.steps[0].status).toBe('ready');
       expect(plan.steps[0].status).toBe('pending'); // Original untouched
@@ -217,10 +206,7 @@ describe('Sequencer Engine', () => {
 
     it('detects circular dependencies', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'pending', ['2']),
-        createStep('2', 'pending', ['1'])
-      ];
+      plan.steps = [createStep('1', 'pending', ['2']), createStep('2', 'pending', ['1'])];
       const res = validatePlan(plan);
       expect(res.valid).toBe(false);
       expect(res.errors).toContain('Circular dependency detected in steps');
@@ -228,10 +214,7 @@ describe('Sequencer Engine', () => {
 
     it('returns true for valid plan', () => {
       const plan = createBasePlan();
-      plan.steps = [
-        createStep('1', 'pending'),
-        createStep('2', 'pending', ['1'])
-      ];
+      plan.steps = [createStep('1', 'pending'), createStep('2', 'pending', ['1'])];
       const res = validatePlan(plan);
       expect(res.valid).toBe(true);
     });

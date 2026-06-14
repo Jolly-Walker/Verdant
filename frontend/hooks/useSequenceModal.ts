@@ -1,26 +1,26 @@
-'use client'
+'use client';
 
-import { useState, useCallback } from 'react'
-import { TemplateId } from '@/types/sequencer'
+import { useCallback, useState } from 'react';
+import type { TemplateId } from '@/types/sequencer';
 
 interface OpenModalOptions {
-  template?: TemplateId
-  params?: Partial<Record<string, string>>
+  template?: TemplateId;
+  params?: Partial<Record<string, string>>;
 }
 
 export function useSequenceModal() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [options, setOptions] = useState<OpenModalOptions>({})
+  const [isOpen, setIsOpen] = useState(false);
+  const [options, setOptions] = useState<OpenModalOptions>({});
 
   const openModal = useCallback((opts: OpenModalOptions = {}) => {
-    setOptions(opts)
-    setIsOpen(true)
-  }, [])
+    setOptions(opts);
+    setIsOpen(true);
+  }, []);
 
   const closeModal = useCallback(() => {
-    setIsOpen(false)
-    setOptions({})
-  }, [])
+    setIsOpen(false);
+    setOptions({});
+  }, []);
 
-  return { isOpen, options, openModal, closeModal }
+  return { isOpen, options, openModal, closeModal };
 }

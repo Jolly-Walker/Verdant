@@ -1,7 +1,7 @@
-'use client'
+'use client';
 
-import { ConnectButton as RainbowConnectButton } from '@rainbow-me/rainbowkit'
-import { SolanaConnectButton } from './SolanaConnectButton'
+import { ConnectButton as RainbowConnectButton } from '@rainbow-me/rainbowkit';
+import { SolanaConnectButton } from './SolanaConnectButton';
 
 export function ConnectButton() {
   return (
@@ -9,5 +9,5 @@ export function ConnectButton() {
       <RainbowConnectButton />
       <SolanaConnectButton />
     </div>
-  )
+  );
 }

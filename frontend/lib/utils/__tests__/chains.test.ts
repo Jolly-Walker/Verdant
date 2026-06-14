@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { DEMO_WALLET_ADDRESS } from '../../demo/wallet';
 import { isValidAddress } from '../chains';
 
 describe('isValidAddress', () => {
@@ -23,5 +24,23 @@ describe('isValidAddress', () => {
     expect(isValidAddress('0x8ab71ad4037a06002fdcfbef051f2fa9799df240', 'solana')).toBe(false);
     expect(isValidAddress('vines1vzrYbzRwuAfsG9ogCc5PsTdi7nLBYv5dg7S', 'solana')).toBe(true);
     expect(isValidAddress('vines1vzrYbzRwuAfsG9ogCc5PsTdi7nLBYv5dg7S', 'arbitrum')).toBe(false);
+  });
+
+  describe('demo sentinel gating', () => {
+    const original = process.env.NEXT_PUBLIC_DEMO_MODE;
+    afterEach(() => {
+      process.env.NEXT_PUBLIC_DEMO_MODE = original;
+    });
+
+    it('rejects the demo wallet sentinel when NOT in demo mode (production)', () => {
+      delete process.env.NEXT_PUBLIC_DEMO_MODE;
+      expect(isValidAddress(DEMO_WALLET_ADDRESS)).toBe(false);
+      expect(isValidAddress(DEMO_WALLET_ADDRESS, 'ethereum')).toBe(false);
+    });
+
+    it('accepts the demo wallet sentinel only when in demo mode', () => {
+      process.env.NEXT_PUBLIC_DEMO_MODE = 'true';
+      expect(isValidAddress(DEMO_WALLET_ADDRESS)).toBe(true);
+    });
   });
 });

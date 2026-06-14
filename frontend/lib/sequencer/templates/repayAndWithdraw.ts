@@ -1,4 +1,4 @@
-import { SequencePlan, RepayAndWithdrawParams } from '@/types/sequencer';
+import type { RepayAndWithdrawParams, SequencePlan } from '@/types/sequencer';
 
 export function buildRepayAndWithdrawPlan(params: RepayAndWithdrawParams): SequencePlan {
   return {
@@ -24,7 +24,7 @@ export function buildRepayAndWithdrawPlan(params: RepayAndWithdrawParams): Seque
           asset: params.borrowAsset,
           amount: params.borrowAmount,
           userAddress: params.walletAddress,
-        }
+        },
       },
       {
         id: 'withdraw',
@@ -40,8 +40,8 @@ export function buildRepayAndWithdrawPlan(params: RepayAndWithdrawParams): Seque
           asset: params.collateralAsset,
           amount: params.collateralAmount,
           userAddress: params.walletAddress,
-        }
-      }
-    ]
+        },
+      },
+    ],
   };
 }

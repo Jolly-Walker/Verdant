@@ -1,37 +1,36 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { ALL_CHAINS } from '@/types/shared'
-import { simulateTransaction } from '@/lib/simulation/simulate'
+import { type NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { enforceRateLimit } from '@/lib/server/rateLimit';
+import { simulateTransaction } from '@/lib/simulation/simulate';
+import { parseJson } from '@/lib/validation/http';
+import { chainSchema } from '@/lib/validation/primitives';
 
 const SimulateSchema = z.object({
-  chain: z.enum(ALL_CHAINS),
+  chain: chainSchema,
   to: z.string(),
   from: z.string(),
   data: z.string().optional(),
   value: z.string().optional(),
-})
+});
 
 export async function POST(request: NextRequest) {
+  // SPECS §19: 10 req/min per IP for simulation.
+  const limited = await enforceRateLimit(request, { bucket: 'simulate', limit: 10 });
+  if (limited) return limited;
+
+  const parsed = await parseJson(request, SimulateSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const { chain, to, from, data, value } = parsed.data;
+
   try {
-    const body = await request.json()
-    const result = SimulateSchema.safeParse(body)
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: 'Invalid request body', details: result.error.format() },
-        { status: 400 }
-      )
-    }
-
-    const { chain, to, from, data, value } = result.data
-
     const simResult = await simulateTransaction({
       chain,
       to,
       from,
       data: data || '0x',
       value: value || '0',
-    })
+    });
 
     return NextResponse.json({
       success: simResult.success,
@@ -39,12 +38,9 @@ export async function POST(request: NextRequest) {
       gasEstimate: simResult.gasEstimate?.toString(),
       stateChanges: simResult.stateChanges,
       simulatedAt: (simResult.simulatedAt || new Date()).toISOString(),
-    })
+    });
   } catch (error) {
-    console.error('Simulation error:', error)
-    return NextResponse.json(
-      { error: 'Failed to simulate transaction' },
-      { status: 500 }
-    )
+    console.error('Simulation error:', error);
+    return NextResponse.json({ error: 'Failed to simulate transaction' }, { status: 500 });
   }
 }

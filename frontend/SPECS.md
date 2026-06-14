@@ -3,7 +3,14 @@
 > **Spec version:** 3 — Expanded scope: Base chain, Solana, full position type coverage, complex
 > transaction sequences, modular plugin architecture, sequential transaction execution with simulation.  
 > **Based on:** Existing SPECS.md (v2), AGENTS.md, codebase analysis.  
-> **Intended consumers:** AI coding agents generating GitHub tickets and tasks.
+> **Intended consumers:** AI coding agents generating GitHub tickets and tasks.  
+> **Rev 2026-06-06:** Database access migrated to Drizzle ORM (typed schema + repositories);
+> request validation consolidated into shared zod helpers. See §2.6, §14, §15, §18.  
+> **Rev 2026-06-13:** Reconciled spec with implementation. Added the swap-aggregator plugin
+> subsystem (1inch / `SWAP_REGISTRY`, §3.5) and Chainlink CCIP bridge (§10.2, §10.5); corrected
+> the CCTP bridge to Circle CCTP v2 + IRIS (§10.3) and NEAR Intents to Defuse/1Click (§10.4);
+> corrected shared/sequencer type paths to `types/` (§3, §9.1); refreshed env vars (§18),
+> rate-limit store options (§19), page/component inventory (§16), and milestone status (§20).
 
 ---
 
@@ -99,8 +106,11 @@ client bundles. All sensitive data fetches are proxied through Next.js API route
 Position Layer   — Read wallet state (Zerion, protocol SDKs, Solana RPC)
 Sequencer Layer  — Plan and track multi-step transaction flows
 Simulation Layer — Validate each step before signing
-Bridge Layer     — Cross-chain routing (LayerZero, NEAR Intents, Across)
+Bridge Layer     — Cross-chain routing (Across, Circle CCTP, NEAR Intents, Chainlink CCIP)
+Swap Layer       — Same-chain DEX-aggregator quotes/tx (1inch) via plugins
 Protocol Layer   — Per-protocol tx builders (Aave, Morpho, etc.) via plugins
+Data Layer       — Typed DB access via Drizzle ORM (lib/db) + repositories (lib/data)
+Validation Layer — Shared zod schemas + request helpers (lib/validation)
 UI Layer         — Display, cost preview, step-by-step signing flow
 ```
 
@@ -238,15 +248,21 @@ export interface BridgePlugin {
   getQuote(params: BridgeQuoteParams): Promise<BridgeQuote | null>
   /** Build the bridge initiation transaction */
   buildBridgeTx(quote: BridgeQuote): Promise<UnsignedTx>
-  /** Poll for bridge completion */
-  pollStatus(txHash: string, fromChain: ChainId): Promise<BridgeStatus>
+  /**
+   * Poll for bridge completion. `context` carries bridge-specific data threaded from the
+   * status route — e.g. NEAR Intents needs the `depositAddress`.
+   */
+  pollStatus(txHash: string, fromChain: ChainId, context?: BridgeStatusContext): Promise<BridgeStatus>
 }
 ```
 
 ### 3.4 Shared Types
 
+> Shared types live in `types/shared.ts` (imported as `@/types/shared`); sequencer types in
+> `types/sequencer.ts`. The plugin **interfaces** above live in `lib/plugins/types/`.
+
 ```typescript
-// lib/plugins/types/shared.ts
+// types/shared.ts
 
 export type ChainId = 'ethereum' | 'arbitrum' | 'base' | 'solana'
 export type ProtocolId = 'aave' | 'morpho' | 'pendle' | 'euler' | string
@@ -323,6 +339,60 @@ export interface BridgeStatus {
 }
 ```
 
+### 3.5 Swap Plugin Interface
+
+Same-chain token swaps (e.g. swapping bridged ETH into USDC before a deposit) are handled by
+DEX-aggregator plugins, parallel to the bridge plugins.
+
+```typescript
+// lib/plugins/types/swap-plugin.ts
+
+export interface SwapQuoteParams {
+  fromChain: ChainId
+  fromToken: string
+  toToken: string
+  amount: string            // human units
+  userAddress: string
+  slippagePercent: number
+}
+
+export interface SwapQuote {
+  aggregator: string
+  fromToken: string
+  toToken: string
+  fromAmount: string
+  toAmount: string          // expected output, human units
+  feeUsd: number
+  priceImpactPercent: number
+  expiresAt: Date
+  rawQuote: unknown
+}
+
+export interface SwapPlugin {
+  id: string
+  displayName: string
+  supportedChains: ChainId[]
+  getQuote(params: SwapQuoteParams): Promise<SwapQuote | null>
+  buildSwapTx(quote: SwapQuote, userAddress: string): Promise<UnsignedTx>
+}
+```
+
+**Registering a swap aggregator:**
+
+```typescript
+// lib/plugins/swaps/index.ts
+import { oneinchPlugin } from './oneinch'
+
+export const SWAP_REGISTRY: Record<string, SwapPlugin> = {
+  '1inch': oneinchPlugin,
+}
+```
+
+The only aggregator in MVP is **1inch v6.0** (`lib/plugins/swaps/oneinch.ts`, server-side Bearer
+auth via `ONEINCH_API_KEY`; the swap option is simply unavailable when the key is unset). Swap
+steps are added through the freeform custom builder (`components/sequenceBuilder/SwapCard.tsx`) and
+their unsigned txs are resolved against `SWAP_REGISTRY` during sequencer step simulation.
+
 ---
 
 ## 4. Supported Networks
@@ -352,14 +422,15 @@ interface accommodates both via the union return type on `getRpcClient()`.
 
 ```typescript
 // lib/wagmi.ts
-import { mainnet, arbitrum, base } from 'wagmi/chains'
+import { mainnet, arbitrum, base } from 'viem/chains'
 
 export const wagmiConfig = getDefaultConfig({
   appName: 'Verdant',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID!,
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || '<fallback id>',
   chains: [mainnet, arbitrum, base],   // Base added
   ssr: true,
 })
+// The config is cached on a typed globalThis reference to survive Fast Refresh.
 ```
 
 ---
@@ -559,7 +630,7 @@ N-step sequencer capable of handling complex position migrations.
 ### 9.1 SequencePlan Type
 
 ```typescript
-// lib/sequencer/types.ts
+// types/sequencer.ts  (imported as @/types/sequencer)
 
 export type StepStatus = 'pending' | 'simulating' | 'ready' | 'signing' | 'confirmed' | 'failed'
 
@@ -654,20 +725,12 @@ interface UseSequencerReturn {
 }
 ```
 
-### 9.5 Sequencer API Route
+### 9.5 Sequencer API Routes
 
-```
-POST /api/sequencer/plan
-  Body: { templateId, params }
-  Returns: SequencePlan
-
-POST /api/sequencer/simulate
-  Body: { stepId, unsignedTx }
-  Returns: SimulationResult
-
-GET /api/sequencer/plan/{planId}
-  Returns: SequencePlan (current state from DB)
-```
+See **§15.3** for the authoritative request/response contracts (all ownership-checked and
+DB-backed): `POST /api/sequencer/plan` (template **and** custom-plan bodies),
+`POST /api/sequencer/simulate` (`{ planId, stepId, walletAddress }`), `POST /api/sequencer/cost`,
+`GET /api/sequencer/plan/{planId}`, and `PATCH /api/sequencer/plan/{planId}/step/{stepId}`.
 
 ---
 
@@ -678,16 +741,16 @@ GET /api/sequencer/plan/{planId}
 | Bridge | Supported Tokens | Supported Routes | Notes |
 |---|---|---|---|
 | Across Protocol | ETH, USDC, USDT, WBTC | ETH↔ARB, ETH↔Base, ARB↔Base | Primary EVM bridge |
-| LayerZero (OFT) | USDC (CCTP) | ETH↔ARB, ETH↔Base, ARB↔Base, any→SOL | USDC cross-chain; EVM→Solana |
-| NEAR Intents | ETH, USDC, SOL | ETH↔SOL, ARB↔SOL, Base↔SOL | EVM→Solana primary |
-| Chainlink CCIP | LINK, USDC, ETH | ETH↔ARB, ETH↔Base, ARB↔Base | Secure institutional-grade bridge |
+| Circle CCTP v2 (`layerzero` id) | USDC | ETH↔ARB, ETH↔Base, ARB↔Base | Canonical USDC, EVM-only; fees/status via Circle IRIS (§10.3) |
+| NEAR Intents | ETH, USDC, SOL | ETH↔SOL, ARB↔SOL, Base↔SOL | EVM→Solana primary (Defuse/1Click) |
+| Chainlink CCIP | LINK, USDC, ETH | ETH↔ARB, ETH↔Base, ARB↔Base | Secure institutional-grade EVM bridge |
 
 **Token bridge matrix:**
 
 | Token | ETH→ARB | ETH→Base | ARB→Base | Any→Solana |
 |---|---|---|---|---|
 | ETH/WETH | Across | Across | Across | NEAR Intents |
-| USDC | Across / LayerZero | Across / LayerZero | Across / LayerZero | LayerZero CCTP |
+| USDC | Across / CCTP / CCIP | Across / CCTP / CCIP | Across / CCTP / CCIP | NEAR Intents |
 | USDT | Across | Across | Across | — |
 | WBTC | Across | Across | — | — |
 | SOL | — | — | — | N/A (native) |
@@ -705,27 +768,39 @@ When a user needs to bridge, the system:
 // lib/plugins/bridges/index.ts
 export const BRIDGE_REGISTRY: Record<BridgeId, BridgePlugin> = {
   across:      acrossBridgePlugin,
-  layerzero:   layerzeroBridgePlugin,
   nearIntents: nearIntentsBridgePlugin,
+  layerzero:   layerzeroBridgePlugin,   // Circle CCTP v2 for USDC (see §10.3)
+  chainlink:   chainlinkBridgePlugin,   // Chainlink CCIP (see §10.5)
 }
 ```
 
-### 10.3 LayerZero Integration (new in v3)
+### 10.3 USDC Bridge — Circle CCTP v2 (`layerzero` plugin)
 
-Plugin file: `lib/plugins/bridges/layerzero.ts`
+Plugin file: `lib/plugins/bridges/layerzero.ts` (registry id `layerzero`, retained for compatibility)
 
-- Uses LayerZero CCTP for USDC cross-chain (Circle's canonical bridge)
-- Endpoint: LayerZero Scan API for status polling
-- SDK: `@layerzerolabs/lz-v2-utilities` + CCTP contract ABIs
-- Status polling interval: 20 seconds
+- Implements **Circle CCTP v2** for canonical USDC transfers across EVM chains — it builds a
+  `depositForBurn` against the `TokenMessengerV2` contract (same canonical address on each chain),
+  using Circle CCTP **domain IDs** (Ethereum 0, Arbitrum 3, Base 6), not EVM chain IDs.
+- **Fees and attestation/status** come from Circle's **IRIS API** (`iris-api.circle.com`), not a
+  LayerZero endpoint.
+- `@layerzerolabs/*` packages remain installed but the live USDC path is Circle CCTP.
 
 ### 10.4 NEAR Intents Integration (EVM → Solana)
 
-Plugin file: `lib/plugins/bridges/nearIntents.ts` (enhance existing)
+Plugin file: `lib/plugins/bridges/nearIntents.ts`
 
-- Handles EVM-to-Solana token transfers
-- Recipient address must be a valid Solana public key
-- SDK: `@near-intents/sdk`
+- Handles EVM-to-Solana (and EVM↔EVM) token transfers; recipient must be valid for the dest chain.
+- Uses the **Defuse** solver RPC (`bridge.chaindefuser.com/rpc`) for quotes/deposit and the
+  **1Click** REST API (`1click.chaindefuser.com`) for swap status.
+- SDK: `@defuse-protocol/intents-sdk` (key via `NEAR_INTENTS_API_KEY`).
+
+### 10.5 Chainlink CCIP Integration
+
+Plugin file: `lib/plugins/bridges/chainlink.ts` (registry id `chainlink`)
+
+- Chainlink CCIP for cross-chain transfers across the supported EVM chains.
+- Quotes the bridge fee on-chain via the CCIP router's `getFee` (no off-chain quote API key).
+- Positioned as the secure/institutional-grade EVM↔EVM option in `getBridgeQuotes()`.
 
 ---
 
@@ -901,10 +976,11 @@ export interface CostPreviewResult {
 | Protocol APYs | Defillama Yields | `yields.llama.fi/pools` | Free, unlimited | Protocol subgraphs |
 | Token prices | Defillama Coins | `coins.llama.fi/prices/current` | Free, unlimited | CoinGecko free |
 | EVM RPC | Alchemy | Chain-specific URL | 300M CU/month | Public RPC (fallback) |
-| Bridge quotes | Across API | `across.to/api/suggested-fees` | Free | — |
-| Bridge quotes | LayerZero | CCTP API | Free | — |
-| Bridge quotes | NEAR Intents | Quote API | Free | — |
-| Bridge status | Across | `/api/deposits/status` | Free | — |
+| Bridge quotes/status | Across API | `app.across.to/api/suggested-fees`, `/api/deposits/status` | Free | — |
+| USDC bridge (CCTP) fees/attestation | Circle IRIS | `iris-api.circle.com` | Free | — |
+| Bridge quotes/status | NEAR Intents | Defuse RPC `bridge.chaindefuser.com/rpc` + 1Click `1click.chaindefuser.com` | Free | — |
+| EVM↔EVM bridge fee | Chainlink CCIP | Router `getFee` (on-chain) | Free | — |
+| Same-chain swap quotes/tx | 1inch v6.0 | `api.1inch.dev` (Bearer `ONEINCH_API_KEY`) | Key required | swap unavailable if unset |
 | Tx simulation | Alchemy (`eth_call`) | RPC method | Included in free | Tenderly (optional) |
 | Gas prices | Alchemy Gas API | `eth_gasPrice` / `eth_maxPriorityFeePerGas` | Included in free | `eth_gasPrice` RPC |
 | Aave positions | Aave subgraph | `api.thegraph.com/subgraphs/name/aave/...` | Free | `@aave/contract-helpers` |
@@ -915,124 +991,194 @@ export interface CostPreviewResult {
 
 ## 14. Database Schema
 
-All Supabase migrations in `supabase/migrations/`. New migrations use sequential 3-digit prefix.
+The database is **Supabase Postgres**, accessed server-side through **Drizzle ORM** (over
+`postgres-js`). The SQL migrations in `supabase/migrations/` are the canonical applied schema; the
+Drizzle schema in `lib/db/schema.ts` mirrors them and is the **typed source of truth** for all
+queries. New migrations use a sequential 3-digit prefix — when you add one, reflect the change in
+`lib/db/schema.ts`.
 
-### 14.1 Existing Tables (unchanged)
+### 14.1 Data Access Layer
 
-- `user_settings` — wallet → preferences (including `min_usd_threshold`)
-- `auto_compound_settings` — per-position compound settings
-- `execution_history` — history of executed sequences
-- `harvest_history` — history of harvested rewards
+- `lib/db/client.ts` — lazy, server-only Drizzle client. Requires `DATABASE_URL` (the Supabase
+  Postgres connection-pooler URI; see §18). `@supabase/supabase-js` is no longer a dependency of the
+  Next app.
+- `lib/db/schema.ts` — Drizzle table definitions for every table below.
+- `lib/data/*` — typed repositories that own all queries; route handlers contain **no** raw DB
+  access. Modules: `sequencePlans`, `executionHistory`, `autoCompoundSettings`, `harvestHistory`,
+  `bridgeQuotesCache`.
+- Postgres `numeric` columns are returned by the driver as strings; repositories convert them to
+  `number` at their boundary.
+- `npm run db:generate | db:migrate | db:push | db:studio` wire `drizzle-kit` (`drizzle.config.ts`).
 
-### 14.2 New Tables (v3)
+> The Supabase Edge Function `supabase/functions/auto-compound/index.ts` runs on Deno and uses its
+> own `@supabase/supabase-js` import via esm.sh — independent of the Drizzle layer above.
+
+### 14.2 Tables
+
+| Migration(s) | Table | Purpose |
+|---|---|---|
+| `001`, `009` | `user_settings` | wallet → preferences (incl. `min_usd_threshold`) |
+| `002` | `auto_compound_settings` | per-position auto-compound prefs (unique per wallet+protocol+chain+asset) |
+| `003`, `006` | `execution_history` | executed sequences (`plan_id` → `sequence_plans`) |
+| `004`, `008` | `harvest_history` | harvested rewards (incl. `reward_token_address`) |
+| `005`, `010` | `sequence_plans` | persisted `SequencePlan`s (incl. `position_size_usd`) |
+| `007` | `bridge_quotes_cache` | short-TTL cache of bridge quotes per route |
+
+Key table definitions:
 
 ```sql
--- 005_sequence_plans.sql
+-- 005_sequence_plans.sql (+ 010 adds position_size_usd)
 CREATE TABLE sequence_plans (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   wallet_address      TEXT NOT NULL,
   template_id         TEXT NOT NULL,
   description         TEXT NOT NULL,
-  status              TEXT DEFAULT 'draft',  -- draft|in-progress|complete|failed
+  status              TEXT NOT NULL DEFAULT 'draft',  -- draft|in-progress|complete|failed
   total_cost_usd      NUMERIC,
-  steps               JSONB NOT NULL,        -- serialised SequenceStep[]
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW(),
+  position_size_usd   NUMERIC(18,2),
+  steps               JSONB NOT NULL,                 -- serialised SequenceStep[]
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   completed_at        TIMESTAMPTZ
 );
 
 CREATE INDEX idx_sequence_plans_wallet ON sequence_plans(wallet_address);
 CREATE INDEX idx_sequence_plans_status ON sequence_plans(status);
 
--- 006_bridge_quotes_cache.sql
+-- 007_bridge_quotes_cache.sql
 CREATE TABLE bridge_quotes_cache (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   from_chain          TEXT NOT NULL,
   to_chain            TEXT NOT NULL,
   token               TEXT NOT NULL,
   amount_wei          TEXT NOT NULL,
-  quotes              JSONB NOT NULL,       -- BridgeQuote[]
+  recipient           TEXT NOT NULL,
+  quotes              JSONB NOT NULL,                 -- BridgeQuote[]
   fetched_at          TIMESTAMPTZ DEFAULT NOW(),
   expires_at          TIMESTAMPTZ NOT NULL
 );
 
--- 007_solana_positions.sql  (future — for now positions are ephemeral)
--- Placeholder migration, table created in next iteration
+CREATE INDEX idx_bridge_quotes_cache_lookup
+  ON bridge_quotes_cache(from_chain, to_chain, token, amount_wei, recipient);
 ```
 
 ---
 
 ## 15. API Routes
 
-### 15.1 Existing Routes (updated)
+> **Input validation:** every route validates inputs with zod through shared helpers in
+> `lib/validation/` — `parse` / `parseQuery` / `parseJson` (each returns a ready `400` response on
+> failure or the typed data) plus reusable primitives (`evmAddressSchema`, `chainSchema`). Validation
+> failures respond with `{ error: <first message> }` and status `400`; malformed JSON bodies respond
+> with `{ error: 'Invalid JSON body' }`.
+
+### 15.1 Positions, Simulation & Data
 
 **`GET /api/positions?address={wallet}&solana={solanaAddress}`**
 
-Now accepts optional `solana` query param. Returns merged EVM + Solana positions.
+Both query params optional. Returns merged EVM (Zerion + protocol plugins) + Solana positions.
 
 **`POST /api/simulate`**
 
-Now accepts `chain: ChainId` (including `'solana'`). Routes to appropriate simulation method.
+Body: `{ chain: ChainId, to, from, data?, value? }` (`chain` includes `'solana'`). Routes to the
+appropriate simulation method and returns the serialised `SimulationResult`.
 
 **`POST /api/quote`**
 
-Now returns all bridge options for the route, not just one. Renamed fields:
-- `bridgeQuotes: BridgeQuote[]` (sorted best-to-worst)
-- `recommendedBridgeId: BridgeId`
+Single-move **cost preview** (not bridge quotes). Body:
+`{ asset, amountUsd, sourceProtocol, sourceChain, destProtocol, destChain }`. Returns a
+`CostPreviewResult` with `quoteFetchedAt` serialised to an ISO string. Rejects no-op moves
+(same source and destination). Bridge quotes live at `GET /api/bridges/quote` (§15.2).
 
 **`GET /api/apys?protocol={protocol}&chain={chain}&asset={asset}`**
 
-Unchanged.
+Defillama pool APY lookup via the protocol/chain registries. Unchanged.
 
-### 15.2 New Routes (v3)
+**`GET /api/destinations?token={token}&chain={chain}`**
+
+Candidate deposit destinations (protocol/chain/APY) for the sequence builder. Both params optional.
+CDN-cached (5 min, stale-while-revalidate 15 min).
+
+### 15.2 Bridge Routes
+
+**`GET /api/bridges/quote`**
+
+```typescript
+// Query: fromChain, toChain, token, amount, recipientAddress, slippagePercent? (default 0.5)
+// Response: { quotes: BridgeQuote[], recommended: BridgeQuote }   // sorted best net output first
+```
+
+Served from a 30s DB cache (`bridge_quotes_cache`) on a warm hit; otherwise queries all eligible
+bridge plugins in parallel (10s timeout) and caches the result.
+
+**`POST /api/bridges/build`**
+
+```typescript
+// Body: { bridgeId, quote, walletAddress }
+// Response: { unsignedTx: SerializedUnsignedTx }
+```
+
+Verifies `quote.rawQuote.recipientAddress === walletAddress`, resolves the origin chain, and
+simulates before returning the unsigned tx.
+
+**`GET /api/bridges/status?txHash={hash}&fromChain={chain}&bridgeId={bridge}`**
+
+Returns `BridgeStatus` by polling the selected bridge plugin.
+
+### 15.3 Sequencer Routes
 
 **`POST /api/sequencer/plan`**
 
 ```typescript
-// Body
-{
-  templateId: TemplateId
-  params: TemplateParams
-  walletAddress: string
-}
-// Response
-{
-  plan: SequencePlan
-}
+// Body (template): { templateId: TemplateId, params: TemplateParams, walletAddress }
+// Body (custom):   { templateId: 'custom', customPlan, walletAddress }
+// Response: { plan: SequencePlan }
 ```
 
 **`POST /api/sequencer/simulate`**
 
 ```typescript
-// Body
-{
-  planId: string
-  stepId: string
-}
-// Response
-{
-  simulation: SimulationResult
-  updatedStep: SequenceStep
-}
+// Body: { planId, stepId, walletAddress }
+// Response: { simulation: SimulationResult, updatedStep: SequenceStep }   // ownership-checked
 ```
 
-**`PATCH /api/sequencer/plan/{planId}/step/{stepId}`**
+**`POST /api/sequencer/cost`**
 
 ```typescript
-// Body: partial SequenceStep update (e.g., status after tx broadcast)
-{ status: StepStatus; txHash?: string }
+// Body: { planId, walletAddress, currentApy?, targetApy?, borrowApy?, supplyApy?, totalCollateralUsd? }
+// Response: multi-step CostPreviewResult (quoteFetchedAt as ISO string)   // ownership-checked
 ```
 
 **`GET /api/sequencer/plan/{planId}`**
 
-Returns full `SequencePlan` from DB.
+Returns the full `SequencePlan` from the DB.
 
-**`GET /api/bridges/quotes`**
+**`PATCH /api/sequencer/plan/{planId}/step/{stepId}`**
 
 ```typescript
-// Query params: fromChain, toChain, token, amount, recipient
-// Response: BridgeQuote[]
+// Body: { status: StepStatus, walletAddress, txHash?, simulation?, acknowledged? }
+// Enforces valid status transitions and plan ownership.
 ```
+
+### 15.4 Rewards & Harvest Routes
+
+**`GET /api/rewards?address={wallet}&chain={chain}`**
+
+Aggregates claimable rewards across all protocol plugins implementing `RewardFetcher`. `chain`
+optional (defaults to all supported EVM chains). Returns `{ rewards, totalUsd }`.
+
+**`POST /api/rewards/claim`**
+
+Body: `{ protocol, chain, address }`. Returns `{ txs: UnsignedTx[] }`.
+
+**`GET /api/harvest/settings?address={wallet}`** / **`POST /api/harvest/settings`**
+
+Read all auto-compound settings for a wallet, or upsert one
+(`{ address, protocol, chain, asset, enabled, min_threshold_usd? }`).
+
+**`GET /api/harvest/history?address={wallet}`**
+
+Returns the 50 most recent harvest events for the wallet, newest first.
 
 ---
 
@@ -1042,60 +1188,88 @@ Returns full `SequencePlan` from DB.
 
 ```
 app/
+├── layout.tsx                  # Root layout + providers
 ├── page.tsx                    # Landing / connect wallet
 ├── dashboard/
 │   └── page.tsx                # Portfolio overview — ALL position types
+├── execute/
+│   └── page.tsx                # Single-move execute flow (asset → destination → cost preview)
 ├── sequence/
 │   ├── page.tsx                # Template selector
-│   ├── [planId]/
-│   │   ├── page.tsx            # Sequence plan review + execution
-│   │   └── step/
-│   │       └── [stepId]/
-│   │           └── page.tsx    # Individual step sign + simulate UI
+│   └── [planId]/
+│       └── page.tsx            # Plan review + step-by-step sign/simulate (no separate step route)
 ├── harvest/
 │   └── page.tsx                # Harvest rewards flow (existing)
 └── api/
     ├── positions/route.ts
     ├── quote/route.ts
     ├── apys/route.ts
+    ├── destinations/route.ts
     ├── simulate/route.ts
+    ├── rewards/
+    │   ├── route.ts
+    │   └── claim/route.ts
+    ├── harvest/
+    │   ├── settings/route.ts
+    │   └── history/route.ts
     ├── bridges/
-    │   └── quotes/route.ts
+    │   ├── quote/route.ts
+    │   ├── build/route.ts
+    │   └── status/route.ts
     └── sequencer/
         ├── plan/route.ts
         ├── plan/[planId]/route.ts
-        └── plan/[planId]/step/[stepId]/route.ts
+        ├── plan/[planId]/step/[stepId]/route.ts
+        ├── simulate/route.ts
+        └── cost/route.ts
 ```
 
 ### 16.2 Component Structure
 
+There are **two distinct sequence UIs**, both POSTing to `/api/sequencer/plan`: `components/sequence/`
+is the pre-built **template** flow (launched via `SequenceModal`), and `components/sequenceBuilder/`
+is the freeform **custom** builder (launched via `SequenceBuilderModal`, includes the swap step).
+Position type is rendered inline by a type-aware `PositionCard` (there is no separate `BorrowCard`/
+`PendleCard`).
+
 ```
 components/
 ├── wallet/
-│   ├── ConnectButton.tsx           # EVM connect (existing)
-│   ├── SolanaConnectButton.tsx     # NEW: Solana wallet connect
-│   └── WalletProvider.tsx          # Updated: wraps both EVM + Solana providers
+│   ├── ConnectButton.tsx           # EVM connect
+│   ├── SolanaConnectButton.tsx     # Solana wallet connect
+│   └── WalletProvider.tsx          # Wraps both EVM + Solana providers
 ├── positions/
-│   ├── PositionList.tsx            # Updated: groups by chain, shows all types
-│   ├── PositionCard.tsx            # Updated: type-aware display
-│   ├── BorrowCard.tsx              # NEW: health factor, liquidation price
-│   ├── PendleCard.tsx              # NEW: maturity date, fixed/implied APY
+│   ├── PositionList.tsx            # Groups by chain, shows all types
+│   ├── PositionCard.tsx            # Type-aware display (supply/borrow/Pendle/wallet)
 │   ├── PositionSkeleton.tsx
-│   └── PositionTypeFilter.tsx      # NEW: filter by position type
-├── sequence/
-│   ├── TemplateSelector.tsx        # NEW: choose sequence template
-│   ├── SequencePlanView.tsx        # NEW: review all steps before starting
-│   ├── SequenceStepCard.tsx        # NEW: single step with simulate/sign
-│   ├── SequenceProgress.tsx        # NEW: progress bar across steps
-│   └── SequenceComplete.tsx        # NEW: success state
-├── bridge/
-│   ├── BridgeQuoteSelector.tsx     # NEW: compare bridge options
-│   └── BridgePending.tsx           # Existing StepOneBridge — renamed/refactored
+│   ├── PositionTypeFilter.tsx      # Filter by position type
+│   └── TokenIcon.tsx
+├── sequence/                       # Pre-built TEMPLATE flow
+│   ├── SequenceModal.tsx           # Entry point — pick template + params
+│   ├── TemplateSelector.tsx
+│   ├── SequencePlanView.tsx        # Review steps; step-by-step simulate/sign
+│   ├── SequenceStepCard.tsx
+│   ├── SequenceProgress.tsx
+│   └── SequenceComplete.tsx
+├── sequenceBuilder/                # Freeform CUSTOM builder
+│   ├── SequenceBuilderModal.tsx
+│   ├── ActionSelectCard.tsx
+│   ├── SourceCard.tsx
+│   ├── BridgeCard.tsx
+│   ├── SwapCard.tsx                # 1inch same-chain swap step
+│   ├── DepositCard.tsx
+│   ├── WithdrawCard.tsx
+│   ├── RepayCard.tsx
+│   ├── RepayAndWithdrawCard.tsx
+│   └── SummaryBar.tsx
+├── loop/
+│   └── LoopModal.tsx               # Leverage-loop builder entry point
 ├── execute/
-│   ├── CostPreview.tsx             # Updated: multi-step cost breakdown
-│   ├── SimulationResult.tsx        # NEW: simulation pass/fail display
 │   ├── AssetSelector.tsx
-│   └── ProtocolSelector.tsx
+│   ├── BridgeQuoteSelector.tsx     # Compare bridge options
+│   ├── CostPreview.tsx             # Multi-step cost breakdown
+│   ├── SimulationResult.tsx        # Simulation pass/fail + state changes
+│   └── StepOneBridge.tsx
 ├── harvest/
 │   ├── RewardsList.tsx
 │   └── HarvestButton.tsx
@@ -1105,8 +1279,7 @@ components/
     ├── Spinner.tsx
     ├── Tooltip.tsx
     ├── WarningBanner.tsx
-    ├── HealthFactor.tsx            # NEW: colour-coded health factor display
-    └── StepIndicator.tsx           # NEW: step N of M with status icons
+    └── HealthFactor.tsx            # Colour-coded health factor display
 ```
 
 ### 16.3 Dashboard Position Display
@@ -1176,12 +1349,27 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
 # Bridge providers
 NEAR_INTENTS_API_KEY=
 # Across: no API key needed — public endpoint
-# LayerZero: no API key needed for CCTP — uses public contracts
+# Circle CCTP (the `layerzero` plugin): no API key — public IRIS endpoint + contracts
+# Chainlink CCIP: no API key — fees quoted on-chain
 
-# Supabase
+# Protocol / swap data
+PENDLE_HOSTED_SDK_API_KEY=      # Pendle Convert/Hosted SDK (api-v2.pendle.finance)
+ONEINCH_API_KEY=                # 1inch v6.0 swaps (server-side Bearer). Swap option hidden if unset.
+
+# Database
+DATABASE_URL=                   # Postgres connection string for Drizzle ORM (server-side DB access).
+                                # Supabase: use the Transaction pooler URI (port 6543). This is the
+                                # ONLY DB var the Next app uses — there is no @supabase/supabase-js dep.
+
+# Supabase JS keys — used ONLY by the Deno auto-compound Edge Function, not the Next app.
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+
+# Upstash Redis (optional) — activates the shared, global rate-limit store (§19).
+# When either is unset, rate limiting falls back to the in-memory per-instance default.
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
 
 # Tenderly (optional — for enriched simulation)
 TENDERLY_ACCESS_KEY=
@@ -1205,7 +1393,10 @@ must only be accessed inside `app/api/` routes or `lib/server/` utilities.
 - All transaction construction must be simulated before the sign button is shown
 - All API keys must be server-side only — never in client bundles
 - Rate limit all API routes: 60 req/min per IP for position fetches, 10 req/min per IP for
-  simulation and sequencer plan creation
+  simulation and sequencer plan creation. `lib/server/rateLimit.ts` uses an in-memory per-instance
+  sliding window by default; setting `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` switches
+  `enforceRateLimit` to a shared Upstash Redis store that enforces the limit globally across
+  serverless instances
 - Display health factor warnings prominently; require explicit checkbox confirmation for actions
   that reduce health factor below 1.5
 - Display Pendle maturity warnings prominently; require checkbox for PT positions maturing <30 days
@@ -1265,9 +1456,9 @@ dashboard chain selector without any other code changes.
 - [x] Add Morpho address for Base
 - [x] `types/position.ts` — extend `Position` with borrow + Pendle fields
 - [x] Update `PositionCard.tsx` to be type-aware (render different UI per `positionType`)
-- [x] `components/positions/BorrowCard.tsx` — health factor display with colour coding
+- [x] Borrow display with health factor + colour coding (folded into type-aware `PositionCard`, not a separate `BorrowCard`)
 - [x] `components/ui/HealthFactor.tsx` — reusable health factor badge
-- [x] `components/positions/PendleCard.tsx` — maturity date + APY type display
+- [x] Pendle display — maturity date + APY type (rendered by `PositionCard`, not a separate `PendleCard`)
 - [x] `components/positions/PositionTypeFilter.tsx` — filter bar
 - [x] Update dashboard `page.tsx` — group by chain, then by type; separate liabilities section
 - [x] Update `/api/positions` — include borrow positions in Zerion filter
@@ -1300,7 +1491,7 @@ dashboard chain selector without any other code changes.
 templates. Replace existing execute flow with sequencer.
 
 **Tasks:**
-- [x] `lib/sequencer/types.ts` — `SequencePlan`, `SequenceStep`, `StepStatus` (Located at `lib/plugins/types/sequencer.ts`)
+- [x] `SequencePlan`, `SequenceStep`, `StepStatus` types (Located at `types/sequencer.ts`, imported as `@/types/sequencer`)
 - [x] `lib/sequencer/engine.ts` — state machine: simulate → ready → sign → confirm → next step
 - [x] `lib/sequencer/templates/bridgeAndDeposit.ts` — template
 - [x] `lib/sequencer/templates/repayAndWithdraw.ts` — template (same-chain)
@@ -1352,8 +1543,9 @@ templates. Replace existing execute flow with sequencer.
 **Tasks:**
 - [x] `lib/plugins/bridges/across.ts` — refactor existing `lib/routing/across.ts` into plugin
 - [x] `lib/plugins/bridges/nearIntents.ts` — refactor existing `lib/routing/nearIntents.ts` into plugin
-- [x] `lib/plugins/bridges/layerzero.ts` — new: LayerZero CCTP for USDC
-- [x] `GET /api/bridges/quotes` — returns all bridge quotes for a route, sorted by net output
+- [x] `lib/plugins/bridges/layerzero.ts` — Circle CCTP v2 for USDC (registry id `layerzero`)
+- [x] `lib/plugins/bridges/chainlink.ts` — Chainlink CCIP bridge (on-chain `getFee`)
+- [x] `GET /api/bridges/quote` — returns all bridge quotes for a route, sorted by net output
 - [x] Supabase migration `006_bridge_quotes_cache.sql`
 - [x] Bridge quote caching (30s TTL in DB)
 - [x] `components/bridge/BridgeQuoteSelector.tsx` — compare bridge options
@@ -1375,8 +1567,10 @@ templates. Replace existing execute flow with sequencer.
 - [x] `lib/plugins/protocols/euler.ts` — add `buildRepayTx()`, `buildWithdrawTx()`
 - [x] Aave subgraph integration — fetch health factor and debt data server-side
 - [x] `lib/sequencer/templates/deleverageAave.ts` — compute optimal unwind cycle count
-- [ ] Warning: health factor guard — refuse to build step if resulting HF < 1.05
-- [ ] `components/positions/BorrowCard.tsx` — "De-leverage" button → opens sequence planner
+- [x] Health factor guard — `deleverageAave` template targets/keeps HF ≥ 1.05 and throws on
+  zero collateral/debt
+- [x] "De-leverage" entry point — launched from `PositionCard` via `SequenceModal` / `LoopModal`
+  (no separate `BorrowCard`)
 - [ ] End-to-end test: de-leverage sequence plan creation with mock positions
 
 ---
@@ -1404,10 +1598,10 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Cost preview handles N-step sequences, not just bridge + deposit.
 
 **Tasks:**
-- [] `lib/costPreview/calculator.ts` — extend to accept `SequencePlan`, sum costs per step
-- [] Gas estimation for every step via plugin's `estimateGasCostUsd()`
+- [x] `lib/costPreview/calculator.ts` — accepts a `SequencePlan` (N-step path) and sums costs per step
+- [x] Gas estimation for every step via plugin's `estimateGasCostUsd()`
 - [ ] Bridge fee pulled from winning `BridgeQuote` in plan
-- [] `components/execute/CostPreview.tsx` — updated: itemised per step with subtotals
+- [x] `components/execute/CostPreview.tsx` — itemised per step with subtotals
 - [ ] Quote staleness tracking per bridge step (60s expiry, orange at 30s)
 - [ ] Disable "Begin Sequence" if any bridge quote is stale
 - [ ] Break-even calculation: accounts for position being partially unwound during de-leverage
@@ -1419,8 +1613,9 @@ templates. Replace existing execute flow with sequencer.
 **Goal:** Production-ready for 10–50 users.
 
 **Tasks:**
-- [ ] Rate limiting on all `/api` routes (`p-limit` or Vercel Edge rate limiting)
-- [ ] Input validation on all API routes (zod schemas)
+- [x] Rate limiting on API routes (`lib/server/rateLimit.ts`; in-memory default, optional shared
+  Upstash Redis store — see §19)
+- [x] Input validation on all API routes (shared zod helpers in `lib/validation/` — see §15)
 - [ ] Error boundary components — prevent full-page crashes
 - [ ] Mobile-responsive layout: dashboard read-only on mobile, execution desktop-only
 - [ ] Loading skeletons for all async states
@@ -1463,7 +1658,7 @@ The following are explicitly out of scope for this phase:
 - [ ] Every EVM transaction is simulated via `eth_call` before sign prompt is shown
 - [ ] Sequencer correctly executes Bridge+Deposit and De-leverage Aave templates end-to-end on mainnet
 - [ ] All 3 bridge providers return quotes; user can select preferred bridge
-- [ ] LayerZero USDC bridging works ETH↔ARB, ETH↔Base, ARB↔Base
+- [ ] USDC (Circle CCTP v2) bridging works ETH↔ARB, ETH↔Base, ARB↔Base
 - [ ] NEAR Intents bridging works EVM→Solana for ETH and USDC
 - [ ] Phantom and MetaMask are both tested on mainnet for a real sequence
 - [ ] Ledger tested on at least one sequence (EVM)

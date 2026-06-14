@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SequencePlan, SequenceStep } from '@/types/sequencer';
+import type { ChainId, TxBuildParams } from '@/types/shared';
 import { POST } from '../route';
-import { SequencePlan, SequenceStep } from '@/types/sequencer';
-import { ChainId, TxBuildParams } from '@/types/shared';
 
 vi.mock('server-only', () => ({}));
 
@@ -19,10 +19,12 @@ vi.mock('@/lib/sequencer/engine', () => ({
   computePlanStatus: vi.fn(),
   serializeSequenceStep: vi.fn((step) => ({
     ...step,
-    unsignedTx: step.unsignedTx ? {
-      ...step.unsignedTx,
-      value: step.unsignedTx.value.toString(),
-    } : undefined
+    unsignedTx: step.unsignedTx
+      ? {
+          ...step.unsignedTx,
+          value: step.unsignedTx.value.toString(),
+        }
+      : undefined,
   })),
 }));
 
@@ -46,13 +48,13 @@ vi.mock('@/lib/plugins/protocols', () => ({
     aave: {
       builder: {
         buildTx: vi.fn(),
-      }
-    }
-  }
+      },
+    },
+  },
 }));
 
 vi.mock('@/lib/plugins/bridges', () => ({
-  BRIDGE_REGISTRY: {}
+  BRIDGE_REGISTRY: {},
 }));
 
 describe('Simulate API Route', () => {
@@ -77,7 +79,7 @@ describe('Simulate API Route', () => {
     const req = createMockRequest({
       planId: '00000000-0000-0000-0000-000000000000',
       stepId: 'step-1',
-      walletAddress: '0xUnauthorized'
+      walletAddress: '0xUnauthorized',
     });
 
     const res = await POST(req);
@@ -98,9 +100,15 @@ describe('Simulate API Route', () => {
       label: 'Test Step',
       chain: 'ethereum' as ChainId,
       pluginId: 'aave',
-      buildParams: {} as TxBuildParams,
+      buildParams: {
+        action: 'supply',
+        chain: 'ethereum',
+        asset: 'USDC',
+        amount: '100',
+        userAddress: '0xAuthorized',
+      } as unknown as TxBuildParams,
       status: 'pending',
-      dependsOn: []
+      dependsOn: [],
     };
 
     vi.mocked(getSequencePlan).mockResolvedValue({
@@ -110,31 +118,38 @@ describe('Simulate API Route', () => {
       status: 'draft',
       totalCostUsd: 0,
       description: 'Test Plan',
-      createdAt: new Date()
+      createdAt: new Date(),
     });
 
-    vi.mocked(PROTOCOL_REGISTRY.aave.builder.buildTx).mockResolvedValue([{
-      to: '0xTo',
-      data: '0xData',
-      value: 0n,
-      chainId: 1,
-      description: 'Test Tx'
-    }]);
+    vi.mocked(PROTOCOL_REGISTRY.aave.builder.buildTx).mockResolvedValue([
+      {
+        to: '0xTo',
+        data: '0xData',
+        value: 0n,
+        chainId: 1,
+        description: 'Test Tx',
+      },
+    ]);
 
     vi.mocked(simulateTransaction).mockResolvedValue({
       success: true,
       gasEstimate: 21000n,
-      simulatedAt: new Date()
+      simulatedAt: new Date(),
     });
 
     vi.mocked(applyStepUpdate).mockReturnValue({
       id: 'plan-id',
       walletAddress: '0xAuthorized',
-      steps: [{ ...mockStep, unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' } }],
+      steps: [
+        {
+          ...mockStep,
+          unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' },
+        },
+      ],
       status: 'in-progress',
       totalCostUsd: 0,
       description: 'Test',
-      createdAt: new Date()
+      createdAt: new Date(),
     });
 
     vi.mocked(computePlanStatus).mockReturnValue('in-progress');
@@ -144,7 +159,7 @@ describe('Simulate API Route', () => {
     const req = createMockRequest({
       planId: '00000000-0000-0000-0000-000000000000',
       stepId: 'step-1',
-      walletAddress: '0xAuthorized'
+      walletAddress: '0xAuthorized',
     });
 
     const res = await POST(req);
@@ -164,10 +179,16 @@ describe('Simulate API Route', () => {
       label: 'Test Step',
       chain: 'ethereum' as ChainId,
       pluginId: 'aave',
-      buildParams: {} as TxBuildParams,
+      buildParams: {
+        action: 'supply',
+        chain: 'ethereum',
+        asset: 'USDC',
+        amount: '100',
+        userAddress: '0xAuthorized',
+      } as unknown as TxBuildParams,
       status: 'pending',
       dependsOn: [],
-      unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' }
+      unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' },
     };
 
     vi.mocked(getSequencePlan).mockResolvedValue({
@@ -179,11 +200,11 @@ describe('Simulate API Route', () => {
     vi.mocked(simulateTransaction).mockResolvedValue({
       success: false,
       revertReason: 'Insufficient funds',
-      simulatedAt: new Date()
+      simulatedAt: new Date(),
     });
 
     vi.mocked(applyStepUpdate).mockReturnValue({
-      steps: [{ ...mockStep, status: 'failed' }]
+      steps: [{ ...mockStep, status: 'failed' }],
     } as unknown as SequencePlan);
 
     vi.mocked(updateSequencePlanStep).mockResolvedValue(true);
@@ -191,7 +212,7 @@ describe('Simulate API Route', () => {
     const req = createMockRequest({
       planId: '00000000-0000-0000-0000-000000000000',
       stepId: 'step-1',
-      walletAddress: '0xAuthorized'
+      walletAddress: '0xAuthorized',
     });
 
     const res = await POST(req);
@@ -208,14 +229,22 @@ describe('Simulate API Route', () => {
     vi.mocked(getSequencePlan).mockResolvedValue({
       id: '00000000-0000-0000-0000-000000000000',
       walletAddress: '0xAuthorized',
-      steps: [{
-        id: 'step-1',
-        chain: 'ethereum',
-        pluginId: 'aave',
-        buildParams: {} as TxBuildParams,
-        status: 'pending',
-        dependsOn: []
-      }],
+      steps: [
+        {
+          id: 'step-1',
+          chain: 'ethereum',
+          pluginId: 'aave',
+          buildParams: {
+            action: 'supply',
+            chain: 'ethereum',
+            asset: 'USDC',
+            amount: '100',
+            userAddress: '0xAuthorized',
+          } as unknown as TxBuildParams,
+          status: 'pending',
+          dependsOn: [],
+        },
+      ],
     } as unknown as SequencePlan);
 
     vi.mocked(PROTOCOL_REGISTRY.aave.builder.buildTx).mockResolvedValue([]);
@@ -223,7 +252,7 @@ describe('Simulate API Route', () => {
     const req = createMockRequest({
       planId: '00000000-0000-0000-0000-000000000000',
       stepId: 'step-1',
-      walletAddress: '0xAuthorized'
+      walletAddress: '0xAuthorized',
     });
 
     const res = await POST(req);
@@ -238,21 +267,23 @@ describe('Simulate API Route', () => {
     vi.mocked(getSequencePlan).mockResolvedValue({
       id: '00000000-0000-0000-0000-000000000000',
       walletAddress: '0xAuthorized',
-      steps: [{
-        id: 'step-1',
-        chain: 'ethereum',
-        pluginId: 'pendle',
-        buildParams: {} as TxBuildParams,
-        status: 'pending',
-        dependsOn: [],
-        unsignedTx: { data: '0x', value: 0n, to: '0x', chainId: 1, description: 'Stub' }
-      }],
+      steps: [
+        {
+          id: 'step-1',
+          chain: 'ethereum',
+          pluginId: 'pendle',
+          buildParams: {} as TxBuildParams,
+          status: 'pending',
+          dependsOn: [],
+          unsignedTx: { data: '0x', value: 0n, to: '0x', chainId: 1, description: 'Stub' },
+        },
+      ],
     } as unknown as SequencePlan);
 
     const req = createMockRequest({
       planId: '00000000-0000-0000-0000-000000000000',
       stepId: 'step-1',
-      walletAddress: '0xAuthorized'
+      walletAddress: '0xAuthorized',
     });
 
     const res = await POST(req);
@@ -269,30 +300,37 @@ describe('Simulate API Route', () => {
     vi.mocked(getSequencePlan).mockResolvedValue({
       id: '00000000-0000-0000-0000-000000000000',
       walletAddress: '0xAuthorized',
-      steps: [{
-        id: 'step-1',
-        chain: 'ethereum',
-        pluginId: 'aave',
-        buildParams: {} as TxBuildParams,
-        status: 'pending',
-        dependsOn: [],
-        unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' }
-      }],
+      steps: [
+        {
+          id: 'step-1',
+          chain: 'ethereum',
+          pluginId: 'aave',
+          buildParams: {
+            action: 'supply',
+            chain: 'ethereum',
+            asset: 'USDC',
+            amount: '100',
+            userAddress: '0xAuthorized',
+          } as unknown as TxBuildParams,
+          status: 'pending',
+          dependsOn: [],
+          unsignedTx: { to: '0xTo', data: '0xData', value: 0n, chainId: 1, description: 'Test' },
+        },
+      ],
     } as unknown as SequencePlan);
 
-    vi.mocked(simulateTransaction).mockResolvedValue({ 
-      success: true, 
-      gasEstimate: 100000n, 
-      simulatedAt: new Date() 
+    vi.mocked(simulateTransaction).mockResolvedValue({
+      success: true,
+      gasEstimate: 100000n,
+      simulatedAt: new Date(),
     });
     vi.mocked(applyStepUpdate).mockReturnValue({ steps: [] } as unknown as SequencePlan);
     vi.mocked(updateSequencePlanStep).mockResolvedValue(false);
 
-
     const req = createMockRequest({
       planId: '00000000-0000-0000-0000-000000000000',
       stepId: 'step-1',
-      walletAddress: '0xAuthorized'
+      walletAddress: '0xAuthorized',
     });
 
     const res = await POST(req);

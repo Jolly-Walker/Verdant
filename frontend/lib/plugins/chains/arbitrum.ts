@@ -1,10 +1,11 @@
-import { ChainPlugin } from '../types/chain-plugin'
-import { PublicClient } from 'viem'
-import { Connection } from '@solana/web3.js'
+import type { Connection } from '@solana/web3.js';
+import type { PublicClient } from 'viem';
+import type { ChainPlugin } from '../types/chain-plugin';
 
 export const arbitrumPlugin: ChainPlugin = {
   id: 'arbitrum',
   displayName: 'Arbitrum One',
+  defillamaChain: 'Arbitrum',
   chainIdOrNetwork: 42161,
   family: 'evm',
   explorerUrl: 'https://arbiscan.io',
@@ -12,23 +13,20 @@ export const arbitrumPlugin: ChainPlugin = {
   bridgeableTokens: ['ETH', 'USDC', 'USDT', 'WBTC', 'wstETH'],
 
   async getRpcClient(): Promise<PublicClient | Connection> {
-    const { getPublicClient } = await import('@/lib/server/rpc')
-    return getPublicClient('arbitrum')
+    const { getPublicClient } = await import('@/lib/server/rpc');
+    return getPublicClient('arbitrum');
   },
 
   async estimateGasCostUsd(_tx: unknown): Promise<number> {
-    const { fetchGasPrice } = await import('@/lib/server/rpc')
-    const { getEthPrice } = await import('@/lib/data/prices')
+    const { fetchGasPrice } = await import('@/lib/server/rpc');
+    const { getEthPrice } = await import('@/lib/data/prices');
 
-    const gasLimit = 800000n // Arbitrum gas limits are higher but price is lower
-    const [gasPriceGwei, ethPrice] = await Promise.all([
-      fetchGasPrice('arbitrum'),
-      getEthPrice()
-    ])
-    
-    const gasPriceWei = BigInt(Math.floor(gasPriceGwei * 1e9))
-    const costWei = gasLimit * gasPriceWei
-    const costEth = Number(costWei) / 1e18
-    return costEth * ethPrice
-  }
-}
+    const gasLimit = 800000n; // Arbitrum gas limits are higher but price is lower
+    const [gasPriceGwei, ethPrice] = await Promise.all([fetchGasPrice('arbitrum'), getEthPrice()]);
+
+    const gasPriceWei = BigInt(Math.floor(gasPriceGwei * 1e9));
+    const costWei = gasLimit * gasPriceWei;
+    const costEth = Number(costWei) / 1e18;
+    return costEth * ethPrice;
+  },
+};

@@ -1,43 +1,41 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges'
-import { ALL_CHAINS, ALL_BRIDGES } from '@/types/shared'
+import { type NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { BRIDGE_REGISTRY } from '@/lib/plugins/bridges';
+import { parse } from '@/lib/validation/http';
+import { chainSchema } from '@/lib/validation/primitives';
+import { ALL_BRIDGES } from '@/types/shared';
 
 const BridgeStatusQuerySchema = z.object({
   txHash: z.string(),
-  fromChain: z.enum(ALL_CHAINS),
+  fromChain: chainSchema,
   bridgeId: z.enum(ALL_BRIDGES),
-})
+  // Optional — some bridges (NEAR Intents) track delivery by deposit address.
+  depositAddress: z.string().optional(),
+});
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const query = {
+  const { searchParams } = new URL(req.url);
+  const parsed = parse(BridgeStatusQuerySchema, {
     txHash: searchParams.get('txHash'),
     fromChain: searchParams.get('fromChain'),
     bridgeId: searchParams.get('bridgeId'),
-  }
+    depositAddress: searchParams.get('depositAddress') ?? undefined,
+  });
 
-  const result = BridgeStatusQuerySchema.safeParse(query)
+  if (!parsed.ok) return parsed.response;
 
-  if (!result.success) {
-    return NextResponse.json(
-      { error: result.error.issues[0].message },
-      { status: 400 }
-    )
-  }
-
-  const { txHash, fromChain, bridgeId } = result.data
+  const { txHash, fromChain, bridgeId, depositAddress } = parsed.data;
 
   try {
-    const bridge = BRIDGE_REGISTRY[bridgeId]
+    const bridge = BRIDGE_REGISTRY[bridgeId];
     if (!bridge) {
-      return NextResponse.json({ error: 'Invalid bridge ID' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid bridge ID' }, { status: 400 });
     }
 
-    const status = await bridge.pollStatus(txHash, fromChain)
-    return NextResponse.json(status)
+    const status = await bridge.pollStatus(txHash, fromChain, { depositAddress });
+    return NextResponse.json(status);
   } catch (err) {
-    console.error('[bridges/status] Failed to poll status:', err)
-    return NextResponse.json({ error: 'Failed to poll bridge status' }, { status: 502 })
+    console.error('[bridges/status] Failed to poll status:', err);
+    return NextResponse.json({ error: 'Failed to poll bridge status' }, { status: 502 });
   }
 }

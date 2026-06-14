@@ -1,125 +1,111 @@
-import 'server-only'
-import { getSupabaseAdmin } from '@/lib/data/supabase'
-import { SequencePlan, SerializedSequenceStep, TemplateId } from '@/types/sequencer'
-import { serializeSequenceStep, deserializeSequenceStep } from '@/lib/sequencer/engine'
+import 'server-only';
+import { eq } from 'drizzle-orm';
+import { getDb } from '@/lib/db/client';
+import { sequencePlans } from '@/lib/db/schema';
+import { deserializeSequenceStep, serializeSequenceStep } from '@/lib/sequencer/engine';
+import type { SequencePlan, TemplateId } from '@/types/sequencer';
 
-export async function createSequencePlan(plan: SequencePlan, templateId: string): Promise<SequencePlan | null> {
+type SequencePlanRow = typeof sequencePlans.$inferSelect;
+
+/** Maps a persisted row back into the domain `SequencePlan` shape. */
+function rowToPlan(row: SequencePlanRow): SequencePlan {
+  return {
+    id: row.id,
+    walletAddress: row.walletAddress,
+    createdAt: row.createdAt,
+    steps: row.steps.map(deserializeSequenceStep),
+    status: row.status,
+    totalCostUsd: Number(row.totalCostUsd ?? 0),
+    positionSizeUsd: row.positionSizeUsd != null ? Number(row.positionSizeUsd) : undefined,
+    description: row.description,
+    templateId: row.templateId as TemplateId,
+  };
+}
+
+export async function createSequencePlan(
+  plan: SequencePlan,
+  templateId: string,
+): Promise<SequencePlan | null> {
   try {
-    const supabase = getSupabaseAdmin()
-    const serializedSteps = plan.steps.map(serializeSequenceStep)
-    const { data, error } = await supabase
-      .from('sequence_plans')
-      .insert({
-        wallet_address: plan.walletAddress,
-        template_id: templateId,
+    const [row] = await getDb()
+      .insert(sequencePlans)
+      .values({
+        walletAddress: plan.walletAddress,
+        templateId,
         description: plan.description,
         status: plan.status,
-        total_cost_usd: plan.totalCostUsd,
-        position_size_usd: plan.positionSizeUsd ?? null,
-        steps: serializedSteps
+        totalCostUsd: plan.totalCostUsd != null ? String(plan.totalCostUsd) : null,
+        positionSizeUsd: plan.positionSizeUsd != null ? String(plan.positionSizeUsd) : null,
+        steps: plan.steps.map(serializeSequenceStep),
       })
-      .select()
-      .single()
+      .returning();
 
-    if (error) throw error
-
-    return {
-      ...plan,
-      id: data.id,
-      createdAt: new Date(data.created_at),
-      steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
-      positionSizeUsd: data.position_size_usd ? Number(data.position_size_usd) : undefined,
-      templateId: data.template_id as TemplateId
-    }
+    return rowToPlan(row);
   } catch (error) {
-    console.error('Error creating sequence plan:', error)
-    return null
+    console.error('Error creating sequence plan:', error);
+    return null;
   }
 }
 
 export async function getSequencePlan(id: string): Promise<SequencePlan | null> {
   try {
-    const supabase = getSupabaseAdmin()
-    const { data, error } = await supabase
-      .from('sequence_plans')
-      .select('*')
-      .eq('id', id)
-      .single()
+    const [row] = await getDb()
+      .select()
+      .from(sequencePlans)
+      .where(eq(sequencePlans.id, id))
+      .limit(1);
 
-    if (error) throw error
-
-    return {
-      id: data.id,
-      walletAddress: data.wallet_address,
-      createdAt: new Date(data.created_at),
-      steps: (data.steps as SerializedSequenceStep[]).map(deserializeSequenceStep),
-      status: data.status,
-      totalCostUsd: Number(data.total_cost_usd || 0),
-      positionSizeUsd: data.position_size_usd ? Number(data.position_size_usd) : undefined,
-      description: data.description,
-      templateId: data.template_id as TemplateId
-    } as SequencePlan
+    return row ? rowToPlan(row) : null;
   } catch (error) {
-    console.error('Error getting sequence plan:', error)
-    return null
+    console.error('Error getting sequence plan:', error);
+    return null;
   }
 }
 
-export async function updateSequencePlanStep(planId: string, stepId: string, steps: SequencePlan['steps'], newStatus: SequencePlan['status']): Promise<boolean> {
+export async function updateSequencePlanStep(
+  planId: string,
+  _stepId: string,
+  steps: SequencePlan['steps'],
+  newStatus: SequencePlan['status'],
+): Promise<boolean> {
   try {
-    const supabase = getSupabaseAdmin()
-    const serializedSteps = steps.map(serializeSequenceStep)
-    const updates: Record<string, unknown> = { steps: serializedSteps, status: newStatus }
-    if (newStatus === 'complete') {
-      updates.completed_at = new Date().toISOString()
-    }
+    await getDb()
+      .update(sequencePlans)
+      .set({
+        steps: steps.map(serializeSequenceStep),
+        status: newStatus,
+        ...(newStatus === 'complete' ? { completedAt: new Date() } : {}),
+      })
+      .where(eq(sequencePlans.id, planId));
 
-    const { error } = await supabase
-      .from('sequence_plans')
-      .update(updates)
-      .eq('id', planId)
-
-    if (error) throw error
-    return true
+    return true;
   } catch (error) {
-    console.error('Error updating sequence plan step:', error)
-    return false
+    console.error('Error updating sequence plan step:', error);
+    return false;
   }
 }
 
 export async function markPlanComplete(id: string): Promise<boolean> {
   try {
-    const supabase = getSupabaseAdmin()
-    const { error } = await supabase
-      .from('sequence_plans')
-      .update({
-        status: 'complete',
-        completed_at: new Date().toISOString()
-      })
-      .eq('id', id)
+    await getDb()
+      .update(sequencePlans)
+      .set({ status: 'complete', completedAt: new Date() })
+      .where(eq(sequencePlans.id, id));
 
-    if (error) throw error
-    return true
+    return true;
   } catch (error) {
-    console.error('Error marking plan complete:', error)
-    return false
+    console.error('Error marking plan complete:', error);
+    return false;
   }
 }
 
 export async function markPlanFailed(id: string): Promise<boolean> {
   try {
-    const supabase = getSupabaseAdmin()
-    const { error } = await supabase
-      .from('sequence_plans')
-      .update({
-        status: 'failed'
-      })
-      .eq('id', id)
+    await getDb().update(sequencePlans).set({ status: 'failed' }).where(eq(sequencePlans.id, id));
 
-    if (error) throw error
-    return true
+    return true;
   } catch (error) {
-    console.error('Error marking plan failed:', error)
-    return false
+    console.error('Error marking plan failed:', error);
+    return false;
   }
 }

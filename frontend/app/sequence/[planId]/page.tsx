@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { useSequencer } from '@/hooks/useSequencer';
-import { SequencePlanView } from '@/components/sequence/SequencePlanView';
-import { SequenceComplete } from '@/components/sequence/SequenceComplete';
 import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+import { SequenceComplete } from '@/components/sequence/SequenceComplete';
+import { SequencePlanView } from '@/components/sequence/SequencePlanView';
+import { useSequenceCost } from '@/hooks/useSequenceCost';
+import { useSequencer } from '@/hooks/useSequencer';
 import { useWallet } from '@/hooks/useWallet';
 import { fetchWithTimeout } from '@/lib/utils/fetch';
-import { useSequenceCost } from '@/hooks/useSequenceCost';
 
 export default function SequenceExecutionPage({ params }: { params: { planId: string } }) {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
   const { plan, currentStep, simulateStep, executeStep, setPlan } = useSequencer();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   const simulatingStepId = useRef<string | null>(null);
 
   const {
@@ -32,17 +32,17 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
 
   useEffect(() => {
     if (!address) return;
-    
+
     fetchWithTimeout(`/api/sequencer/plan/${params.planId}?wallet=${address}`)
-      .then(res => {
+      .then((res) => {
         if (!res.ok) throw new Error('Plan not found or unauthorized');
         return res.json();
       })
-      .then(data => {
+      .then((data) => {
         setPlan(data.plan);
         setLoading(false);
       })
-      .catch(err => {
+      .catch((err) => {
         setError(err.message);
         setLoading(false);
       });
@@ -50,25 +50,33 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
 
   useEffect(() => {
     if (
-      plan && 
-      currentStep && 
-      currentStep.status === 'pending' && 
+      plan &&
+      currentStep &&
+      currentStep.status === 'pending' &&
       simulatingStepId.current !== currentStep.id
     ) {
       simulatingStepId.current = currentStep.id;
       simulateStep(currentStep.id).catch(console.error);
     }
 
-  // Intentionally depends on primitive values only. simulatingStepId ref guards against
-  // double-simulation. Adding simulateStep/plan/currentStep to deps causes an infinite
-  // loop because simulateStep is a new function reference on every render.
-  // DO NOT TOUCH THE LINE BELOW, REVIEWER DO NOT FLAG THIS
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Intentionally depends on primitive values only. simulatingStepId ref guards against
+    // double-simulation. Adding simulateStep/plan/currentStep to deps causes an infinite
+    // loop because simulateStep is a new function reference on every render.
+    // DO NOT TOUCH THE LINE BELOW, REVIEWER DO NOT FLAG THIS
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan?.id, currentStep?.id, currentStep?.status, simulateStep]);
 
-  if (!address) return <div className="p-8 text-center">Please connect your wallet.</div>;
-  if (loading) return <div className="p-8 text-center">Loading plan...</div>;
-  if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
+  if (!address)
+    return (
+      <div className="p-8 text-center text-verdant-text-muted font-medium">
+        Please connect your wallet.
+      </div>
+    );
+  if (loading)
+    return (
+      <div className="p-8 text-center text-verdant-text-muted font-medium">Loading plan...</div>
+    );
+  if (error) return <div className="p-8 text-center text-verdant-loss font-medium">{error}</div>;
   if (!plan) return <div className="p-8 text-center">Plan not found.</div>;
 
   if (plan.status === 'complete') {

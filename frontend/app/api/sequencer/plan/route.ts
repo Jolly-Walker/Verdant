@@ -1,18 +1,30 @@
-import { NextResponse } from 'next/server'
-import { z } from 'zod'
-import { buildBridgeAndDepositPlan } from '@/lib/sequencer/templates/bridgeAndDeposit'
-import { buildRepayAndWithdrawPlan } from '@/lib/sequencer/templates/repayAndWithdraw'
-import { buildCrossChainRebalancePlan } from '@/lib/sequencer/templates/crossChainRebalance'
-import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAave'
-import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle'
-import { createSequencePlan } from '@/lib/data/sequencePlans'
-import { serializeSequencePlan } from '@/lib/sequencer/engine'
-import { ALL_CHAINS, ALL_BRIDGES, ALL_PROTOCOLS } from '@/types/shared'
-import { SUPPORTED_TOKENS } from '@/constants/tokens'
-import { fetchTokenPrices } from '@/lib/data/prices'
-import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings'
-
-import { isValidAddress } from '@/lib/utils/chains'
+import { NextResponse } from 'next/server';
+import { z } from 'zod';
+import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import { fetchTokenPrices } from '@/lib/data/prices';
+import { createSequencePlan } from '@/lib/data/sequencePlans';
+import { previewPendleRedemption } from '@/lib/plugins/protocols/pendle';
+import { serializeSequencePlan } from '@/lib/sequencer/engine';
+import { buildBridgeAndDepositPlan } from '@/lib/sequencer/templates/bridgeAndDeposit';
+import { buildCrossChainRebalancePlan } from '@/lib/sequencer/templates/crossChainRebalance';
+import { buildDeleverageAavePlan } from '@/lib/sequencer/templates/deleverageAave';
+import { buildExitPendlePlan } from '@/lib/sequencer/templates/exitPendle';
+import { buildRepayAndWithdrawPlan } from '@/lib/sequencer/templates/repayAndWithdraw';
+import { enforceRateLimit } from '@/lib/server/rateLimit';
+import { isValidAddress } from '@/lib/utils/chains';
+import { parseJson } from '@/lib/validation/http';
+import type { SequencePlan, StepStatus } from '@/types/sequencer';
+import {
+  ALL_BRIDGES,
+  ALL_CHAINS,
+  ALL_PROTOCOLS,
+  type BridgeId,
+  type BridgeQuoteParams,
+  type ChainId,
+  type ProtocolId,
+  type TxBuildParams,
+} from '@/types/shared';
 
 const BridgeAndDepositParamsSchema = z.object({
   asset: z.string(),
@@ -22,7 +34,7 @@ const BridgeAndDepositParamsSchema = z.object({
   fromProtocol: z.string(),
   toProtocol: z.string(),
   preferredBridgeId: z.enum(ALL_BRIDGES).optional(),
-  slippagePercent: z.number().min(0).max(100).default(0.5)
+  slippagePercent: z.number().min(0).max(100).default(0.5),
 });
 
 const RepayAndWithdrawParamsSchema = z.object({
@@ -31,7 +43,7 @@ const RepayAndWithdrawParamsSchema = z.object({
   collateralAsset: z.string(),
   collateralAmount: z.string(),
   protocol: z.enum([...ALL_PROTOCOLS]),
-  chain: z.enum(ALL_CHAINS)
+  chain: z.enum(ALL_CHAINS),
 });
 
 const CrossChainRebalanceParamsSchema = z.object({
@@ -42,7 +54,7 @@ const CrossChainRebalanceParamsSchema = z.object({
   toProtocol: z.string(),
   toChain: z.enum(ALL_CHAINS),
   preferredBridgeId: z.enum(ALL_BRIDGES).optional(),
-  slippagePercent: z.number().min(0).max(100).default(0.5)
+  slippagePercent: z.number().min(0).max(100).default(0.5),
 });
 
 const DeleverageAaveParamsSchema = z.object({
@@ -55,7 +67,7 @@ const DeleverageAaveParamsSchema = z.object({
   initialHealthFactor: z.number(),
   cycles: z.number(),
   protocol: z.enum([...ALL_PROTOCOLS]),
-  chain: z.enum(ALL_CHAINS)
+  chain: z.enum(ALL_CHAINS),
 });
 
 const ExitPendleParamsSchema = z.object({
@@ -67,87 +79,155 @@ const ExitPendleParamsSchema = z.object({
   toChain: z.enum(ALL_CHAINS),
   toProtocol: z.enum([...ALL_PROTOCOLS]),
   preferredBridgeId: z.enum(ALL_BRIDGES).optional(),
-  slippagePercent: z.number().min(0).max(100).default(0.5)
+  slippagePercent: z.number().min(0).max(100).default(0.5),
 });
 
 const CreatePlanSchema = z.object({
-  templateId: z.enum(['bridgeAndDeposit', 'repayAndWithdraw', 'crossChainRebalance', 'deleverageAave', 'exitPendle']),
-  params: z.record(z.string(), z.unknown()),
-  walletAddress: z.string().refine(val => isValidAddress(val), {
-    message: 'Invalid wallet address format for supported chains'
-  })
-})
+  templateId: z.enum([
+    'bridgeAndDeposit',
+    'repayAndWithdraw',
+    'crossChainRebalance',
+    'deleverageAave',
+    'exitPendle',
+    'custom',
+  ]),
+  params: z.record(z.string(), z.unknown()).optional(),
+  customPlan: z
+    .object({
+      steps: z.array(
+        z.object({
+          id: z.string(),
+          label: z.string(),
+          chain: z.enum(ALL_CHAINS),
+          pluginId: z.string(),
+          dependsOn: z.array(z.string()),
+          status: z.enum(['pending', 'simulating', 'ready', 'signing', 'confirmed', 'failed']),
+          buildParams: z.record(z.string(), z.unknown()),
+        }),
+      ),
+      description: z.string(),
+      positionSizeUsd: z.number().optional(),
+      totalCostUsd: z.number().optional(),
+    })
+    .optional(),
+  walletAddress: z.string().refine((val) => isValidAddress(val), {
+    message: 'Invalid wallet address format for supported chains',
+  }),
+});
 
-async function validateMinimumSize(asset: string, amount: string): Promise<{ ok: boolean; amountUsd: number; error?: string }> {
+async function validateMinimumSize(
+  asset: string,
+  amount: string,
+): Promise<{ ok: boolean; amountUsd: number; error?: string }> {
   const tokenConfig = SUPPORTED_TOKENS[asset];
   if (!tokenConfig) return { ok: false, amountUsd: 0, error: 'unsupported_asset' };
 
   const priceId = `coingecko:${tokenConfig.coingeckoId}`;
   const prices = await fetchTokenPrices([priceId]);
   const price = prices[priceId];
-  
+
   if (!price) return { ok: false, amountUsd: 0, error: 'price_fetch_failed' };
 
   // Properly normalize the amount using token decimals before multiplying by price.
   // amount is expected to be in base atomic units (Wei).
-  const normalizedAmount = Number(amount) / Math.pow(10, tokenConfig.decimals);
+  const normalizedAmount = Number(amount) / 10 ** tokenConfig.decimals;
   const amountUsd = normalizedAmount * price;
-  
+
   // Handle NaN and minimum size check
   const ok = !isNaN(amountUsd) && amountUsd >= DEFAULT_MIN_USD_THRESHOLD;
   return { ok, amountUsd: isNaN(amountUsd) ? 0 : amountUsd };
 }
 
 export async function POST(req: Request) {
+  // SPECS §19: 10 req/min per IP for sequencer plan creation.
+  const limited = await enforceRateLimit(req, { bucket: 'sequencer-plan', limit: 10 });
+  if (limited) return limited;
+
+  const parsed = await parseJson(req, CreatePlanSchema);
+  if (!parsed.ok) return parsed.response;
+
   try {
-    const body = await req.json()
-    const result = CreatePlanSchema.safeParse(body)
-    
-    if (!result.success) {
-      return NextResponse.json({ error: 'Invalid request body', details: result.error.format() }, { status: 400 })
-    }
+    const { templateId, params, walletAddress, customPlan } = parsed.data;
+    let plan: SequencePlan | undefined;
+    let amountUsd = 0;
 
-    const { templateId, params, walletAddress } = result.data
-    let plan
-    let amountUsd = 0
-
-    if (templateId === 'deleverageAave') {
+    if (templateId === 'custom') {
+      if (!customPlan) {
+        return NextResponse.json(
+          { error: 'customPlan is required for templateId custom' },
+          { status: 400 },
+        );
+      }
+      plan = {
+        id: crypto.randomUUID(),
+        walletAddress,
+        createdAt: new Date(),
+        status: 'draft',
+        totalCostUsd: customPlan.totalCostUsd ?? 0,
+        positionSizeUsd: customPlan.positionSizeUsd,
+        description: customPlan.description,
+        templateId: 'custom',
+        steps: customPlan.steps.map((step) => ({
+          id: step.id,
+          label: step.label,
+          chain: step.chain as ChainId,
+          pluginId: step.pluginId as ProtocolId | BridgeId,
+          dependsOn: step.dependsOn,
+          status: step.status as StepStatus,
+          // Custom-plan buildParams arrive as a schema-validated generic record;
+          // narrowed to the named union here and re-validated by validateBuildParams
+          // (/api/sequencer/simulate) before any tx is built.
+          buildParams: step.buildParams as unknown as TxBuildParams | BridgeQuoteParams,
+        })),
+      };
+    } else if (templateId === 'deleverageAave') {
       const result = DeleverageAaveParamsSchema.safeParse(params);
       if (!result.success) {
-        return NextResponse.json({ 
-          error: 'Invalid parameters for deleverageAave', 
-          details: result.error.format() 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: 'Invalid parameters for deleverageAave',
+            details: result.error.format(),
+          },
+          { status: 400 },
+        );
       }
       const parsedParams = result.data;
-      
+
       const borrowToken = SUPPORTED_TOKENS[parsedParams.borrowAsset];
       const collateralToken = SUPPORTED_TOKENS[parsedParams.collateralAsset];
-      
+
       if (!borrowToken || !collateralToken) {
         return NextResponse.json({ error: 'Unsupported asset for de-leveraging' }, { status: 400 });
       }
 
       const prices = await fetchTokenPrices([
         `coingecko:${borrowToken.coingeckoId}`,
-        `coingecko:${collateralToken.coingeckoId}`
+        `coingecko:${collateralToken.coingeckoId}`,
       ]);
-      
+
       const borrowPrice = prices[`coingecko:${borrowToken.coingeckoId}`];
       const collateralPrice = prices[`coingecko:${collateralToken.coingeckoId}`];
 
       if (borrowPrice === undefined || collateralPrice === undefined) {
-        return NextResponse.json({ error: 'Could not fetch asset prices for de-leveraging' }, { status: 500 });
+        return NextResponse.json(
+          { error: 'Could not fetch asset prices for de-leveraging' },
+          { status: 500 },
+        );
       }
 
-      const totalDebtUsd = (Number(parsedParams.totalDebt) / Math.pow(10, borrowToken.decimals)) * borrowPrice;
-      const totalCollateralUsd = (Number(parsedParams.totalCollateral) / Math.pow(10, collateralToken.decimals)) * collateralPrice;
+      const totalDebtUsd =
+        (Number(parsedParams.totalDebt) / 10 ** borrowToken.decimals) * borrowPrice;
+      const totalCollateralUsd =
+        (Number(parsedParams.totalCollateral) / 10 ** collateralToken.decimals) * collateralPrice;
       amountUsd = totalDebtUsd; // for minimum size check
 
       if (isNaN(amountUsd) || amountUsd < DEFAULT_MIN_USD_THRESHOLD) {
-        return NextResponse.json({ 
-          error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} USD required. Current: $${(isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}` 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} USD required. Current: $${(isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}`,
+          },
+          { status: 400 },
+        );
       }
 
       plan = buildDeleverageAavePlan({
@@ -155,30 +235,43 @@ export async function POST(req: Request) {
         totalDebtUsd,
         totalCollateralUsd,
         amountUsd,
-        walletAddress
+        walletAddress,
       });
     } else {
-      let assetToValidate = ''
-      let amountToValidate = ''
+      let assetToValidate = '';
+      let amountToValidate = '';
 
       if (templateId === 'bridgeAndDeposit') {
         const parsedParams = BridgeAndDepositParamsSchema.safeParse(params);
-        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for bridgeAndDeposit' }, { status: 400 });
+        if (!parsedParams.success)
+          return NextResponse.json(
+            { error: 'Invalid parameters for bridgeAndDeposit' },
+            { status: 400 },
+          );
         assetToValidate = parsedParams.data.asset;
         amountToValidate = parsedParams.data.amount;
       } else if (templateId === 'repayAndWithdraw') {
         const parsedParams = RepayAndWithdrawParamsSchema.safeParse(params);
-        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for repayAndWithdraw' }, { status: 400 });
+        if (!parsedParams.success)
+          return NextResponse.json(
+            { error: 'Invalid parameters for repayAndWithdraw' },
+            { status: 400 },
+          );
         assetToValidate = parsedParams.data.borrowAsset;
         amountToValidate = parsedParams.data.borrowAmount;
       } else if (templateId === 'crossChainRebalance') {
         const parsedParams = CrossChainRebalanceParamsSchema.safeParse(params);
-        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for crossChainRebalance' }, { status: 400 });
+        if (!parsedParams.success)
+          return NextResponse.json(
+            { error: 'Invalid parameters for crossChainRebalance' },
+            { status: 400 },
+          );
         assetToValidate = parsedParams.data.asset;
         amountToValidate = parsedParams.data.amount;
       } else if (templateId === 'exitPendle') {
         const parsedParams = ExitPendleParamsSchema.safeParse(params);
-        if (!parsedParams.success) return NextResponse.json({ error: 'Invalid parameters for exitPendle' }, { status: 400 });
+        if (!parsedParams.success)
+          return NextResponse.json({ error: 'Invalid parameters for exitPendle' }, { status: 400 });
         assetToValidate = parsedParams.data.underlyingAsset;
         amountToValidate = parsedParams.data.amount;
       }
@@ -187,26 +280,76 @@ export async function POST(req: Request) {
       const validation = await validateMinimumSize(assetToValidate, amountToValidate);
       if (!validation.ok) {
         if (validation.error === 'unsupported_asset') {
-          return NextResponse.json({ error: `Asset '${assetToValidate}' is not currently supported.` }, { status: 400 });
+          return NextResponse.json(
+            { error: `Asset '${assetToValidate}' is not currently supported.` },
+            { status: 400 },
+          );
         }
         if (validation.error === 'price_fetch_failed') {
-          return NextResponse.json({ error: `Could not fetch price for asset '${assetToValidate}'. Please try again.` }, { status: 500 });
+          return NextResponse.json(
+            { error: `Could not fetch price for asset '${assetToValidate}'. Please try again.` },
+            { status: 500 },
+          );
         }
-        return NextResponse.json({ 
-          error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD} USD required. Current: $${validation.amountUsd.toFixed(2)}` 
-        }, { status: 400 });
+        return NextResponse.json(
+          {
+            error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD} USD required. Current: $${validation.amountUsd.toFixed(2)}`,
+          },
+          { status: 400 },
+        );
       }
 
       amountUsd = validation.amountUsd;
 
       if (templateId === 'bridgeAndDeposit') {
-        plan = buildBridgeAndDepositPlan({ ...BridgeAndDepositParamsSchema.parse(params), walletAddress, amountUsd });
+        plan = buildBridgeAndDepositPlan({
+          ...BridgeAndDepositParamsSchema.parse(params),
+          walletAddress,
+          amountUsd,
+        });
       } else if (templateId === 'repayAndWithdraw') {
-        plan = buildRepayAndWithdrawPlan({ ...RepayAndWithdrawParamsSchema.parse(params), walletAddress, amountUsd });
+        plan = buildRepayAndWithdrawPlan({
+          ...RepayAndWithdrawParamsSchema.parse(params),
+          walletAddress,
+          amountUsd,
+        });
       } else if (templateId === 'crossChainRebalance') {
-        plan = buildCrossChainRebalancePlan({ ...CrossChainRebalanceParamsSchema.parse(params), walletAddress, amountUsd });
+        plan = buildCrossChainRebalancePlan({
+          ...CrossChainRebalanceParamsSchema.parse(params),
+          walletAddress,
+          amountUsd,
+        });
       } else if (templateId === 'exitPendle') {
-        plan = buildExitPendlePlan({ ...ExitPendleParamsSchema.parse(params), walletAddress, amountUsd });
+        const exitParams = { ...ExitPendleParamsSchema.parse(params), walletAddress, amountUsd };
+        // Preview the REAL underlying output of the PT redemption (server-only
+        // network call) so the downstream deposit/bridge steps are sized off the
+        // actual redemption proceeds rather than the stale PT amount. Returns null
+        // (→ builder falls back to the PT amount) for unsupported tokens / API failure.
+        const underlyingAddress =
+          SUPPORTED_TOKENS[exitParams.underlyingAsset]?.addresses[exitParams.fromChain];
+        const redemptionOutput = underlyingAddress
+          ? await previewPendleRedemption({
+              chain: exitParams.fromChain,
+              receiver: exitParams.walletAddress,
+              ptAddress: exitParams.ptAddress,
+              amountIn: exitParams.amount,
+              underlyingAddress,
+              slippagePercent: exitParams.slippagePercent,
+            })
+          : null;
+        // Without a real redemption preview we cannot size the downstream
+        // deposit/bridge safely (the PT amount ≠ the underlying received), so the
+        // builder refuses. Surface a clean, actionable 400 rather than a 500.
+        if (redemptionOutput === null) {
+          return NextResponse.json(
+            {
+              error:
+                'Could not preview the Pendle redemption output; the exit cannot be sized safely. Please retry.',
+            },
+            { status: 400 },
+          );
+        }
+        plan = buildExitPendlePlan(exitParams, redemptionOutput);
       }
     }
 
@@ -214,14 +357,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to construct sequence plan' }, { status: 400 });
     }
 
-    const savedPlan = await createSequencePlan(plan, templateId)
+    const savedPlan = await createSequencePlan(plan, templateId);
     if (!savedPlan) {
-      return NextResponse.json({ error: 'Failed to save plan to database' }, { status: 500 })
+      return NextResponse.json({ error: 'Failed to save plan to database' }, { status: 500 });
     }
 
-    return NextResponse.json({ plan: serializeSequencePlan(savedPlan) })
+    return NextResponse.json({ plan: serializeSequencePlan(savedPlan) });
   } catch (error) {
-    console.error('Error in /api/sequencer/plan:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('Error in /api/sequencer/plan:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

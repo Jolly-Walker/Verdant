@@ -1,19 +1,19 @@
-import React from 'react'
+import type React from 'react';
 
 interface CardProps {
-  children: React.ReactNode
-  className?: string
-  hover?: boolean
+  children: React.ReactNode;
+  className?: string;
+  hover?: boolean;
 }
 
 export function Card({ children, className = '', hover = false }: CardProps) {
   return (
     <div
-      className={`bg-zinc-900 border border-zinc-800 rounded-xl p-5 ${
-        hover ? 'hover:border-zinc-700 transition-colors' : ''
+      className={`bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 shadow-organic ${
+        hover ? 'hover:shadow-organic-lg transition-shadow' : ''
       } ${className}`}
     >
       {children}
     </div>
-  )
+  );
 }
