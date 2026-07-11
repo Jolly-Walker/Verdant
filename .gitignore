@@ -1,0 +1,7 @@
+.DS_Store
+
+# Local AI-tool session artifacts
+/.antigravitycli/
+
+# review.sh output
+/review_comments.txt
