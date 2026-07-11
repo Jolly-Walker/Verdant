@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { TEMPLATE_REGISTRY } from '@/hooks/useSequencer';
 import type { TemplateId } from '@/types/sequencer';
 
@@ -18,9 +17,10 @@ export function TemplateSelector({ selectedTemplate, onSelect, filter }: Templat
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
       {templates.map((template) => (
-        <div
+        <button
+          type="button"
           key={template.id}
-          className={`border rounded-xl p-6 cursor-pointer hover:border-verdant-teak transition-all ${
+          className={`w-full text-left border rounded-xl p-6 cursor-pointer hover:border-verdant-teak transition-all ${
             selectedTemplate === template.id
               ? 'border-verdant-teak bg-verdant-surface-accent'
               : 'border-[#E5E0D8] bg-verdant-surface hover:bg-verdant-surface-accent'
@@ -33,7 +33,7 @@ export function TemplateSelector({ selectedTemplate, onSelect, filter }: Templat
             {template.displayName}
           </h3>
           <p className="text-verdant-text-muted text-sm">{template.description}</p>
-        </div>
+        </button>
       ))}
     </div>
   );

@@ -110,7 +110,7 @@ function useRealSequencer() {
       // Check dependencies
       const unmetDeps = step.dependsOn.filter((depId) => {
         const depStep = currentPlan.steps.find((s) => s.id === depId);
-        return !depStep || depStep.status !== 'confirmed';
+        return depStep?.status !== 'confirmed';
       });
       if (unmetDeps.length > 0) {
         throw new Error(
@@ -194,7 +194,7 @@ function useRealSequencer() {
       // Check dependencies
       const unmetDeps = step.dependsOn.filter((depId) => {
         const depStep = currentPlan.steps.find((s) => s.id === depId);
-        return !depStep || depStep.status !== 'confirmed';
+        return depStep?.status !== 'confirmed';
       });
       if (unmetDeps.length > 0) {
         throw new Error(

@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import { useHarvest } from '@/hooks/useHarvest';
 import type { ChainId } from '@/types/shared';
@@ -38,6 +37,7 @@ export function HarvestButton({
   return (
     <div className="flex flex-col items-end gap-1">
       <button
+        type="button"
         id={`harvest-btn-${protocol}-${chain}`}
         onClick={handleClick}
         disabled={isDisabled}

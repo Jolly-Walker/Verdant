@@ -70,6 +70,7 @@ export function CostPreview({
           <p className="text-sm text-verdant-loss">{error}</p>
         </div>
         <button
+          type="button"
           onClick={refetch}
           className="w-full py-2 bg-verdant-moss hover:bg-verdant-moss-dark text-white rounded-lg transition-colors font-semibold"
         >
@@ -148,7 +149,7 @@ export function CostPreview({
 
                 return (
                   <motion.div
-                    key={i}
+                    key={stepId ?? step.stepLabel}
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25, delay: i * 0.04, ease: 'easeOut' }}
@@ -356,9 +357,9 @@ export function CostPreview({
         {/* ── Warnings ─────────────────────────────────────────────────── */}
         {result.warnings.length > 0 && (
           <section className="space-y-2">
-            {result.warnings.map((warning, i) => (
+            {result.warnings.map((warning) => (
               <div
-                key={i}
+                key={`${warning.type}-${warning.message}`}
                 className="flex gap-3 bg-amber-50 border border-amber-200/50 rounded-lg p-3"
               >
                 <span className="text-amber-600">⚠️</span>

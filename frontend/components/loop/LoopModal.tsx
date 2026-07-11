@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSequencer } from '@/hooks/useSequencer';
 import { computeOptimalCycles } from '@/lib/sequencer/templates/deleverageAave';
 import { formatPercent, formatToken, formatUsd } from '@/lib/utils/formatting';
@@ -140,10 +140,13 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
         <div className="border-b border-[#E5E0D8] px-6 py-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-verdant-text-primary">Manage Position</h2>
           <button
+            type="button"
+            aria-label="Close"
             onClick={onClose}
             className="text-verdant-text-muted hover:text-verdant-text-primary p-1 rounded-md transition-colors"
           >
             <svg
+              aria-hidden="true"
               className="w-5 h-5"
               fill="none"
               stroke="currentColor"
@@ -158,6 +161,7 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
         {/* Tabs selector */}
         <div className="flex border-b border-[#E5E0D8]">
           <button
+            type="button"
             onClick={() => setActiveTab('deleverage')}
             className={`flex-1 py-3 text-center text-sm font-semibold transition-all border-b-2 ${
               activeTab === 'deleverage'
@@ -168,6 +172,7 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
             Deleverage
           </button>
           <button
+            type="button"
             onClick={() => setActiveTab('leverage')}
             className={`flex-1 py-3 text-center text-sm font-semibold transition-all border-b-2 ${
               activeTab === 'leverage'
@@ -223,10 +228,13 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
                 </h3>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm text-verdant-text-primary">Cycles:</label>
+                    <label htmlFor="loop-cycles" className="text-sm text-verdant-text-primary">
+                      Cycles:
+                    </label>
                     <select
+                      id="loop-cycles"
                       value={cycles}
-                      onChange={(e) => setCycles(parseInt(e.target.value))}
+                      onChange={(e) => setCycles(parseInt(e.target.value, 10))}
                       className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((c) => (
@@ -274,6 +282,7 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
               {/* Action buttons */}
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={onClose}
                   disabled={isExecuting}
                   className="px-4 py-2 text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-semibold disabled:opacity-50"
@@ -281,6 +290,7 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleExecuteDeleverage}
                   disabled={isExecuting || !collateralPosition}
                   className="px-5 py-2.5 bg-verdant-moss hover:bg-verdant-moss-dark text-white rounded-lg transition-colors font-semibold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm"
@@ -333,8 +343,11 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
 
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm text-verdant-text-primary">Target Multiplier:</label>
+                    <label htmlFor="loop-multiplier" className="text-sm text-verdant-text-primary">
+                      Target Multiplier:
+                    </label>
                     <select
+                      id="loop-multiplier"
                       value={multiplier}
                       onChange={(e) => setMultiplier(parseFloat(e.target.value))}
                       className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
@@ -347,8 +360,14 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <label className="text-sm text-verdant-text-primary">Borrow Asset:</label>
+                    <label
+                      htmlFor="loop-borrow-asset"
+                      className="text-sm text-verdant-text-primary"
+                    >
+                      Borrow Asset:
+                    </label>
                     <select
+                      id="loop-borrow-asset"
                       value={borrowAsset}
                       onChange={(e) => setBorrowAsset(e.target.value)}
                       className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
@@ -392,6 +411,7 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
               {/* Action buttons */}
               <div className="flex items-center justify-end gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={onClose}
                   disabled={isExecuting}
                   className="px-4 py-2 text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-semibold disabled:opacity-50"
@@ -399,6 +419,7 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
                   Cancel
                 </button>
                 <button
+                  type="button"
                   onClick={handleExecuteLeverage}
                   disabled={isExecuting}
                   className="px-5 py-2.5 bg-verdant-moss hover:bg-verdant-moss-dark text-white rounded-lg transition-colors font-semibold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm"

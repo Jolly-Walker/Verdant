@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { getEligibleActions } from '@/lib/sequenceBuilder/logic';
 import type { ActionType, TokenState } from '@/lib/sequenceBuilder/types';
 import type { Position } from '@/types/position';
@@ -51,16 +50,17 @@ export function ActionSelectCard({ tokenIn, userPositions, onSelect }: ActionSel
         {eligibleActions.map((action) => {
           const meta = ACTION_METADATA[action];
           return (
-            <div
+            <button
+              type="button"
               key={action}
               onClick={() => onSelect(action)}
-              className="p-2 bg-verdant-surface border border-[#E5E0D8] rounded-lg cursor-pointer hover:border-verdant-moss hover:bg-verdant-surface-accent transition-all"
+              className="w-full text-left p-2 bg-verdant-surface border border-[#E5E0D8] rounded-lg cursor-pointer hover:border-verdant-moss hover:bg-verdant-surface-accent transition-all"
             >
               <div className="text-xs text-verdant-text-primary font-semibold">{meta.label}</div>
               <div className="text-[10px] text-verdant-text-muted mt-0.5 leading-snug">
                 {meta.description}
               </div>
-            </div>
+            </button>
           );
         })}
         {eligibleActions.length === 0 && (

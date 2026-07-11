@@ -98,11 +98,11 @@ describe('GET /api/rewards', () => {
 
   it('should correctly sum totalUsd across all reward entries', async () => {
     vi.mocked(PROTOCOL_REGISTRY.aave.rewards!.fetchRewards).mockImplementation(
-      async (addr, chain) =>
+      async (_addr, chain) =>
         chain === 'ethereum' ? [{ token: 'AAVE', amount: '1', amountUsd: 100 }] : [],
     );
     vi.mocked(PROTOCOL_REGISTRY.morpho.rewards!.fetchRewards).mockImplementation(
-      async (addr, chain) =>
+      async (_addr, chain) =>
         chain === 'ethereum' ? [{ token: 'MORPHO', amount: '1', amountUsd: 50 }] : [],
     );
 

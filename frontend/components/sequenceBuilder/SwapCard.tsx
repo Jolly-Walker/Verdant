@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { SUPPORTED_TOKENS } from '@/constants/tokens';
 import { estimateDemoSwapFee } from '@/lib/sequenceBuilder/fixtures';
 import type { TokenState } from '@/lib/sequenceBuilder/types';
@@ -41,6 +41,7 @@ export function SwapCard({
   });
 
   const [toToken, setToToken] = useState<string>(selectedToToken || availableTokens[0] || 'WETH');
+  const toTokenSelectId = useId();
 
   const feeUsd = estimateDemoSwapFee(tokenIn.amountUsd);
   const outputAmountUsd = Math.max(tokenIn.amountUsd - feeUsd, 0);
@@ -74,9 +75,10 @@ export function SwapCard({
   if (!isActive && selectedToToken) {
     const actualFeeUsd = selectedFeeUsd !== undefined ? selectedFeeUsd : feeUsd;
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -95,7 +97,7 @@ export function SwapCard({
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
           Rate: 1 {selectedToToken} = {formatUsd(toPrice)}
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -112,10 +114,14 @@ export function SwapCard({
 
         {/* To token selector */}
         <div className="mb-2">
-          <label className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1">
+          <label
+            htmlFor={toTokenSelectId}
+            className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1"
+          >
             To Token
           </label>
           <select
+            id={toTokenSelectId}
             value={toToken}
             onChange={handleTokenChange}
             className="w-full bg-verdant-canvas text-verdant-text-primary text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none"

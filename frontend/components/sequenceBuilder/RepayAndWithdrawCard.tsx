@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { TokenState } from '@/lib/sequenceBuilder/types';
 import { formatToken, formatUsd } from '@/lib/utils/formatting';
 import type { Position } from '@/types/position';
@@ -76,9 +76,10 @@ export function RepayAndWithdrawCard({
           ? 'Morpho'
           : selectedPosition.protocol;
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -106,7 +107,7 @@ export function RepayAndWithdrawCard({
             </div>
           )}
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -128,10 +129,11 @@ export function RepayAndWithdrawCard({
                   : pos.protocol;
             const col = getCollateralPosition(pos);
             return (
-              <div
+              <button
+                type="button"
                 key={pos.id}
                 onClick={() => handleRowClick(pos)}
-                className={`p-2 rounded text-xs cursor-pointer border transition-colors ${
+                className={`w-full text-left p-2 rounded text-xs cursor-pointer border transition-colors ${
                   isSel
                     ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
                     : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
@@ -151,7 +153,7 @@ export function RepayAndWithdrawCard({
                     Frees {formatToken(col.amount)} {col.asset}
                   </div>
                 )}
-              </div>
+              </button>
             );
           })}
 

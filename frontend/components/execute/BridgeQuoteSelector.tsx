@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { formatUsd } from '@/lib/utils/formatting';
 import type { BridgeId, BridgeQuote } from '@/types/shared';
 
@@ -57,6 +56,7 @@ export function BridgeQuoteSelector({
 
         return (
           <button
+            type="button"
             key={quote.bridgeId}
             onClick={() => onSelect(quote)}
             className="w-full text-left transition-all"

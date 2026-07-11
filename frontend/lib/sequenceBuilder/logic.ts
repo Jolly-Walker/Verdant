@@ -65,7 +65,7 @@ export function computeTokenDelta(steps: BuilderStep[]): {
   feeBreakdown: { label: string; feeUsd: number }[];
 } {
   const source = steps[0];
-  if (!source || source.kind !== 'source')
+  if (source?.kind !== 'source')
     return { input: null, output: null, totalFeeUsd: 0, feeBreakdown: [] };
 
   const input = {

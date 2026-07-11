@@ -61,7 +61,7 @@ export default function SequenceTemplateSelector() {
     }
 
     if (cyclesParam) {
-      setCycles(parseInt(cyclesParam) || 2);
+      setCycles(parseInt(cyclesParam, 10) || 2);
     } else if (template === 'deleverageAave') {
       const debtUsdParam = searchParams.get('totalDebtUsd');
       const collUsdParam = searchParams.get('totalCollateralUsd');
@@ -175,10 +175,14 @@ export default function SequenceTemplateSelector() {
               {selectedTemplate === 'repayAndWithdraw' || selectedTemplate === 'deleverageAave' ? (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                    <label
+                      htmlFor="seq-borrow-asset"
+                      className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                    >
                       Borrow Asset (to repay)
                     </label>
                     <select
+                      id="seq-borrow-asset"
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                       value={borrowAsset}
                       onChange={(e) => setBorrowAsset(e.target.value)}
@@ -189,10 +193,14 @@ export default function SequenceTemplateSelector() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                    <label
+                      htmlFor="seq-collateral-asset"
+                      className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                    >
                       Collateral Asset (to withdraw)
                     </label>
                     <select
+                      id="seq-collateral-asset"
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                       value={collateralAsset}
                       onChange={(e) => setCollateralAsset(e.target.value)}
@@ -205,10 +213,14 @@ export default function SequenceTemplateSelector() {
                 </>
               ) : (
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                  <label
+                    htmlFor="seq-asset"
+                    className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                  >
                     Asset
                   </label>
                   <select
+                    id="seq-asset"
                     className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                     value={asset}
                     onChange={(e) => setAsset(e.target.value)}
@@ -219,10 +231,14 @@ export default function SequenceTemplateSelector() {
                 </div>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                <label
+                  htmlFor="seq-amount"
+                  className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                >
                   {selectedTemplate === 'deleverageAave' ? 'Total Debt Amount' : 'Amount'}
                 </label>
                 <input
+                  id="seq-amount"
                   type="number"
                   className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors font-mono"
                   value={amount}
@@ -231,16 +247,20 @@ export default function SequenceTemplateSelector() {
               </div>
               {selectedTemplate === 'deleverageAave' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                  <label
+                    htmlFor="seq-cycles"
+                    className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                  >
                     Unwind Cycles
                   </label>
                   <input
+                    id="seq-cycles"
                     type="number"
                     min="1"
                     max="10"
                     className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors font-mono"
                     value={cycles}
-                    onChange={(e) => setCycles(parseInt(e.target.value) || 1)}
+                    onChange={(e) => setCycles(parseInt(e.target.value, 10) || 1)}
                   />
                   <p className="text-xs text-verdant-text-muted mt-1">
                     Higher cycles are safer but cost more gas.
@@ -251,10 +271,14 @@ export default function SequenceTemplateSelector() {
                 selectedTemplate === 'deleverageAave') && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                    <label
+                      htmlFor="seq-collateral-amount"
+                      className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                    >
                       Total Collateral Amount
                     </label>
                     <input
+                      id="seq-collateral-amount"
                       type="number"
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors font-mono"
                       value={collateralAmount}
@@ -262,10 +286,14 @@ export default function SequenceTemplateSelector() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                    <label
+                      htmlFor="seq-health-factor"
+                      className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                    >
                       Current Health Factor
                     </label>
                     <input
+                      id="seq-health-factor"
                       type="number"
                       step="0.1"
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors font-mono"
@@ -276,10 +304,14 @@ export default function SequenceTemplateSelector() {
                 </>
               )}
               <div>
-                <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                <label
+                  htmlFor="seq-from-chain"
+                  className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                >
                   From Chain
                 </label>
                 <select
+                  id="seq-from-chain"
                   className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                   value={fromChain}
                   onChange={(e) => setFromChain(e.target.value as ChainId)}
@@ -293,10 +325,14 @@ export default function SequenceTemplateSelector() {
                 selectedTemplate === 'repayAndWithdraw' ||
                 selectedTemplate === 'deleverageAave') && (
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                  <label
+                    htmlFor="seq-from-protocol"
+                    className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                  >
                     From Protocol
                   </label>
                   <select
+                    id="seq-from-protocol"
                     className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                     value={fromProtocol}
                     onChange={(e) => setFromProtocol(e.target.value as ProtocolId)}
@@ -311,10 +347,14 @@ export default function SequenceTemplateSelector() {
                 selectedTemplate === 'crossChainRebalance' ||
                 selectedTemplate === 'exitPendle') && (
                 <div>
-                  <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                  <label
+                    htmlFor="seq-to-chain"
+                    className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                  >
                     To Chain
                   </label>
                   <select
+                    id="seq-to-chain"
                     className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                     value={toChain}
                     onChange={(e) => setToChain(e.target.value as ChainId)}
@@ -329,10 +369,14 @@ export default function SequenceTemplateSelector() {
                 selectedTemplate !== 'deleverageAave' &&
                 selectedTemplate !== 'exitPendle' && (
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-verdant-text-muted">
+                    <label
+                      htmlFor="seq-to-protocol"
+                      className="block text-sm font-medium mb-1 text-verdant-text-muted"
+                    >
                       Destination Protocol
                     </label>
                     <select
+                      id="seq-to-protocol"
                       className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md p-2 text-verdant-text-primary focus:outline-none focus:border-verdant-moss transition-colors"
                       value={toProtocol}
                       onChange={(e) => setToProtocol(e.target.value as ProtocolId)}
@@ -346,6 +390,7 @@ export default function SequenceTemplateSelector() {
             </div>
 
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={isSubmitting}
               className="mt-8 w-full bg-verdant-moss text-white font-bold py-3 rounded-lg hover:bg-verdant-moss-dark disabled:opacity-50 transition-colors"

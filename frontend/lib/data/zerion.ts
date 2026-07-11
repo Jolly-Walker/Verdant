@@ -1,5 +1,6 @@
 import 'server-only';
 import { PROTOCOL_DISPLAY_MAP } from '@/lib/plugins/protocols/metadata';
+import { getServerEnv } from '@/lib/server/env';
 import type { Position } from '@/types/position';
 import type { ChainId, ProtocolId } from '@/types/shared';
 
@@ -45,10 +46,11 @@ const ZERION_CHAIN_TO_VERDANT: Record<string, ChainId> = {
 const ZERION_BASE = 'https://api.zerion.io/v1';
 
 function zerionAuthHeader(): string {
-  if (!process.env.ZERION_API_KEY) {
+  const { ZERION_API_KEY: apiKey } = getServerEnv();
+  if (!apiKey) {
     throw new Error('ZERION_API_KEY is missing from environment variables');
   }
-  const encoded = Buffer.from(`${process.env.ZERION_API_KEY}:`).toString('base64');
+  const encoded = Buffer.from(`${apiKey}:`).toString('base64');
   return `Basic ${encoded}`;
 }
 
@@ -125,7 +127,7 @@ export function normaliseZerionPositions(raw: ZerionPosition[]): Position[] {
         symbol = fungible.symbol;
         name = fungible.name;
         const implementation = fungible.implementations?.find((impl) => impl.chain_id === chainId);
-        if (implementation && implementation.address) {
+        if (implementation?.address) {
           address = implementation.address;
         }
       } else {

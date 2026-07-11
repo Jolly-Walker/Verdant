@@ -19,7 +19,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
   const [selectedPositionId, setSelectedPositionId] = useState<string | null>(
     step.tokenOut.sourcePositionId ||
       (step.tokenOut.positionType === 'wallet'
-        ? 'wallet-' + step.tokenOut.token + '-' + step.tokenOut.chain
+        ? `wallet-${step.tokenOut.token}-${step.tokenOut.chain}`
         : null),
   );
   const [amountStr, setAmountStr] = useState<string>(
@@ -33,7 +33,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
   // Find currently selected position
   const selectedPosition = userPositions.find((p) => {
     if (p.positionType === 'wallet') {
-      return 'wallet-' + p.asset + '-' + p.chain === selectedPositionId;
+      return `wallet-${p.asset}-${p.chain}` === selectedPositionId;
     }
     return p.id === selectedPositionId;
   });
@@ -46,12 +46,12 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
     if (step.tokenOut.sourcePositionId) {
       setSelectedPositionId(step.tokenOut.sourcePositionId);
     } else if (step.tokenOut.positionType === 'wallet' && step.tokenOut.token) {
-      setSelectedPositionId('wallet-' + step.tokenOut.token + '-' + step.tokenOut.chain);
+      setSelectedPositionId(`wallet-${step.tokenOut.token}-${step.tokenOut.chain}`);
     }
   }, [step]);
 
   const handlePositionClick = (pos: Position) => {
-    const id = pos.positionType === 'wallet' ? 'wallet-' + pos.asset + '-' + pos.chain : pos.id;
+    const id = pos.positionType === 'wallet' ? `wallet-${pos.asset}-${pos.chain}` : pos.id;
     setSelectedPositionId(id);
     // Default to max amount
     setAmountStr(pos.amount.toString());
@@ -77,7 +77,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
       setAmountStr(val);
       if (selectedPosition) {
         const numericVal = parseFloat(val);
-        if (!isNaN(numericVal) && numericVal > 0 && numericVal <= selectedPosition.amount) {
+        if (!Number.isNaN(numericVal) && numericVal > 0 && numericVal <= selectedPosition.amount) {
           onSelect({
             token: selectedPosition.asset,
             chain: selectedPosition.chain,
@@ -112,9 +112,10 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
   if (!isActive && step.tokenOut.amount > 0) {
     const isWallet = step.tokenOut.positionType === 'wallet';
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -139,7 +140,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
             {formatUsd(step.tokenOut.amountUsd)}
           </div>
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -160,10 +161,11 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
               {supplyPositions.map((pos) => {
                 const isSel = pos.id === selectedPositionId;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={pos.id}
                     onClick={() => handlePositionClick(pos)}
-                    className={`flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
+                    className={`w-full text-left flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
                       isSel
                         ? 'bg-verdant-surface-accent border border-verdant-moss/30'
                         : 'hover:bg-[#FAF9F6]'
@@ -185,7 +187,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
                         {formatUsd(pos.amountUsd)}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -197,13 +199,14 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
                 Wallet
               </div>
               {walletPositions.map((pos) => {
-                const id = 'wallet-' + pos.asset + '-' + pos.chain;
+                const id = `wallet-${pos.asset}-${pos.chain}`;
                 const isSel = id === selectedPositionId;
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={pos.id}
                     onClick={() => handlePositionClick(pos)}
-                    className={`flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
+                    className={`w-full text-left flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
                       isSel
                         ? 'bg-verdant-surface-accent border border-verdant-moss/30'
                         : 'hover:bg-[#FAF9F6]'
@@ -225,7 +228,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
                         {formatUsd(pos.amountUsd)}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -250,6 +253,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
               className="w-full bg-verdant-canvas text-verdant-text-primary font-mono text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none pr-10"
             />
             <button
+              type="button"
               onClick={handleMaxClick}
               className="absolute right-1 text-[10px] bg-verdant-surface-accent text-verdant-moss hover:bg-verdant-glacial/20 font-bold px-1.5 py-0.5 rounded transition-colors"
             >

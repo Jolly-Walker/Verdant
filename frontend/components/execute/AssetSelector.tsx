@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { DEFAULT_MIN_USD_THRESHOLD } from '@/constants/settings';
 import { formatPercent, formatToken, formatUsd } from '@/lib/utils/formatting';
@@ -64,9 +63,12 @@ export function AssetSelector({
       {/* Amount input */}
       {selectedPosition && (
         <div className="space-y-2">
-          <label className="text-sm text-verdant-text-muted block">Amount</label>
+          <label htmlFor="asset-selector-amount" className="text-sm text-verdant-text-muted block">
+            Amount
+          </label>
           <div className="relative">
             <input
+              id="asset-selector-amount"
               type="number"
               value={customAmount}
               onChange={(e) => onAmountChange(e.target.value)}
@@ -77,6 +79,7 @@ export function AssetSelector({
               className="w-full bg-verdant-surface border border-[#E5E0D8] rounded-md px-4 py-3 text-verdant-text-primary placeholder-verdant-text-muted/50 focus:outline-none focus:border-verdant-moss transition-colors font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
             />
             <button
+              type="button"
               onClick={() => onAmountChange(selectedPosition.amount.toString())}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-verdant-moss hover:text-verdant-moss-dark font-semibold"
             >
@@ -119,6 +122,7 @@ function PositionGroup({
           const isSelected = selectedId === p.id;
           return (
             <button
+              type="button"
               key={p.id}
               onClick={() => onSelect(p)}
               className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-colors ${

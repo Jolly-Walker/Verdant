@@ -10,7 +10,13 @@ describe('computeQuoteStaleness', () => {
     // Cost steps returned in REVERSE order; only the bridge step ('b') carries a
     // quote. Index pairing would wrongly attribute 'b's quote to step 'a'.
     const costSteps: StepCost[] = [
-      { stepId: 'b', stepLabel: 'Bridge', chain: 'ethereum', gasCostUsd: 1, quoteExpiresAt: future() },
+      {
+        stepId: 'b',
+        stepLabel: 'Bridge',
+        chain: 'ethereum',
+        gasCostUsd: 1,
+        quoteExpiresAt: future(),
+      },
       { stepId: 'a', stepLabel: 'Withdraw', chain: 'ethereum', gasCostUsd: 1 },
     ];
     const now = 1_000_000_000_000;
@@ -26,7 +32,13 @@ describe('computeQuoteStaleness', () => {
   it('treats an unverifiable (NaN) quote age as expired — never executable', () => {
     const steps = [{ id: 'b' }];
     const costSteps: StepCost[] = [
-      { stepId: 'b', stepLabel: 'Bridge', chain: 'ethereum', gasCostUsd: 1, quoteExpiresAt: future() },
+      {
+        stepId: 'b',
+        stepLabel: 'Bridge',
+        chain: 'ethereum',
+        gasCostUsd: 1,
+        quoteExpiresAt: future(),
+      },
     ];
 
     const { expired } = computeQuoteStaleness(steps, costSteps, Number.NaN, 1_000_000_000_000);
@@ -37,7 +49,13 @@ describe('computeQuoteStaleness', () => {
   it('flags a quote as stale (warn) but not expired between 30s and 60s', () => {
     const steps = [{ id: 'b' }];
     const costSteps: StepCost[] = [
-      { stepId: 'b', stepLabel: 'Bridge', chain: 'ethereum', gasCostUsd: 1, quoteExpiresAt: future() },
+      {
+        stepId: 'b',
+        stepLabel: 'Bridge',
+        chain: 'ethereum',
+        gasCostUsd: 1,
+        quoteExpiresAt: future(),
+      },
     ];
     const now = 1_000_000_000_000;
     const fetchedAt = now - (STALE_WARN_MS + 1_000); // 31s old

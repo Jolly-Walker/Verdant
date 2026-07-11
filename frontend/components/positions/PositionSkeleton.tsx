@@ -1,5 +1,3 @@
-import React from 'react';
-
 export function PositionSkeleton() {
   return (
     <div className="animate-pulse space-y-4">

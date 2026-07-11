@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 import { formatUsd } from '@/lib/utils/formatting';
 import type { SimulationResult } from '@/types/sequencer';
@@ -55,11 +54,11 @@ export function SimulationResultView({ result }: SimulationResultViewProps) {
               Expected Balance Changes
             </h4>
             <div className="flex flex-col gap-1">
-              {result.stateChanges.map((change, idx) => {
+              {result.stateChanges.map((change) => {
                 const isPositive = change.change.startsWith('+');
                 return (
                   <div
-                    key={idx}
+                    key={`${change.asset}-${change.change}`}
                     className="flex items-center justify-between text-sm py-1 border-b border-[#E5E0D8] last:border-0"
                   >
                     <span className="text-verdant-text-muted">{change.asset}</span>

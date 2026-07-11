@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import type { TokenState } from '@/lib/sequenceBuilder/types';
 import { formatPercent, formatUsd } from '@/lib/utils/formatting';
 import type { Position } from '@/types/position';
@@ -38,9 +38,10 @@ export function RepayCard({
   // Complete (read-only) view
   if (!isActive && selectedPosition) {
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -64,7 +65,7 @@ export function RepayCard({
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-loss font-semibold">
           {formatUsd(selectedPosition.amountUsd)} owed
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -85,10 +86,11 @@ export function RepayCard({
                   ? 'Morpho'
                   : pos.protocol;
             return (
-              <div
+              <button
+                type="button"
                 key={pos.id}
                 onClick={() => handleRowClick(pos)}
-                className={`p-2 rounded text-xs cursor-pointer border transition-colors ${
+                className={`w-full text-left p-2 rounded text-xs cursor-pointer border transition-colors ${
                   isSel
                     ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
                     : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
@@ -106,7 +108,7 @@ export function RepayCard({
                 <div className="text-[9px] text-verdant-text-muted mt-0.5">
                   {formatPercent(pos.currentApy || pos.borrowApy || 0)} borrow APY
                 </div>
-              </div>
+              </button>
             );
           })}
 

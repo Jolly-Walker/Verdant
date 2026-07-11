@@ -11,6 +11,7 @@ export function Tooltip({ children, content, className = '' }: TooltipProps) {
   const [visible, setVisible] = useState(false);
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover-only wrapper that toggles a supplementary tooltip; it is not an interactive control, and no ARIA role fits without misrepresenting its semantics
     <div
       className={`relative inline-flex ${className}`}
       onMouseEnter={() => setVisible(true)}

@@ -40,7 +40,7 @@ export function detectWarnings(
   if (
     result.breakEvenDays !== undefined &&
     result.breakEvenDays !== null &&
-    isFinite(result.breakEvenDays) &&
+    Number.isFinite(result.breakEvenDays) &&
     result.breakEvenDays > 30
   ) {
     warnings.push({
