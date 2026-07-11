@@ -71,8 +71,6 @@ describe('buildDeleverageAavePlan', () => {
     const totalDebt = 1000001n; // atomic units deliberately not divisible by cycles
     const totalCollateral = 2000000000000000000n;
     const cycles = 3;
-    // NB: totalDebtUsd IS divisible by cycles — a non-divisible USD debt hits
-    // the float-dust spurious abort covered by the next test.
     const plan = buildDeleverageAavePlan({
       ...baseParams,
       totalDebt: totalDebt.toString(),
@@ -85,42 +83,37 @@ describe('buildDeleverageAavePlan', () => {
     expectStructurallyValidPlan(plan);
     expect(plan.steps).toHaveLength(cycles * 2);
 
-    const repaid = sumAmounts(repaySteps(plan));
-    // Even split uses integer division: 3 x floor(1000001/3) = 999999.
-    // The 2-unit remainder is never scheduled for repayment (dust shortfall —
-    // current behavior; see final report).
-    expect(repaid).toBe(999999n);
-    expect(repaid).toBeLessThanOrEqual(totalDebt);
-
-    const withdrawn = sumAmounts(withdrawSteps(plan));
-    // Withdraw fractions are rounded at 1e-6 precision per cycle, so allow
-    // cycles * (totalCollateral / 1e6) of rounding drift.
-    const tolerance = (totalCollateral * BigInt(cycles)) / 1_000_000n;
-    const drift =
-      withdrawn > totalCollateral ? withdrawn - totalCollateral : totalCollateral - withdrawn;
-    expect(drift).toBeLessThanOrEqual(tolerance);
+    // The integer-division remainder is folded into the final repay, and the
+    // final withdrawal takes exactly what's left, so both legs conserve.
+    expect(sumAmounts(repaySteps(plan))).toBe(totalDebt);
+    expect(sumAmounts(withdrawSteps(plan))).toBe(totalCollateral);
 
     for (const step of withdrawSteps(plan)) {
       expect(BigInt(txParams(step).amount)).toBeGreaterThanOrEqual(0n);
     }
   });
 
-  it('spuriously aborts a healthy position when totalDebtUsd is not divisible by cycles — current behavior', () => {
-    // 1000 / 3 leaves ~5.7e-14 USD of float-dust debt in the final cycle; the
-    // projected HF becomes a ratio of two dust values (~1.0) and trips the
-    // 1.049 guard even though the position is comfortably healthy (HF 2.0).
-    // Documents current behavior — flagged as a suspected bug.
-    expect(() =>
-      buildDeleverageAavePlan({
-        ...baseParams,
-        totalDebt: '1000000000',
-        totalCollateral: '2000000000000000000',
-        totalDebtUsd: 1000,
-        totalCollateralUsd: 4000,
-        amountUsd: 1000,
-        cycles: 3,
-      }),
-    ).toThrow(/below the safe limit/);
+  it('handles totalDebtUsd not divisible by cycles without a spurious abort', () => {
+    // Cumulative float subtraction used to leave ~5.7e-14 USD of dust debt in
+    // the final cycle, turning the projected HF into a dust/dust ratio (~1.0)
+    // that tripped the 1.049 guard on a comfortably healthy position (HF 2.0).
+    // Closed-form per-cycle debt makes the final cycle exactly zero.
+    const plan = buildDeleverageAavePlan({
+      ...baseParams,
+      totalDebt: '1000000000',
+      totalCollateral: '2000000000000000000',
+      totalDebtUsd: 1000,
+      totalCollateralUsd: 4000,
+      amountUsd: 1000,
+      cycles: 3,
+    });
+    expectStructurallyValidPlan(plan);
+    expect(plan.steps).toHaveLength(6);
+    expect(sumAmounts(repaySteps(plan))).toBe(1000000000n);
+    expect(sumAmounts(withdrawSteps(plan))).toBe(2000000000000000000n);
+    for (const step of plan.steps) {
+      expect(step.projectedHealthFactor as number).toBeGreaterThanOrEqual(1.049);
+    }
   });
 
   it('keeps every projected health factor at or above the 1.05 safety target', () => {
@@ -160,7 +153,10 @@ describe('buildDeleverageAavePlan', () => {
     expect(txParams(getStep(plan, 'withdraw-0')).amount).toBe('1000000000000000000');
   });
 
-  it('emits zero-amount repay steps when the atomic debt is smaller than the cycle count — current behavior', () => {
+  it('clamps the cycle count when the atomic debt has fewer units than cycles', () => {
+    // floor(1/2) would emit zero-amount repay steps, so the plan collapses to
+    // a single cycle that repays the whole (1-unit) debt and withdraws all
+    // collateral.
     const plan = buildDeleverageAavePlan({
       ...baseParams,
       totalDebt: '1', // 1 atomic unit of debt
@@ -170,11 +166,10 @@ describe('buildDeleverageAavePlan', () => {
       amountUsd: 100,
       cycles: 2,
     });
-    // floor(1/2) = 0: both repay steps carry amount '0' even though the USD
-    // projections assume half the debt is retired each cycle.
-    expect(txParams(getStep(plan, 'repay-0')).amount).toBe('0');
-    expect(txParams(getStep(plan, 'repay-1')).amount).toBe('0');
-    expect(sumAmounts(withdrawSteps(plan))).toBeLessThanOrEqual(400000000n);
+    expectStructurallyValidPlan(plan);
+    expect(plan.steps).toHaveLength(2);
+    expect(txParams(getStep(plan, 'repay-0')).amount).toBe('1');
+    expect(txParams(getStep(plan, 'withdraw-0')).amount).toBe('400000000');
   });
 
   it('throws when USD debt or collateral is zero', () => {

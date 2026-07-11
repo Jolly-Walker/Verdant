@@ -77,14 +77,12 @@ describe('buildCrossChainRebalancePlan', () => {
     expect(plan.totalCostUsd).toBe(0);
   });
 
-  it('still emits a same-chain bridge step when fromChain === toChain — current behavior', () => {
-    // Unlike buildBridgeAndDepositPlan, this template does not collapse the
-    // bridge step for same-chain rebalances.
+  it('collapses the bridge step when fromChain === toChain', () => {
+    // Same-chain rebalance (protocol to protocol) needs no bridge, matching
+    // buildBridgeAndDepositPlan.
     const plan = buildCrossChainRebalancePlan({ ...baseParams, toChain: 'ethereum' });
     expectStructurallyValidPlan(plan);
-    expect(plan.steps.map((s) => s.id)).toEqual(['withdraw', 'bridge', 'deposit']);
-    const bridge = bridgeParams(getStep(plan, 'bridge'));
-    expect(bridge.fromChain).toBe('ethereum');
-    expect(bridge.toChain).toBe('ethereum');
+    expect(plan.steps.map((s) => s.id)).toEqual(['withdraw', 'deposit']);
+    expect(getStep(plan, 'deposit').dependsOn).toEqual(['withdraw']);
   });
 });
