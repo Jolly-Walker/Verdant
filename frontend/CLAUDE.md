@@ -15,7 +15,7 @@ bun run lint         # next lint / eslint
 bun run check        # Biome lint + format check (read-only); check:fix to apply
 bun run format       # Biome format --write
 bun run test         # Vitest (run mode)
-npx tsc --noEmit     # typecheck (no dedicated script)
+bun run typecheck    # tsc --noEmit
 
 # Drizzle (DB) — needs DATABASE_URL
 bun run db:generate  # generate migration from lib/db/schema.ts
@@ -44,6 +44,8 @@ Every chain, protocol, bridge, and swap aggregator is a self-contained plugin im
 
 ### Request flow & the server-only boundary
 Client hooks (`hooks/`) → `app/api/**/route.ts` → `lib/` implementations. **All third-party API keys are server-side only.** Code that touches keys imports `'server-only'` and lives under `app/api/` or `lib/server`/`lib/data`. Only `NEXT_PUBLIC_*` env vars may reach the client bundle.
+
+Server code reads env vars through `lib/server/env.ts` (`getServerEnv()` / `getServerEnvOrWarn()`), never raw `process.env` — it zod-validates, treats blank strings as unset, and logs a one-time warning naming the consequence of a missing key. Exception: `NEXT_PUBLIC_*` vars must stay as literal `process.env.NEXT_PUBLIC_X` reads (Next.js inlines them at build time), so they are deliberately not in the module.
 
 Every route validates input via `lib/validation` helpers (`parse`/`parseQuery`/`parseJson` + primitives like `evmAddressSchema`, `chainSchema`); they return a ready 400 or typed data. Rate limiting (`lib/server/rateLimit.ts`, in-memory **per-instance** — swap for a shared store in multi-instance prod) is applied per SPECS §19 (60/min positions, 10/min simulate + plan).
 

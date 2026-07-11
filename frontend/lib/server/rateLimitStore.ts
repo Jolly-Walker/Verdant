@@ -1,4 +1,5 @@
 import 'server-only';
+import { getServerEnv } from './env';
 
 /**
  * Pluggable rate-limit backends (SPECS §19).
@@ -232,8 +233,7 @@ let cachedStore: RateLimitStore | null = null;
 export function getRateLimitStore(): RateLimitStore {
   if (cachedStore) return cachedStore;
 
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const { UPSTASH_REDIS_REST_URL: url, UPSTASH_REDIS_REST_TOKEN: token } = getServerEnv();
   cachedStore = url && token ? new UpstashRateLimitStore(url, token) : new InMemoryRateLimitStore();
   return cachedStore;
 }
