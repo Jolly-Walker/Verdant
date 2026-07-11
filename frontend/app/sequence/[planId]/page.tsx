@@ -7,7 +7,10 @@ import { SequencePlanView } from '@/components/sequence/SequencePlanView';
 import { useSequenceCost } from '@/hooks/useSequenceCost';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useWallet } from '@/hooks/useWallet';
+import { getLastDemoPlan } from '@/lib/demo/sequencer';
 import { fetchWithTimeout } from '@/lib/utils/fetch';
+
+const IS_DEMO = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 export default function SequenceExecutionPage({ params }: { params: { planId: string } }) {
   const router = useRouter();
@@ -31,6 +34,19 @@ export default function SequenceExecutionPage({ params }: { params: { planId: st
   });
 
   useEffect(() => {
+    // Demo mode keeps plans in client state only; rehydrate the one just created
+    // on the dashboard rather than hitting the real API (which has no demo plan).
+    if (IS_DEMO) {
+      const demoPlan = getLastDemoPlan();
+      if (demoPlan) {
+        setPlan(demoPlan);
+      } else {
+        setError('Demo plan expired — start a new sequence from the dashboard.');
+      }
+      setLoading(false);
+      return;
+    }
+
     if (!address) return;
 
     fetchWithTimeout(`/api/sequencer/plan/${params.planId}?wallet=${address}`)

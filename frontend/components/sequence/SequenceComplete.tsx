@@ -1,9 +1,10 @@
+'use client';
+
 import { useRouter } from 'next/navigation';
-import React from 'react';
-import { Card } from '@/components/ui/Card';
-import { getExplorerTxUrl } from '@/lib/utils/chains';
+import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
 import { formatUsd } from '@/lib/utils/formatting';
 import type { SequencePlan } from '@/types/sequencer';
+import fl from './fieldLedger.module.css';
 
 export function SequenceComplete({ plan }: { plan: SequencePlan }) {
   const router = useRouter();
@@ -13,51 +14,79 @@ export function SequenceComplete({ plan }: { plan: SequencePlan }) {
   );
 
   return (
-    <div className="max-w-2xl mx-auto py-20 px-6 text-center">
-      <div className="mb-8 flex justify-center">
-        <div className="w-20 h-20 bg-verdant-surface-accent border-2 border-verdant-profit rounded-full flex items-center justify-center text-verdant-profit animate-in zoom-in duration-500 shadow-organic">
-          <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+    <div className="relative min-h-screen bg-verdant-paper">
+      <div className={fl.grain} aria-hidden />
+
+      <div className="relative z-10 mx-auto max-w-xl px-6 py-20 text-center">
+        <span className="mx-auto mb-8 grid h-20 w-20 place-items-center rounded-full bg-verdant-profit/12 ring-1 ring-verdant-profit/30">
+          <svg
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+            role="img"
+            aria-label="Complete"
+          >
+            <path
+              d="M5 12.5l4.2 4.2L19 7"
+              stroke="#27AE60"
+              strokeWidth={2.4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
-        </div>
-      </div>
+        </span>
 
-      <h2 className="text-3xl font-bold text-verdant-text-primary mb-4">Sequence Complete</h2>
-      <p className="text-verdant-text-muted mb-10 max-w-md mx-auto">
-        Your transactions have been successfully executed and confirmed on-chain.
-      </p>
+        <h2 className={`${fl.serif} text-4xl text-verdant-pine`}>Sequence complete</h2>
+        <p className="mx-auto mt-4 max-w-md text-[15px] leading-relaxed text-verdant-text-muted">
+          Every step was simulated, signed, and confirmed on-chain. Your position has been moved.
+        </p>
 
-      <Card className="mb-10 divide-y divide-[#E5E0D8] bg-verdant-surface border border-[#E5E0D8] shadow-organic">
-        <div className="px-6 py-4 flex justify-between items-center text-sm">
-          <span className="text-verdant-text-muted">Total switching cost</span>
-          <span className="text-verdant-text-primary font-semibold font-mono">
-            {formatUsd(totalGasCost)}
-          </span>
-        </div>
-
-        {plan.steps.map((step) => (
-          <div key={step.id} className="px-6 py-4 flex justify-between items-center text-sm">
-            <span className="text-verdant-text-muted">{step.label}</span>
-            {step.txHash && (
-              <a
-                href={getExplorerTxUrl(step.chain, step.txHash)}
-                target="_blank"
-                rel="noreferrer"
-                className="text-verdant-profit hover:underline font-medium"
-              >
-                View Tx
-              </a>
-            )}
+        <div className="mt-10 overflow-hidden rounded-2xl border border-verdant-rule bg-verdant-surface text-left shadow-organic">
+          <div className="flex items-center justify-between px-6 py-4">
+            <span className="text-sm text-verdant-text-muted">Total switching cost</span>
+            <span className="font-mono text-base font-semibold text-verdant-text-primary tabular-nums">
+              {formatUsd(totalGasCost)}
+            </span>
           </div>
-        ))}
-      </Card>
+          <hr className={`${fl.doubleRule} mx-6`} />
+          <ul className="divide-y divide-verdant-rule/70">
+            {plan.steps.map((step, i) => (
+              <li key={step.id} className="flex items-center justify-between gap-4 px-6 py-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={`${fl.numeral} text-lg text-verdant-pine`} aria-hidden>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-verdant-text-primary">{step.label}</p>
+                    <p className="font-mono text-[10px] uppercase tracking-wide text-verdant-text-muted">
+                      {getChainDisplayName(step.chain)}
+                    </p>
+                  </div>
+                </div>
+                {step.txHash && (
+                  <a
+                    href={getExplorerTxUrl(step.chain, step.txHash)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="shrink-0 font-mono text-xs font-medium text-verdant-profit underline-offset-2 hover:underline"
+                  >
+                    View tx
+                  </a>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
 
-      <button
-        onClick={() => router.push('/dashboard')}
-        className="bg-verdant-moss hover:bg-verdant-moss-dark text-white font-bold px-8 py-3 rounded-lg transition-all shadow-organic-lg"
-      >
-        Back to Dashboard
-      </button>
+        <button
+          type="button"
+          onClick={() => router.push('/dashboard')}
+          className="mt-10 rounded-lg bg-verdant-moss px-8 py-3 font-semibold text-white shadow-organic-lg transition-all hover:bg-verdant-moss-dark active:scale-[0.98]"
+        >
+          Back to dashboard
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,12 @@
 'use client';
 
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { buildDemoPlan, DEMO_SIMULATION_RESULT, DEMO_WALLET_ADDRESS } from '@/lib/demo/sequencer';
+import {
+  buildDemoPlan,
+  DEMO_SIMULATION_RESULT,
+  DEMO_WALLET_ADDRESS,
+  setLastDemoPlan,
+} from '@/lib/demo/sequencer';
 import { deserializeSequencePlan, getActiveStep } from '@/lib/sequencer/engine';
 import { fetchWithTimeout } from '@/lib/utils/fetch';
 import type {
@@ -38,6 +43,7 @@ export function useDemoSequencer() {
         status: 'draft',
       };
       setPlan(newPlan);
+      setLastDemoPlan(newPlan);
       return newPlan;
     }
 
@@ -45,6 +51,7 @@ export function useDemoSequencer() {
     await delay(600);
     const newPlan = buildDemoPlan(DEMO_WALLET_ADDRESS);
     setPlan(newPlan);
+    setLastDemoPlan(newPlan);
     return newPlan;
   }, []);
 
