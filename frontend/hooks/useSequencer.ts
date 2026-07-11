@@ -33,6 +33,12 @@ const CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {
   base: 8453,
 };
 
+// Errors whose branch has already set the correct step state and message.
+// executeStep's generic catch must rethrow these untouched instead of
+// re-marking the step 'failed' (which would, e.g., display an on-chain
+// confirmed transaction as failed).
+class StepStateError extends Error {}
+
 export function useSequencer() {
   if (IS_DEMO) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -159,7 +165,10 @@ function useRealSequencer() {
           };
         });
 
-        return updatedStep.simulation!;
+        if (!updatedStep.simulation) {
+          throw new Error('Simulation response did not include a result');
+        }
+        return updatedStep.simulation;
       } catch (err) {
         console.error('Simulation error:', err);
 
@@ -239,7 +248,7 @@ function useRealSequencer() {
                 }
               : null,
           );
-          throw new Error(
+          throw new StepStateError(
             'State desynchronization: Failed to update status in database. Aborting to prevent tracking loss.',
           );
         }
@@ -294,7 +303,7 @@ function useRealSequencer() {
                 }
               : null,
           );
-          throw new Error(
+          throw new StepStateError(
             'Transaction successful on-chain, but Verdant database could not be updated. Please refresh to see latest state.',
           );
         }
@@ -313,6 +322,7 @@ function useRealSequencer() {
         return txHash;
       } catch (err: unknown) {
         console.error('Execution error:', err);
+        if (err instanceof StepStateError) throw err;
         const isUserRejection =
           (err instanceof Error && err.message.toLowerCase().includes('user rejected')) ||
           (typeof err === 'object' &&
