@@ -50,7 +50,7 @@ export function PositionCard({
 
   // Maturity calculations for Pendle
   const maturityDate = position.maturityDate ? new Date(position.maturityDate) : null;
-  const isValidDate = maturityDate && !isNaN(maturityDate.getTime());
+  const isValidDate = maturityDate && !Number.isNaN(maturityDate.getTime());
   const showExpiryWarning =
     isPendle && isValidDate && maturityDate!.getTime() - Date.now() < 30 * 24 * 60 * 60 * 1000;
   const formattedMaturity = isValidDate
@@ -338,6 +338,7 @@ export function PositionCard({
         <div className="flex justify-end gap-2 items-center">
           {isWallet && (
             <button
+              type="button"
               onClick={handleDepositWallet}
               className="text-xs bg-verdant-moss hover:bg-verdant-moss-dark text-white px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
             >
@@ -349,6 +350,7 @@ export function PositionCard({
             <>
               {position.healthFactor !== undefined && (
                 <button
+                  type="button"
                   onClick={handleDeleverage}
                   className="text-xs font-semibold tracking-wide bg-verdant-loss text-white px-3.5 py-1.5 rounded-md shadow-sm ring-1 ring-inset ring-verdant-loss/60 hover:bg-red-700 hover:shadow active:scale-[0.97] transition-all cursor-pointer"
                 >
@@ -356,6 +358,7 @@ export function PositionCard({
                 </button>
               )}
               <button
+                type="button"
                 onClick={handleRepay}
                 className="text-xs font-semibold tracking-wide border border-verdant-teak text-verdant-teak bg-transparent px-3.5 py-1.5 rounded-md hover:bg-verdant-teak hover:text-white hover:shadow-sm active:scale-[0.97] transition-all cursor-pointer"
               >
@@ -366,6 +369,7 @@ export function PositionCard({
 
           {isPendle && (
             <button
+              type="button"
               onClick={handleExitPendle}
               className="text-xs border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
             >
@@ -384,6 +388,7 @@ export function PositionCard({
                   }
                 >
                   <button
+                    type="button"
                     onClick={handleHarvest}
                     disabled={!canHarvest || isHarvesting || isSimulating}
                     className="text-xs bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
@@ -399,6 +404,7 @@ export function PositionCard({
                 </Tooltip>
               )}
               <button
+                type="button"
                 onClick={handleManageSupply}
                 className="text-xs border border-verdant-teak text-verdant-teak hover:bg-verdant-teak hover:text-white bg-transparent px-3 py-1.5 rounded transition-colors font-medium cursor-pointer"
               >

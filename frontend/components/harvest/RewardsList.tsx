@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import { Badge } from '@/components/ui/Badge';
 import type { AggregatedReward } from '@/hooks/useRewards';
 import { formatUsd } from '@/lib/utils/formatting';
@@ -80,8 +79,8 @@ export function RewardsList({ rewards, isLoading }: RewardsListProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      {rewards.map((r, i) => (
-        <RewardRow key={`${r.protocol}-${r.chain}-${r.token}-${i}`} reward={r} />
+      {rewards.map((r) => (
+        <RewardRow key={`${r.protocol}-${r.chain}-${r.token}`} reward={r} />
       ))}
     </div>
   );

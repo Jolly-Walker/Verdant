@@ -134,7 +134,7 @@ export const layerzeroBridgePlugin: BridgePlugin = {
 
     const amountBI = BigInt(amount);
     const maxFeeAtomic = (amountBI * BigInt(Math.round(minimumFeeBps))) / 10000n;
-    const decimals = SUPPORTED_TOKENS['USDC']?.decimals ?? 6;
+    const decimals = SUPPORTED_TOKENS.USDC?.decimals ?? 6;
 
     const feeTokens = Number(formatUnits(maxFeeAtomic, decimals));
     // USDC ≈ $1, so the unpriced fee is already a good approximation if the
@@ -167,7 +167,7 @@ export const layerzeroBridgePlugin: BridgePlugin = {
     const chainId = EVM_CHAIN_ID_MAP[fromChain];
     if (!chainId) throw new Error(`Unsupported chain ${fromChain}`);
 
-    const tokenConfig = SUPPORTED_TOKENS['USDC'];
+    const tokenConfig = SUPPORTED_TOKENS.USDC;
     const tokenAddress = tokenConfig?.addresses[fromChain];
     if (!tokenAddress) throw new Error(`USDC not supported on ${fromChain}`);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { DEMO_BRIDGE_QUOTES } from '@/lib/sequenceBuilder/fixtures';
 import type { TokenState } from '@/lib/sequenceBuilder/types';
 import { formatUsd } from '@/lib/utils/formatting';
@@ -33,6 +33,7 @@ export function BridgeCard({
     selectedToChain || (availableChains[0] as ChainId),
   );
   const [bridgeId, setBridgeId] = useState<BridgeId | null>(selectedBridgeId || null);
+  const toChainSelectId = useId();
 
   const quotes = DEMO_BRIDGE_QUOTES[toChain] || [];
 
@@ -93,9 +94,10 @@ export function BridgeCard({
       timeSeconds: 60,
     };
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -114,7 +116,7 @@ export function BridgeCard({
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
           ~{displayQuote.timeSeconds}s transfer time
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -127,10 +129,14 @@ export function BridgeCard({
 
         {/* Chain selector */}
         <div className="mb-2">
-          <label className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1">
+          <label
+            htmlFor={toChainSelectId}
+            className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1"
+          >
             To Chain
           </label>
           <select
+            id={toChainSelectId}
             value={toChain}
             onChange={handleChainChange}
             className="w-full bg-verdant-canvas text-verdant-text-primary text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none"
@@ -145,17 +151,18 @@ export function BridgeCard({
 
         {/* Bridge options */}
         <div>
-          <label className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1">
+          <span className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1">
             Route Quotes
-          </label>
+          </span>
           <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1 scrollbar-thin">
             {quotes.map((q) => {
               const isSel = q.bridgeId === bridgeId;
               return (
-                <div
+                <button
+                  type="button"
                   key={q.bridgeId}
                   onClick={() => handleBridgeClick(q)}
-                  className={`p-1.5 rounded text-[11px] cursor-pointer border transition-colors ${
+                  className={`w-full text-left p-1.5 rounded text-[11px] cursor-pointer border transition-colors ${
                     isSel
                       ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
                       : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
@@ -168,7 +175,7 @@ export function BridgeCard({
                   <div className="text-[9px] text-verdant-text-muted mt-0.5 font-mono">
                     ~{q.timeSeconds}s
                   </div>
-                </div>
+                </button>
               );
             })}
             {quotes.length === 0 && (

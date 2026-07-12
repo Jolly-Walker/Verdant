@@ -1,6 +1,5 @@
 'use client';
 
-import React from 'react';
 import type { TokenState } from '@/lib/sequenceBuilder/types';
 import { formatToken, formatUsd } from '@/lib/utils/formatting';
 
@@ -27,9 +26,10 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
   // Complete (read-only) view
   if (!isActive) {
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -45,7 +45,7 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-primary font-bold">
           {formatUsd(tokenIn.amountUsd)} → {formatToken(tokenIn.amount)} {tokenIn.token}
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -83,6 +83,7 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
       </div>
 
       <button
+        type="button"
         onClick={handleConfirm}
         className="w-full text-xs bg-verdant-moss hover:bg-verdant-moss-dark text-white py-1.5 rounded transition-colors font-medium font-sans cursor-pointer mt-3"
       >

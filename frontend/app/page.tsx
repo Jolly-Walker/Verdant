@@ -38,6 +38,7 @@ export default function Home() {
           )}
           <ConnectButton />
           <button
+            type="button"
             onClick={enableDebug}
             className="text-sm text-verdant-text-muted hover:text-verdant-text-primary underline underline-offset-4 transition-colors"
           >

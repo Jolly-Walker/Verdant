@@ -73,6 +73,8 @@ export function useQuote(input: CostPreviewInput | null): UseQuoteReturn {
     if (!input) {
       setQuote(null);
       setError(null);
+      quoteFetchedAtRef.current = null;
+      setQuoteAge(0);
       return;
     }
 

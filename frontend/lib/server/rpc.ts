@@ -10,20 +10,33 @@ import 'server-only';
 import { createPublicClient, http, type PublicClient, type Chain as ViemChain } from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
 import type { ChainId } from '@/types/shared';
+import { getServerEnvOrWarn, type ServerEnv } from './env';
 
-const ALCHEMY_RPC_URLS: Record<ChainId, string> = {
-  ethereum: `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ETHEREUM || ''}`,
-  arbitrum: `https://arb-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_ARBITRUM || ''}`,
-  base: `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_BASE || ''}`,
-  solana: `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY_SOLANA || ''}`,
+const ALCHEMY_HOSTS: Record<ChainId, string> = {
+  ethereum: 'https://eth-mainnet.g.alchemy.com/v2/',
+  arbitrum: 'https://arb-mainnet.g.alchemy.com/v2/',
+  base: 'https://base-mainnet.g.alchemy.com/v2/',
+  solana: 'https://solana-mainnet.g.alchemy.com/v2/',
+};
+
+const ALCHEMY_KEY_VARS: Record<ChainId, keyof ServerEnv> = {
+  ethereum: 'ALCHEMY_API_KEY_ETHEREUM',
+  arbitrum: 'ALCHEMY_API_KEY_ARBITRUM',
+  base: 'ALCHEMY_API_KEY_BASE',
+  solana: 'ALCHEMY_API_KEY_SOLANA',
 };
 
 /**
  * Get the Alchemy RPC URL for a given chain.
- * Server-side only — will return a URL with an empty key if env vars are missing.
+ * Server-side only — if the chain's API key env var is missing, a one-time
+ * warning is logged and the returned URL will fail with 401 when used.
  */
 export function getRpcUrl(chain: ChainId): string {
-  return ALCHEMY_RPC_URLS[chain];
+  const key = getServerEnvOrWarn(
+    ALCHEMY_KEY_VARS[chain],
+    `RPC calls for ${chain} will fail with 401`,
+  );
+  return `${ALCHEMY_HOSTS[chain]}${key ?? ''}`;
 }
 
 /**

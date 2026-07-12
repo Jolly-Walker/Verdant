@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { HarvestButton } from '@/components/harvest/HarvestButton';
 import { RewardsList } from '@/components/harvest/RewardsList';
 import { Badge } from '@/components/ui/Badge';
@@ -235,6 +235,7 @@ function AutoCompoundToggle({
         </p>
       </div>
       <button
+        type="button"
         id={`autocompound-toggle-${setting.protocol}-${setting.chain}-${setting.asset}`}
         onClick={handleToggle}
         disabled={isUpdating}
@@ -341,6 +342,7 @@ export default function HarvestPage() {
             </p>
           </div>
           <button
+            type="button"
             id="harvest-refresh-btn"
             onClick={refetch}
             disabled={isLoading}
@@ -349,7 +351,13 @@ export default function HarvestPage() {
             {isLoading ? (
               <Spinner size="sm" />
             ) : (
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg
+                aria-hidden="true"
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -396,6 +404,7 @@ export default function HarvestPage() {
         <div className="flex border-b border-[#E5E0D8]">
           {(['rewards', 'history', 'settings'] as const).map((tab) => (
             <button
+              type="button"
               key={tab}
               id={`harvest-tab-${tab}`}
               onClick={() => setActiveTab(tab)}

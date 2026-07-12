@@ -1,6 +1,7 @@
 import 'server-only';
 import { formatUnits, parseUnits } from 'viem';
 import { SUPPORTED_TOKENS } from '@/constants/tokens';
+import { getServerEnvOrWarn } from '@/lib/server/env';
 import type { ChainId, UnsignedTx } from '@/types/shared';
 import type { SwapPlugin, SwapQuote, SwapQuoteParams } from '../types/swap-plugin';
 
@@ -43,7 +44,7 @@ function resolveToken(
 }
 
 function authHeaders(): Record<string, string> | null {
-  const apiKey = process.env.ONEINCH_API_KEY;
+  const apiKey = getServerEnvOrWarn('ONEINCH_API_KEY', 'the 1inch swap option is unavailable');
   if (!apiKey) return null;
   return { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' };
 }

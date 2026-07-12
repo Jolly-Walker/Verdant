@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface HealthFactorProps {
   /** Aave-style health factor. e.g. 1.05 = near liquidation, 2.5 = safe, Infinity = no debt. */
   value: number;
@@ -35,9 +33,9 @@ const ZONE_BG: Record<Zone, string> = {
 
 export function HealthFactor({ value, maxScale = 3.0, showLabel = true }: HealthFactorProps) {
   // Guard against NaN / Infinity / non-finite input.
-  const isFinite = Number.isFinite(value);
+  const isFiniteValue = Number.isFinite(value);
   // A non-finite or very large value means "no debt" -> fully healthy, meter pinned to the end.
-  const safeValue = isFinite ? Math.max(value, 0) : maxScale;
+  const safeValue = isFiniteValue ? Math.max(value, 0) : maxScale;
 
   const zone = classifyZone(safeValue);
   const textClass = ZONE_TEXT[zone];
@@ -55,7 +53,7 @@ export function HealthFactor({ value, maxScale = 3.0, showLabel = true }: Health
   );
   const healthyWidthPct = Math.max(100 - dangerWidthPct - cautionWidthPct, 0);
 
-  const displayValue = isFinite ? safeValue.toFixed(2) : '∞';
+  const displayValue = isFiniteValue ? safeValue.toFixed(2) : '∞';
   const ariaLabel = `Health factor ${displayValue}, ${zone}`;
 
   return (
@@ -68,10 +66,11 @@ export function HealthFactor({ value, maxScale = 3.0, showLabel = true }: Health
 
       <div className="flex items-center gap-2">
         {/* Segmented risk meter */}
+        {/* biome-ignore lint/a11y/useSemanticElements: custom segmented risk meter; the native <meter> element cannot render the zone bands and marker, so swapping it in would visibly change the UI */}
         <div
           className="relative h-1.5 w-20 rounded-full overflow-hidden"
           role="meter"
-          aria-valuenow={isFinite ? Number(safeValue.toFixed(2)) : maxScale}
+          aria-valuenow={isFiniteValue ? Number(safeValue.toFixed(2)) : maxScale}
           aria-valuemin={0}
           aria-valuemax={maxScale}
           aria-label={ariaLabel}

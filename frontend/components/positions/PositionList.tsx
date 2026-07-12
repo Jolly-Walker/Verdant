@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useChainMetadata } from '@/hooks/useChainMetadata';
 import { formatUsd } from '@/lib/utils/formatting';
 import type { Position } from '@/types/position';
@@ -124,6 +124,7 @@ export function PositionList({
       <div className="flex flex-col items-center justify-center py-16 bg-verdant-surface border border-[#E5E0D8] border-dashed rounded-xl shadow-organic">
         <div className="h-12 w-12 rounded-full bg-verdant-surface-accent flex items-center justify-center mb-4">
           <svg
+            aria-hidden="true"
             width="24"
             height="24"
             viewBox="0 0 24 24"

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDestinations } from '@/hooks/useDestinations';
 import type { DepositDestination, TokenState } from '@/lib/sequenceBuilder/types';
 import { formatPercent } from '@/lib/utils/formatting';
@@ -40,9 +40,10 @@ export function DepositCard({
   // Complete (read-only) view
   if (!isActive && selectedDestination) {
     return (
-      <div
+      <button
+        type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
           <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
@@ -71,7 +72,7 @@ export function DepositCard({
         <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
           → {selectedDestination.outputTokenSymbol}
         </div>
-      </div>
+      </button>
     );
   }
 
@@ -94,7 +95,11 @@ export function DepositCard({
           {error && !isLoading && (
             <div className="text-xs text-verdant-loss text-center py-4">
               Failed to load destinations.{' '}
-              <button onClick={() => refetch()} className="underline font-semibold cursor-pointer">
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="underline font-semibold cursor-pointer"
+              >
                 Retry
               </button>
             </div>
@@ -105,10 +110,11 @@ export function DepositCard({
             destinations.map((dest) => {
               const isSel = dest.id === selectedId;
               return (
-                <div
+                <button
+                  type="button"
                   key={dest.id}
                   onClick={() => handleRowClick(dest)}
-                  className={`p-2 rounded text-xs cursor-pointer border transition-colors ${
+                  className={`w-full text-left p-2 rounded text-xs cursor-pointer border transition-colors ${
                     isSel
                       ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
                       : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
@@ -153,9 +159,9 @@ export function DepositCard({
                   {/* Reward tokens */}
                   {dest.rewardTokens.length > 0 && (
                     <div className="flex gap-1 mt-1 flex-wrap">
-                      {dest.rewardTokens.slice(0, 3).map((addr, i) => (
+                      {dest.rewardTokens.slice(0, 3).map((addr) => (
                         <span
-                          key={i}
+                          key={addr}
                           className="text-[9px] bg-verdant-surface-accent text-verdant-text-muted
                                    border border-[#D5E8E0] px-1 py-0.5 rounded font-mono"
                         >
@@ -164,7 +170,7 @@ export function DepositCard({
                       ))}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
 

@@ -4,6 +4,7 @@ import { formatUnits } from 'viem';
 import { CHAIN_REGISTRY } from '@/lib/plugins/chains';
 import type { SimulationResult, StateChange } from '@/types/sequencer';
 import type { ChainId, ProtocolId } from '@/types/shared';
+import { getServerEnv } from '../server/env';
 import { getPublicClient } from '../server/rpc';
 import { getSolanaConnection } from '../server/solana';
 import { decodeRevertReason } from './errors';
@@ -142,7 +143,7 @@ export async function simulateTransaction(params: {
     console.error('Alchemy simulation error:', err);
 
     // Fallback to Tenderly if configured
-    if (process.env.TENDERLY_ACCESS_KEY) {
+    if (getServerEnv().TENDERLY_ACCESS_KEY) {
       try {
         return await simulateWithTenderly(params);
       } catch (tenderlyErr) {
@@ -165,9 +166,11 @@ async function simulateWithTenderly(params: {
   data: string;
   value: string;
 }): Promise<SimulationResult> {
-  const key = process.env.TENDERLY_ACCESS_KEY;
-  const account = process.env.TENDERLY_ACCOUNT_SLUG;
-  const project = process.env.TENDERLY_PROJECT_SLUG;
+  const {
+    TENDERLY_ACCESS_KEY: key,
+    TENDERLY_ACCOUNT_SLUG: account,
+    TENDERLY_PROJECT_SLUG: project,
+  } = getServerEnv();
   if (!key || !account || !project) throw new Error('Tenderly not configured');
 
   const CHAIN_ID_MAP: Partial<Record<ChainId, number>> = {

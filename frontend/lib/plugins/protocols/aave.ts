@@ -792,7 +792,9 @@ export const aavePlugin: ProtocolPlugin = {
                 functionName: 'getRewardsByAsset',
                 args: [aToken as `0x${string}`],
               });
-              rewardTokens.forEach((r) => rewardTokenSet.add(r));
+              for (const r of rewardTokens) {
+                rewardTokenSet.add(r);
+              }
             } catch {
               // No rewards configured for this aToken
             }

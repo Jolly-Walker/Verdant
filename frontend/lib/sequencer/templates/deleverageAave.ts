@@ -52,22 +52,30 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
 
   // Integrate computeOptimalCycles as a floor
   const optimalCycles = computeOptimalCycles(totalDebtUsd, totalCollateralUsd, lt);
-  const cycles = Math.max(params.cycles || optimalCycles, optimalCycles);
-
-  let currentDebtUsd = totalDebtUsd;
-  let currentCollateralUsd = totalCollateralUsd;
-  let previousStepId: string | null = null;
+  let cycles = Math.max(params.cycles || optimalCycles, optimalCycles);
 
   const totalDebtBI = BigInt(params.totalDebt);
   const totalCollateralBI = BigInt(params.totalCollateral);
 
+  // More cycles than atomic debt units would emit zero-amount repay steps.
+  if (BigInt(cycles) > totalDebtBI) cycles = Math.max(1, Number(totalDebtBI));
+
+  let currentCollateralUsd = totalCollateralUsd;
+  let withdrawnBI = 0n;
+  let previousStepId: string | null = null;
+
+  const baseRepayBI = totalDebtBI / BigInt(cycles);
+
   for (let i = 0; i < cycles; i++) {
     const repayId = `repay-${i}`;
     const withdrawId = `withdraw-${i}`;
+    const isLastCycle = i === cycles - 1;
 
-    // Amounts in USD for HF projections
-    const repayAmountUsd = totalDebtUsd / cycles;
-    const debtAfterRepayUsd = Math.max(0, currentDebtUsd - repayAmountUsd);
+    // Closed form (not cumulative subtraction) so the final cycle's debt is
+    // exactly 0 — cumulative float drift left ~1e-14 residuals that turned
+    // the HF projection into a dust/dust ratio and spuriously tripped the
+    // safety guard on healthy positions.
+    const debtAfterRepayUsd = (totalDebtUsd * (cycles - 1 - i)) / cycles;
 
     // Compute maximum safe withdraw USD:
     let maxWithdrawUsd = 0;
@@ -77,16 +85,25 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       maxWithdrawUsd = Math.max(0, currentCollateralUsd - (debtAfterRepayUsd * 1.05) / lt);
     }
 
-    // Convert to token units using BigInt for precision
-    const withdrawFraction = totalCollateralUsd > 0 ? maxWithdrawUsd / totalCollateralUsd : 0;
+    // Convert to token units using BigInt for precision. The final cycle
+    // withdraws exactly what's left so rounding drift can't strand dust.
+    let withdrawAmountBI: bigint;
+    if (isLastCycle) {
+      withdrawAmountBI = totalCollateralBI - withdrawnBI;
+    } else {
+      const withdrawFraction = totalCollateralUsd > 0 ? maxWithdrawUsd / totalCollateralUsd : 0;
+      const PRECISION = 1_000_000n;
+      const withdrawFractionBI = BigInt(Math.round(withdrawFraction * Number(PRECISION)));
+      withdrawAmountBI = (totalCollateralBI * withdrawFractionBI) / PRECISION;
+    }
+    withdrawnBI += withdrawAmountBI;
+    const withdrawAmount = withdrawAmountBI.toString();
 
-    // Use scaled integer arithmetic for withdrawAmount
-    const PRECISION = 1_000_000n;
-    const withdrawFractionBI = BigInt(Math.round(withdrawFraction * Number(PRECISION)));
-    const withdrawAmount = ((totalCollateralBI * withdrawFractionBI) / PRECISION).toString();
-
-    // Repay amount is even split
-    const repayAmount = (totalDebtBI / BigInt(cycles)).toString();
+    // Even split, with the integer-division remainder folded into the final
+    // repay so the scheduled repays sum to exactly the total debt.
+    const repayAmount = (
+      isLastCycle ? totalDebtBI - baseRepayBI * BigInt(cycles - 1) : baseRepayBI
+    ).toString();
 
     // 1. Repay step (increases HF)
     const repayProjectedHF =
@@ -111,14 +128,12 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
       },
     });
 
-    currentDebtUsd = debtAfterRepayUsd;
-
     // 2. Health Factor Projection before Withdrawal
     const projectedCollateralUsd = currentCollateralUsd - maxWithdrawUsd;
     const projectedHF =
-      currentDebtUsd > 0 ? (projectedCollateralUsd * lt) / currentDebtUsd : Infinity;
+      debtAfterRepayUsd > 0 ? (projectedCollateralUsd * lt) / debtAfterRepayUsd : Infinity;
 
-    if (projectedHF < 1.049 && currentDebtUsd > 0) {
+    if (projectedHF < 1.049 && debtAfterRepayUsd > 0) {
       // Using 1.049 to avoid float precision issues in check
       throw new Error(
         `Cycle ${i + 1} withdrawal would drop Health Factor to ${projectedHF.toFixed(2)}, which is below the safe limit of 1.05. Aborting plan creation.`,

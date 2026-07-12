@@ -185,6 +185,7 @@ export function StepOneBridge({
           />
 
           <button
+            type="button"
             onClick={handleBridge}
             disabled={isSigning || !selectedQuote || !serializedTx}
             className="w-full bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
@@ -236,6 +237,7 @@ export function StepOneBridge({
               View Transaction
             </a>
             <button
+              type="button"
               onClick={() => setTxHash(null)}
               className="px-4 py-2 bg-transparent text-verdant-text-muted hover:text-verdant-text-primary text-sm transition-colors"
             >

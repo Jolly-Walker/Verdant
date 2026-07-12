@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { usePositions } from '@/hooks/usePositions';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useWallet } from '@/hooks/useWallet';
@@ -231,10 +231,13 @@ export function SequenceBuilderModal({
         <div className="border-b border-[#E5E0D8] px-6 py-4 flex items-center justify-between">
           <h2 className="text-lg font-bold text-verdant-text-primary">Build a Sequence</h2>
           <button
+            type="button"
+            aria-label="Close"
             onClick={onClose}
             className="text-verdant-text-muted hover:text-verdant-text-primary p-1 rounded-md transition-colors"
           >
             <svg
+              aria-hidden="true"
               className="w-5 h-5"
               fill="none"
               stroke="currentColor"
@@ -252,6 +255,7 @@ export function SequenceBuilderModal({
             {steps.map((step, idx) => {
               const isActive = idx === activeStepIndex;
               return (
+                // biome-ignore lint/suspicious/noArrayIndexKey: builder steps have no stable id; a step's identity is its position in the pipeline (edits truncate the array from that index)
                 <div key={idx} className="relative flex justify-center">
                   {step.kind === 'source' && (
                     <SourceCard

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createPublicClient, http } from 'viem';
+import { type Chain, createPublicClient, http } from 'viem';
 import { arbitrum, base, mainnet } from 'viem/chains';
 import { z } from 'zod';
 import { getNativeAssetPrice } from '@/lib/data/prices';
@@ -24,7 +24,7 @@ const SimulateStepSchema = z.object({
 
 const getClient = (chain: ChainId) => {
   const rpcUrl = getRpcUrl(chain);
-  let viemChain;
+  let viemChain: Chain;
   switch (chain) {
     case 'ethereum':
       viemChain = mainnet;

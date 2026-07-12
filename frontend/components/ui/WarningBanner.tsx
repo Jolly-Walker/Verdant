@@ -1,5 +1,3 @@
-import React from 'react';
-
 interface WarningBannerProps {
   message: string;
   variant?: 'warning' | 'error';

@@ -134,8 +134,8 @@ async function validateMinimumSize(
   const amountUsd = normalizedAmount * price;
 
   // Handle NaN and minimum size check
-  const ok = !isNaN(amountUsd) && amountUsd >= DEFAULT_MIN_USD_THRESHOLD;
-  return { ok, amountUsd: isNaN(amountUsd) ? 0 : amountUsd };
+  const ok = !Number.isNaN(amountUsd) && amountUsd >= DEFAULT_MIN_USD_THRESHOLD;
+  return { ok, amountUsd: Number.isNaN(amountUsd) ? 0 : amountUsd };
 }
 
 export async function POST(req: Request) {
@@ -221,10 +221,10 @@ export async function POST(req: Request) {
         (Number(parsedParams.totalCollateral) / 10 ** collateralToken.decimals) * collateralPrice;
       amountUsd = totalDebtUsd; // for minimum size check
 
-      if (isNaN(amountUsd) || amountUsd < DEFAULT_MIN_USD_THRESHOLD) {
+      if (Number.isNaN(amountUsd) || amountUsd < DEFAULT_MIN_USD_THRESHOLD) {
         return NextResponse.json(
           {
-            error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} USD required. Current: $${(isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}`,
+            error: `Minimum transaction size of $${DEFAULT_MIN_USD_THRESHOLD.toLocaleString()} USD required. Current: $${(Number.isNaN(amountUsd) ? 0 : amountUsd).toFixed(2)}`,
           },
           { status: 400 },
         );

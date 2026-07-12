@@ -64,6 +64,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              type="button"
               onClick={() => openBuilder()}
               className="text-sm bg-verdant-moss hover:bg-verdant-moss-dark text-white px-4 py-2 rounded-md transition-colors font-semibold cursor-pointer"
             >
@@ -71,6 +72,7 @@ export default function Dashboard() {
             </button>
             <ConnectButton />
             <button
+              type="button"
               onClick={() => disconnect()}
               className="px-3 py-2 text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-medium"
             >
@@ -90,6 +92,7 @@ export default function Dashboard() {
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold text-verdant-text-primary">Your Positions</h2>
           <button
+            type="button"
             onClick={refetch}
             disabled={isLoading}
             className="text-sm border border-[#E5E0D8] text-verdant-text-muted hover:border-verdant-moss hover:text-verdant-moss disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors font-medium"

@@ -1,4 +1,3 @@
-import React from 'react';
 import type { PositionType } from '@/types/position';
 
 type FilterValue = PositionType | 'all' | 'pendle';
@@ -21,6 +20,7 @@ export function PositionTypeFilter({ selected, onChange }: PositionTypeFilterPro
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
       {types.map((t) => (
         <button
+          type="button"
           key={t.value}
           onClick={() => onChange(t.value)}
           className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${

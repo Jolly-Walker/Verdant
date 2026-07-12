@@ -6,6 +6,18 @@ import { DEMO_WALLET_ADDRESS } from './wallet';
 
 export { DEMO_WALLET_ADDRESS };
 
+// Demo plans live only in client state, but navigating to /sequence/[planId]
+// remounts a fresh hook (state lost) and that route otherwise fetches the real
+// API. This module-level handoff lets the plan view rehydrate the just-created
+// demo plan across that client-side navigation.
+let lastDemoPlan: SequencePlan | null = null;
+export function setLastDemoPlan(plan: SequencePlan): void {
+  lastDemoPlan = plan;
+}
+export function getLastDemoPlan(): SequencePlan | null {
+  return lastDemoPlan;
+}
+
 export function buildDemoPlan(walletAddress: string): SequencePlan {
   return buildCrossChainRebalancePlan({
     asset: 'USDC',
