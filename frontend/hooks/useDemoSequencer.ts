@@ -8,7 +8,6 @@ import {
   setLastDemoPlan,
 } from '@/lib/demo/sequencer';
 import { deserializeSequencePlan, getActiveStep } from '@/lib/sequencer/engine';
-import { fetchWithTimeout } from '@/lib/utils/fetch';
 import type {
   SequencePlan,
   SerializedSequencePlan,
@@ -98,7 +97,7 @@ export function useDemoSequencer() {
     if (!currentPlan) throw new Error('No active plan');
 
     const step = currentPlan.steps.find((s) => s.id === stepId);
-    if (!step || step.status !== 'ready') throw new Error('Step not ready');
+    if (step?.status !== 'ready') throw new Error('Step not ready');
 
     // Signing state
     setPlan((prev) =>
