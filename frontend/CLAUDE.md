@@ -31,6 +31,8 @@ bun run test path/to/file.test.ts      # one file
 bun run test -t "substring of name"    # by test name
 ```
 
+CI (`.github/workflows/ci.yml`) runs `bun install --frozen-lockfile`, then lint (ESLint), `check` (Biome), `typecheck`, `test`, and `build` — all five must pass.
+
 Tests mock `server-only` (`vi.mock('server-only', () => ({}))`) and external I/O (`fetch`/`fetchWithTimeout`, RPC `readContract`, data clients). There is no live network in tests.
 
 ## Architecture
@@ -50,15 +52,21 @@ Server code reads env vars through `lib/server/env.ts` (`getServerEnv()` / `getS
 Every route validates input via `lib/validation` helpers (`parse`/`parseQuery`/`parseJson` + primitives like `evmAddressSchema`, `chainSchema`); they return a ready 400 or typed data. Rate limiting (`lib/server/rateLimit.ts`, in-memory **per-instance** — swap for a shared store in multi-instance prod) is applied per SPECS §19 (60/min positions, 10/min simulate + plan).
 
 ### Transaction sequencer (the core feature)
-A `SequencePlan` is a DAG of `SequenceStep`s (`dependsOn`), persisted in the `sequence_plans` table. `lib/sequencer/engine.ts` owns serialization (BigInt↔string, Date↔ISO), `getActiveStep`, and DAG/cycle validation. Templates in `lib/sequencer/templates/` (e.g. `deleverageAave` computes optimal repay/withdraw cycles with BigInt) produce plans. Execution is **one step at a time**: a step must pass the mandatory **simulation gate** (`lib/simulation/simulate.ts` — Alchemy `eth_call` + optional Tenderly, Solana via web3.js) before the sign prompt; the next step unlocks only after on-chain confirmation. Cost preview (`lib/costPreview/calculator.ts`) iterates plan steps for itemized gas/bridge/yield breakdown.
+A `SequencePlan` is a DAG of `SequenceStep`s (`dependsOn`), persisted in the `sequence_plans` table. `lib/sequencer/engine.ts` owns serialization (BigInt↔string, Date↔ISO), step-selection helpers (`getActiveStep` = next pending step with confirmed deps; `getFocusedStep` = the step the UI should highlight, including simulating/ready/failed), and DAG/cycle validation — put new step-state logic there, not in pages. Templates in `lib/sequencer/templates/` (e.g. `deleverageAave` computes optimal repay/withdraw cycles with BigInt) produce plans. **Template builders must stay client-safe** — no `'server-only'` imports anywhere in their import graph (UI components import them for previews; only `bun run build` catches a violation, not tests or typecheck). Execution is **one step at a time**: a step must pass the mandatory **simulation gate** (`lib/simulation/simulate.ts` — Alchemy `eth_call` + optional Tenderly, Solana via web3.js) before the sign prompt; the next step unlocks only after on-chain confirmation. Cost preview (`lib/costPreview/calculator.ts`) iterates plan steps for itemized gas/bridge/yield breakdown.
 
 There are **two distinct sequence UIs**, both POST `/api/sequencer/plan` — not duplicates: `components/sequence/` is the pre-built **template** flow; `components/sequenceBuilder/` is the freeform **custom** builder.
 
 ### Data layer
 DB access is Drizzle ORM over `postgres-js` (`lib/db/client.ts` lazy server-only client, `lib/db/schema.ts` typed source of truth). Route handlers contain no raw DB access — typed repositories in `lib/data/*` own all queries. Postgres `numeric` columns arrive as strings; repositories convert to `number` at their boundary. SQL migrations in `supabase/migrations/` are canonical; mirror changes into `lib/db/schema.ts`.
 
+### Positions data flow
+`components/positions/PositionsProvider.tsx` owns the single `/api/positions` fetch for a page subtree; `usePositions()` only reads that context and **throws without a provider** — mount `PositionsProvider` above anything that reads positions (the dashboard wraps its whole page, modals included). This exists because `/api/positions` is rate-limited (60/min) and an un-deduped fetch-per-card self-inflicts 429s.
+
 ### Demo mode
-`NEXT_PUBLIC_DEMO_MODE` is a build-time constant. `useWallet`/`usePositions`/`useSequencer`/`useSequenceCost` branch at the top to `useDemo*` variants (fixtures in `lib/demo/`) to avoid conditional-hook violations. Demo mocks only wallet + transaction execution; read-only data (APYs, destinations) still hits real APIs.
+`NEXT_PUBLIC_DEMO_MODE` is a build-time constant. `useWallet`/`useSequencer`/`useSequenceCost` branch at the top to `useDemo*` variants (fixtures in `lib/demo/`) to avoid conditional-hook violations; for positions the branch lives inside `PositionsProvider`. Demo mocks only wallet + transaction execution; read-only data (APYs, destinations) still hits real APIs.
+
+### Design system ("Field Ledger")
+Light-only warm-parchment theme. `tailwind.config.ts` is the **single source of truth for every color token** (`verdant.*`: moss/teak/pine/paper/rule/profit/loss/caution/chain) — raw CSS (`app/globals.css`, `components/sequence/fieldLedger.module.css`) resolves colors via Tailwind's `theme()` function, never literal hexes (Biome's CSS `noUnknownFunction` rule is off for this). Shared recipes live in `globals.css` `@layer components`: buttons (`.btn` + `.btn-primary/secondary/danger/outline/ghost`, sizes `.btn-sm/lg`), form fields (`.field-label`, `.field-input`), and Field Ledger signatures (`.fl-serif`, `.fl-numeral`, `.fl-eyebrow`, `.fl-double-rule` — Fraunces serif for headings/numerals; Geist Mono owns all financial data). Reusable primitives are in `components/ui/` (`Card`, `Modal`, `WarningBanner`, `Spinner` with `tone="onDark"`, `Badge`, `HealthFactor`, `Tooltip`) — use these instead of hand-rolling their styles; past drift between inline copies and the shared versions is exactly what they exist to prevent. `DESIGN.md` predates this system (older palette values, no serif) — trust `tailwind.config.ts` + `globals.css` where they disagree.
 
 ## Non-negotiable conventions (these have caused real bugs)
 
@@ -67,6 +75,7 @@ DB access is Drizzle ORM over `postgres-js` (`lib/db/client.ts` lazy server-only
 - **Registries contain only named imports** — never inline plugin object literals.
 - **Before deleting any file, grep for importers** (`grep -rn "the-file" --include=*.ts --include=*.tsx`) and fix them in the same change.
 - **Adding a new chain requires updating all of:** `lib/plugins/chains/{chain}.ts`, `lib/plugins/chains/index.ts`, `lib/server/rpc.ts`, `lib/simulation/simulate.ts`, `lib/wagmi.ts` (EVM only), `lib/plugins/tokens.ts`. Missing one breaks a different layer silently.
+- **Pages render client-side** (wallet-gated pages return `null` until mounted) — the SSR HTML is a shell, so `curl`/grep against a running dev server proves nothing about the UI. Verify rendering in a real browser.
 
 ## Scope & guardrails
 
