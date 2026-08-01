@@ -1,4 +1,4 @@
-import type { PositionType } from '@/types/position';
+import type { PositionType } from '@/types/shared';
 
 type FilterValue = PositionType | 'all' | 'pendle';
 
@@ -23,10 +23,11 @@ export function PositionTypeFilter({ selected, onChange }: PositionTypeFilterPro
           type="button"
           key={t.value}
           onClick={() => onChange(t.value)}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
+          aria-pressed={selected === t.value}
+          className={`px-4 py-2 min-h-[36px] rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
             selected === t.value
               ? 'bg-verdant-moss text-white'
-              : 'bg-verdant-surface text-verdant-text-muted hover:text-verdant-text-primary border border-[#E5E0D8] hover:bg-verdant-surface-accent'
+              : 'bg-verdant-surface text-verdant-text-muted hover:text-verdant-text-primary border border-verdant-rule hover:bg-verdant-surface-accent'
           }`}
         >
           {t.label}

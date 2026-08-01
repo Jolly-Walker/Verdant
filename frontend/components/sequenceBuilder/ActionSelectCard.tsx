@@ -42,9 +42,7 @@ export function ActionSelectCard({ tokenIn, userPositions, onSelect }: ActionSel
 
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col">
-      <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-        ACTION
-      </div>
+      <div className="fl-eyebrow mb-2">ACTION</div>
 
       <div className="flex-1 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
         {eligibleActions.map((action) => {
@@ -54,7 +52,7 @@ export function ActionSelectCard({ tokenIn, userPositions, onSelect }: ActionSel
               type="button"
               key={action}
               onClick={() => onSelect(action)}
-              className="w-full text-left p-2 bg-verdant-surface border border-[#E5E0D8] rounded-lg cursor-pointer hover:border-verdant-moss hover:bg-verdant-surface-accent transition-all"
+              className="w-full text-left p-2 bg-verdant-surface border border-verdant-rule rounded-lg cursor-pointer hover:border-verdant-moss hover:bg-verdant-paper transition-all"
             >
               <div className="text-xs text-verdant-text-primary font-semibold">{meta.label}</div>
               <div className="text-[10px] text-verdant-text-muted mt-0.5 leading-snug">

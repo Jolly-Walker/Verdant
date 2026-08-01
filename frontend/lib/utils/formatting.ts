@@ -3,19 +3,21 @@
  */
 
 /**
- * Format a number as USD currency.
+ * Format a number as USD currency. Sub-cent values keep four decimals so they
+ * don't collapse to "$0.00"; both paths go through `Intl` so the sign always
+ * lands outside the currency symbol.
  * @example formatUsd(1234.5) => "$1,234.50"
- * @example formatUsd(0.003) => "$0.003"
+ * @example formatUsd(0.003) => "$0.0030"
+ * @example formatUsd(-0.005) => "-$0.0050"
  */
 export function formatUsd(value: number): string {
-  if (Math.abs(value) < 0.01 && value !== 0) {
-    return `$${value.toFixed(4)}`;
-  }
+  const subCent = Math.abs(value) < 0.01 && value !== 0;
+  const digits = subCent ? 4 : 2;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   }).format(value);
 }
 

@@ -2,14 +2,12 @@ import { CostPreview } from '@/components/execute/CostPreview';
 import { formatUsd } from '@/lib/utils/formatting';
 import type { CostPreviewResult } from '@/types/quote';
 import type { SequencePlan } from '@/types/sequencer';
-import fl from './fieldLedger.module.css';
 import { SequenceProgress } from './SequenceProgress';
 import { SequenceStepCard } from './SequenceStepCard';
 
 export function SequencePlanView({
   plan,
   currentStepId,
-  onSimulate: _onSimulate,
   onSign,
   onEdit,
   costResult = null,
@@ -21,7 +19,6 @@ export function SequencePlanView({
 }: {
   plan: SequencePlan;
   currentStepId: string | null;
-  onSimulate: (stepId: string) => void;
   onSign: (stepId: string) => void;
   onEdit: () => void;
   costResult?: CostPreviewResult | null;
@@ -46,16 +43,12 @@ export function SequencePlanView({
   ];
 
   return (
-    <div className="relative min-h-screen bg-verdant-paper">
-      <div className={fl.grain} aria-hidden />
-
-      <div className="relative z-10 mx-auto max-w-[1180px] px-6 py-12 lg:py-14">
+    <div className="min-h-screen">
+      <div className="mx-auto max-w-[1180px] px-4 py-12 sm:px-6 lg:py-14">
         {/* ---------- Masthead ---------- */}
         <header>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-verdant-teak">
-            Transaction sequence
-          </p>
-          <h2 className={`${fl.serif} mt-2 text-4xl leading-[1.02] text-verdant-pine lg:text-5xl`}>
+          <p className="fl-eyebrow">Transaction sequence</p>
+          <h2 className="fl-serif mt-2 text-4xl leading-[1.02] text-verdant-pine lg:text-5xl">
             {plan.description}
           </h2>
 
@@ -74,7 +67,7 @@ export function SequencePlanView({
             ))}
           </dl>
 
-          <hr className={`${fl.doubleRule} mt-8`} />
+          <hr className="fl-double-rule mt-8" />
         </header>
 
         {/* ---------- Body: spine rail + active column ---------- */}
@@ -110,15 +103,11 @@ export function SequencePlanView({
             </div>
 
             {hasExpiredQuotes && (
-              <div className="mt-6 flex items-center justify-between rounded-xl border border-verdant-loss/30 bg-verdant-loss/10 p-3">
+              <div className="mt-6 flex flex-col gap-3 rounded-xl border border-verdant-loss/30 bg-verdant-loss/10 p-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-verdant-loss">
                   Bridge quote expired — refresh before signing
                 </p>
-                <button
-                  type="button"
-                  onClick={onRefetchCost}
-                  className="rounded-md bg-verdant-loss px-3 py-1 text-sm text-white transition-colors hover:bg-[#B04545]"
-                >
+                <button type="button" onClick={onRefetchCost} className="btn btn-danger btn-sm">
                   Refresh Quotes
                 </button>
               </div>

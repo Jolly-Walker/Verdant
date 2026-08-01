@@ -66,19 +66,29 @@ export function deserializeSequencePlan(plan: SerializedSequencePlan): SequenceP
   };
 }
 
+function depsConfirmed(plan: SequencePlan, step: SequenceStep): boolean {
+  return step.dependsOn.every((depId) => {
+    const depStep = plan.steps.find((s) => s.id === depId);
+    return depStep?.status === 'confirmed';
+  });
+}
+
 export function getActiveStep(plan: SequencePlan): SequenceStep | null {
-  for (const step of plan.steps) {
-    if (step.status === 'pending') {
-      const dependsOnStatus = step.dependsOn.every((depId) => {
-        const depStep = plan.steps.find((s) => s.id === depId);
-        return depStep && depStep.status === 'confirmed';
-      });
-      if (dependsOnStatus) {
-        return step;
-      }
-    }
-  }
-  return null;
+  return plan.steps.find((step) => step.status === 'pending' && depsConfirmed(plan, step)) ?? null;
+}
+
+/**
+ * The step the UI should focus. The active step only exists while a step is
+ * still *pending* — it goes null the moment one starts simulating — so this
+ * falls back to the first unconfirmed step whose dependencies are all met
+ * (simulating, ready, or failed), which is the one the user is working on.
+ */
+export function getFocusedStep(plan: SequencePlan): SequenceStep | null {
+  return (
+    getActiveStep(plan) ??
+    plan.steps.find((step) => step.status !== 'confirmed' && depsConfirmed(plan, step)) ??
+    null
+  );
 }
 
 export function canSimulateStep(plan: SequencePlan, stepId: string): boolean {
@@ -86,10 +96,7 @@ export function canSimulateStep(plan: SequencePlan, stepId: string): boolean {
   if (!step) return false;
   if (step.status !== 'pending') return false;
 
-  return step.dependsOn.every((depId) => {
-    const depStep = plan.steps.find((s) => s.id === depId);
-    return depStep && depStep.status === 'confirmed';
-  });
+  return depsConfirmed(plan, step);
 }
 
 export function canExecuteStep(plan: SequencePlan, stepId: string): boolean {

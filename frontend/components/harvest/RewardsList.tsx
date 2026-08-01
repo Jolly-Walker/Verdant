@@ -27,7 +27,7 @@ function RewardRow({ reward }: { reward: AggregatedReward }) {
   const chainLabel = CHAIN_LABELS[reward.chain] ?? reward.chain;
 
   return (
-    <div className="flex items-center justify-between py-3 px-4 bg-verdant-surface border border-[#E5E0D8] rounded-xl hover:border-verdant-moss/50 shadow-organic hover:shadow-organic-lg transition-all">
+    <div className="flex items-center justify-between py-3 px-4 bg-verdant-surface border border-verdant-rule rounded-xl hover:border-verdant-rule-strong shadow-organic hover:shadow-organic-lg transition-all">
       <div className="flex items-center gap-3">
         <div className="flex flex-col gap-1">
           <span className="text-verdant-text-primary font-semibold text-sm">{reward.token}</span>
@@ -58,7 +58,7 @@ export function RewardsList({ rewards, isLoading }: RewardsListProps) {
         {[1, 2, 3].map((i) => (
           <div
             key={i}
-            className="h-16 bg-verdant-surface-accent border border-[#E5E0D8] rounded-xl animate-pulse"
+            className="h-16 bg-verdant-paper-deep border border-verdant-rule rounded-xl animate-pulse"
           />
         ))}
       </div>

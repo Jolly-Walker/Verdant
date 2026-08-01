@@ -29,12 +29,14 @@ export function SummaryBar({ steps, onCancel, onExecute, isExecuting = false }: 
   const totalFeeWithGas = delta.totalFeeUsd + gasFee;
 
   return (
-    <div className="border-t border-[#E5E0D8] bg-[#FAF9F6]/50">
+    // Rendered inside <Modal footer> — the modal owns the top rule, surface,
+    // and padding, so this only lays out its own two rows.
+    <div className="flex flex-col gap-3">
       {/* 1. Summary details */}
-      <div className="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border-b border-[#E5E0D8]/60">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         {isComplete && delta.input && delta.output ? (
           <div className="flex-1">
-            <div className="flex items-center gap-2 text-sm">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
               <span className="font-mono text-verdant-text-primary">
                 -{formatToken(delta.input.amount)} {delta.input.token} ({delta.input.chain})
               </span>
@@ -64,13 +66,8 @@ export function SummaryBar({ steps, onCancel, onExecute, isExecuting = false }: 
       </div>
 
       {/* 2. Action buttons */}
-      <div className="px-6 py-4 flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isExecuting}
-          className="text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-medium cursor-pointer disabled:opacity-50"
-        >
+      <div className="flex items-center justify-between gap-3 border-t border-verdant-rule/60 pt-3">
+        <button type="button" onClick={onCancel} disabled={isExecuting} className="btn btn-ghost">
           Cancel
         </button>
 
@@ -78,13 +75,13 @@ export function SummaryBar({ steps, onCancel, onExecute, isExecuting = false }: 
           type="button"
           onClick={onExecute}
           disabled={!isComplete || isExecuting}
-          className="text-sm bg-verdant-moss hover:bg-verdant-moss-dark text-white px-5 py-2.5 rounded-lg transition-colors font-semibold cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-sm"
+          className="btn btn-primary"
         >
           {isExecuting ? (
             <>
               <svg
                 aria-hidden="true"
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                className="animate-spin h-4 w-4 text-white"
                 fill="none"
                 viewBox="0 0 24 24"
               >

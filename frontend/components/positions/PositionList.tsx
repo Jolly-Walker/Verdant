@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useChainMetadata } from '@/hooks/useChainMetadata';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { formatUsd } from '@/lib/utils/formatting';
 import type { Position } from '@/types/position';
 import type { TemplateId } from '@/types/sequencer';
@@ -34,6 +35,12 @@ export function PositionList({
 }: PositionListProps) {
   const [filter, setFilter] = useState<PositionType | 'all' | 'pendle'>('all');
   const { chainIds, getChainMetadata } = useChainMetadata();
+  // Selecting the layout in JS (rather than rendering both and hiding one with
+  // CSS) matters because each PositionCard instance carries live hooks — a
+  // hidden duplicate per position would double the hook and re-render cost.
+  // Safe here: the dashboard renders nothing until mounted, so there is no
+  // SSR/hydration pass to mismatch. Breakpoint mirrors Tailwind's `md`.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   if (isLoading) {
     return (
@@ -121,7 +128,7 @@ export function PositionList({
       .join(', ');
 
     return (
-      <div className="flex flex-col items-center justify-center py-16 bg-verdant-surface border border-[#E5E0D8] border-dashed rounded-xl shadow-organic">
+      <div className="flex flex-col items-center justify-center py-16 bg-verdant-surface border border-verdant-rule border-dashed rounded-xl shadow-organic">
         <div className="h-12 w-12 rounded-full bg-verdant-surface-accent flex items-center justify-center mb-4">
           <svg
             aria-hidden="true"
@@ -152,7 +159,7 @@ export function PositionList({
 
   const getHealthFactorColor = (hf: number) => {
     if (hf < 1.5) return 'text-verdant-loss';
-    if (hf < 2.0) return 'text-amber-600';
+    if (hf < 2.0) return 'text-verdant-caution';
     return 'text-verdant-profit';
   };
 
@@ -164,11 +171,9 @@ export function PositionList({
         {positionsByChain.map((group) => (
           <section key={group.chainId}>
             <div className="flex items-center gap-3 mb-6">
-              <h2 className="text-xl font-bold text-verdant-text-primary">{group.displayName}</h2>
-              {group.family === 'solana' && (
-                <Badge className="bg-purple-50 text-purple-700 border-purple-200/50">Solana</Badge>
-              )}
-              <div className="h-px flex-1 bg-[#E5E0D8]"></div>
+              <h2 className="fl-serif text-xl text-verdant-pine">{group.displayName}</h2>
+              {group.family === 'solana' && <Badge>Solana</Badge>}
+              <div className="h-px flex-1 bg-verdant-rule"></div>
               <p className="text-xs text-verdant-text-muted font-mono uppercase">
                 {group.totalPositionsCount}{' '}
                 {group.totalPositionsCount === 1 ? 'position' : 'positions'}
@@ -178,10 +183,10 @@ export function PositionList({
             {group.protocolGroups.map((protoGroup) => (
               <div
                 key={protoGroup.protocolId}
-                className="bg-verdant-surface border border-[#E5E0D8] rounded-xl shadow-organic overflow-hidden mb-6 last:mb-0"
+                className="bg-verdant-surface border border-verdant-rule rounded-xl shadow-organic overflow-hidden mb-6 last:mb-0"
               >
                 {/* Sub-header */}
-                <div className="bg-[#FAF9F6] border-b border-[#E5E0D8]/40 px-5 py-3.5 flex items-center justify-between flex-wrap gap-4">
+                <div className="bg-verdant-canvas border-b border-verdant-rule/40 px-4 sm:px-5 py-3.5 flex items-center justify-between flex-wrap gap-4">
                   <div className="flex items-center gap-3">
                     <span className="font-semibold text-verdant-text-primary text-sm tracking-wide">
                       {protoGroup.displayName}
@@ -218,48 +223,64 @@ export function PositionList({
                   </div>
                 </div>
 
-                {/* Table */}
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="border-b border-[#E5E0D8]/40 bg-[#FAF9F6]/30">
-                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider">
-                          Asset
-                        </th>
-                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
-                          Price
-                        </th>
-                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
-                          Balance
-                        </th>
-                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
-                          APY
-                        </th>
-                        <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {protoGroup.positions.map((p) => (
-                        <PositionCard
-                          key={p.id}
-                          position={p}
-                          onSequence={onSequence}
-                          onOpenBuilder={onOpenBuilder}
-                          onOpenLoopModal={onOpenLoop}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                {isDesktop ? (
+                  /* Desktop: ledger table */
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-verdant-rule/40 bg-verdant-canvas/30">
+                          <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider">
+                            Asset
+                          </th>
+                          <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
+                            Price
+                          </th>
+                          <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
+                            Balance
+                          </th>
+                          <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
+                            APY
+                          </th>
+                          <th className="px-5 py-3 text-xs font-bold text-verdant-text-muted uppercase tracking-wider text-right">
+                            Action
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {protoGroup.positions.map((p) => (
+                          <PositionCard
+                            key={p.id}
+                            position={p}
+                            onSequence={onSequence}
+                            onOpenBuilder={onOpenBuilder}
+                            onOpenLoopModal={onOpenLoop}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  /* Mobile: stacked cards */
+                  <div className="space-y-3 p-3">
+                    {protoGroup.positions.map((p) => (
+                      <PositionCard
+                        key={p.id}
+                        position={p}
+                        onSequence={onSequence}
+                        onOpenBuilder={onOpenBuilder}
+                        onOpenLoopModal={onOpenLoop}
+                        layout="card"
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </section>
         ))}
 
         {positionsByChain.length === 0 && (
-          <div className="py-12 text-center border border-[#E5E0D8] rounded-xl bg-verdant-surface-accent">
+          <div className="py-12 text-center border border-verdant-rule rounded-xl bg-verdant-surface-accent">
             <p className="text-verdant-text-muted">No positions match the selected filter.</p>
           </div>
         )}

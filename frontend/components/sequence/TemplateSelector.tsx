@@ -22,13 +22,13 @@ export function TemplateSelector({ selectedTemplate, onSelect, filter }: Templat
           key={template.id}
           className={`w-full text-left border rounded-xl p-6 cursor-pointer hover:border-verdant-teak transition-all ${
             selectedTemplate === template.id
-              ? 'border-verdant-teak bg-verdant-surface-accent'
-              : 'border-[#E5E0D8] bg-verdant-surface hover:bg-verdant-surface-accent'
+              ? 'border-verdant-teak bg-verdant-teak/10'
+              : 'border-verdant-rule bg-verdant-surface hover:bg-verdant-paper'
           }`}
           onClick={() => onSelect(template.id)}
         >
           <h3
-            className={`font-semibold text-lg mb-2 ${selectedTemplate === template.id ? 'text-verdant-teak' : 'text-verdant-text-primary'}`}
+            className={`fl-serif text-lg mb-2 ${selectedTemplate === template.id ? 'text-verdant-teak' : 'text-verdant-pine'}`}
           >
             {template.displayName}
           </h3>

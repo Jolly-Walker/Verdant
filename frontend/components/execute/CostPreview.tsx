@@ -55,7 +55,7 @@ export function CostPreview({
 
   if (isLoading && !result) {
     return (
-      <Card className="p-6 bg-verdant-surface border border-[#E5E0D8] flex flex-col items-center justify-center min-h-[400px] shadow-organic">
+      <Card className="p-6 bg-verdant-surface border border-verdant-rule flex flex-col items-center justify-center min-h-[400px] shadow-organic">
         <Spinner size="lg" />
         <p className="text-verdant-text-muted mt-4 animate-pulse">Calculating optimal route...</p>
       </Card>
@@ -69,11 +69,7 @@ export function CostPreview({
         <div className="bg-verdant-loss/10 border border-verdant-loss/20 rounded-lg p-4 mb-6">
           <p className="text-sm text-verdant-loss">{error}</p>
         </div>
-        <button
-          type="button"
-          onClick={refetch}
-          className="w-full py-2 bg-verdant-moss hover:bg-verdant-moss-dark text-white rounded-lg transition-colors font-semibold"
-        >
+        <button type="button" onClick={refetch} className="btn btn-primary w-full">
           Retry Calculation
         </button>
       </Card>
@@ -82,7 +78,7 @@ export function CostPreview({
 
   if (!result) {
     return (
-      <Card className="p-6 bg-verdant-surface border border-[#E5E0D8] flex items-center justify-center min-h-[400px] shadow-organic">
+      <Card className="p-6 bg-verdant-surface border border-verdant-rule flex items-center justify-center min-h-[400px] shadow-organic">
         <p className="text-verdant-text-muted text-center max-w-[200px]">
           Select an asset and template to see cost & yield impact
         </p>
@@ -94,9 +90,9 @@ export function CostPreview({
   const hasSubtotals = result.totalGasUsd !== undefined;
 
   return (
-    <Card className="p-0 bg-verdant-surface border border-[#E5E0D8] shadow-organic relative overflow-hidden">
+    <Card className="p-0 bg-verdant-surface border border-verdant-rule shadow-organic relative overflow-hidden">
       {isLoading && (
-        <div className="absolute inset-0 bg-[#1A1614]/5 backdrop-blur-[1px] flex items-center justify-center z-10">
+        <div className="absolute inset-0 bg-verdant-black/5 backdrop-blur-[1px] flex items-center justify-center z-10">
           <Spinner />
         </div>
       )}
@@ -105,12 +101,8 @@ export function CostPreview({
       <div className="px-6 pt-6 pb-5">
         <div className="flex justify-between items-start">
           <div>
-            <h2 className="text-xl font-semibold text-verdant-text-primary tracking-tight">
-              Cost & Yield Preview
-            </h2>
-            <p className="text-[10px] text-verdant-text-muted uppercase tracking-[0.2em] font-bold mt-1">
-              Verdant · Transaction Receipt
-            </p>
+            <h2 className="fl-serif text-xl text-verdant-pine">Cost &amp; Yield Preview</h2>
+            <p className="fl-eyebrow mt-1">Verdant · Transaction Receipt</p>
           </div>
           {isStale ? (
             <Badge variant="warning" className="cursor-pointer" onClick={refetch}>
@@ -125,7 +117,10 @@ export function CostPreview({
       </div>
 
       {/* perforated tear-line */}
-      <div className="h-px mx-6 border-t border-dashed border-[#D8D2C8]" aria-hidden="true" />
+      <div
+        className="h-px mx-6 border-t border-dashed border-verdant-rule-strong"
+        aria-hidden="true"
+      />
 
       <div className="px-6 py-6 space-y-8">
         {/* ── Itemized Step Costs (receipt / timeline) ──────────────────── */}
@@ -136,7 +131,7 @@ export function CostPreview({
           <div className="relative">
             {/* vertical timeline rail */}
             <div
-              className="absolute left-[5px] top-2 bottom-2 w-px bg-[#E5E0D8]"
+              className="absolute left-[5px] top-2 bottom-2 w-px bg-verdant-rule"
               aria-hidden="true"
             />
 
@@ -171,7 +166,7 @@ export function CostPreview({
                           </span>
                         )}
                         {hasBridgeFee && isStepStale && !isStepExpired && (
-                          <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200/50 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
+                          <span className="text-[10px] bg-verdant-caution/10 text-verdant-caution border border-verdant-caution/25 px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">
                             Stale Quote
                           </span>
                         )}
@@ -183,7 +178,7 @@ export function CostPreview({
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-verdant-text-muted">
-                      <span className="bg-verdant-surface-accent border border-[#E5E0D8] px-1.5 rounded uppercase tracking-wide">
+                      <span className="bg-verdant-paper-deep/60 border border-verdant-rule px-1.5 rounded uppercase tracking-wide">
                         {step.chain}
                       </span>
                       <span className="font-mono tabular-nums">
@@ -208,7 +203,7 @@ export function CostPreview({
 
           {/* Subtotals — shown for multi-step plans */}
           {hasMultipleSteps && hasSubtotals && (
-            <div className="mt-5 pt-4 border-t border-dashed border-[#D8D2C8] space-y-2">
+            <div className="mt-5 pt-4 border-t border-dashed border-verdant-rule-strong space-y-2">
               {result.totalGasUsd > 0 && (
                 <div className="flex justify-between text-xs text-verdant-text-muted">
                   <span>Total Gas</span>
@@ -235,7 +230,7 @@ export function CostPreview({
           )}
 
           {/* Running total — prominent receipt footer */}
-          <div className="mt-5 pt-4 border-t-2 border-[#1A1614]/15 flex justify-between items-baseline">
+          <div className="mt-5 pt-4 border-t-2 border-verdant-rule-strong flex justify-between items-baseline">
             <span className="text-verdant-text-muted font-semibold uppercase text-xs tracking-wider">
               Total Cost
             </span>
@@ -247,7 +242,7 @@ export function CostPreview({
 
         {/* ── De-leverage Break-even ────────────────────────────────────── */}
         {result.deleverageBreakEven && (
-          <section className="bg-verdant-surface-accent border border-verdant-moss/20 rounded-xl p-4 space-y-3">
+          <section className="bg-verdant-paper border border-verdant-rule rounded-xl p-4 space-y-3">
             <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider">
               De-leverage Savings
             </h3>
@@ -260,11 +255,11 @@ export function CostPreview({
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-verdant-text-muted">Collateral Yield Foregone</span>
-                <span className="text-amber-600 font-medium tabular-nums font-mono">
+                <span className="text-verdant-caution font-medium tabular-nums font-mono">
                   -{formatUsd(result.deleverageBreakEven.annualCollateralCostUsd)}/yr
                 </span>
               </div>
-              <div className="pt-2 border-t border-[#E5E0D8] flex justify-between items-center">
+              <div className="pt-2 border-t border-verdant-rule flex justify-between items-center">
                 <span className="text-verdant-text-primary font-semibold text-sm">
                   Net Annual Benefit
                 </span>
@@ -310,7 +305,7 @@ export function CostPreview({
                   {formatPercent(result.targetApyDecimal)}
                 </span>
               </div>
-              <div className="pt-3 border-t border-[#E5E0D8] flex justify-between items-center">
+              <div className="pt-3 border-t border-verdant-rule flex justify-between items-center">
                 <span className="text-verdant-text-primary font-semibold">Net Yield Uplift</span>
                 <div className="text-right">
                   <div className="text-lg font-bold text-verdant-profit font-mono">
@@ -334,7 +329,7 @@ export function CostPreview({
           result.breakEvenDays > 0 &&
           result.breakEvenDays !== Infinity &&
           !result.deleverageBreakEven && (
-            <section className="bg-verdant-surface-accent border border-verdant-moss/20 rounded-xl p-4">
+            <section className="bg-verdant-paper border border-verdant-rule rounded-xl p-4">
               <div className="flex justify-between items-center">
                 <div className="space-y-0.5">
                   <span className="text-xs text-verdant-text-muted uppercase font-bold tracking-tight">
@@ -360,10 +355,10 @@ export function CostPreview({
             {result.warnings.map((warning) => (
               <div
                 key={`${warning.type}-${warning.message}`}
-                className="flex gap-3 bg-amber-50 border border-amber-200/50 rounded-lg p-3"
+                className="flex gap-3 bg-verdant-caution/10 border border-verdant-caution/25 rounded-lg p-3"
               >
-                <span className="text-amber-600">⚠️</span>
-                <p className="text-xs text-amber-800 leading-relaxed">{warning.message}</p>
+                <span aria-hidden="true">⚠️</span>
+                <p className="text-xs text-verdant-caution leading-relaxed">{warning.message}</p>
               </div>
             ))}
           </section>

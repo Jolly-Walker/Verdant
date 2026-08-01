@@ -21,14 +21,16 @@ function classifyZone(value: number): Zone {
 
 const ZONE_TEXT: Record<Zone, string> = {
   danger: 'text-verdant-loss',
-  caution: 'text-amber-600',
+  caution: 'text-verdant-caution',
   healthy: 'text-verdant-profit',
 };
 
+// Meter fills are decorative — use the vivid `bright` variants so the bands
+// stay legible at low opacity (text uses the darker contrast-safe DEFAULTs).
 const ZONE_BG: Record<Zone, string> = {
-  danger: 'bg-verdant-loss',
-  caution: 'bg-amber-600',
-  healthy: 'bg-verdant-profit',
+  danger: 'bg-verdant-loss-bright',
+  caution: 'bg-verdant-caution-bright',
+  healthy: 'bg-verdant-profit-bright',
 };
 
 export function HealthFactor({ value, maxScale = 3.0, showLabel = true }: HealthFactorProps) {
@@ -78,10 +80,16 @@ export function HealthFactor({ value, maxScale = 3.0, showLabel = true }: Health
         >
           {/* Muted zone backdrop: danger / caution / healthy bands */}
           <div className="absolute inset-0 flex">
-            <span className="h-full bg-verdant-loss/25" style={{ width: `${dangerWidthPct}%` }} />
-            <span className="h-full bg-amber-600/25" style={{ width: `${cautionWidthPct}%` }} />
             <span
-              className="h-full bg-verdant-profit/25"
+              className="h-full bg-verdant-loss-bright/25"
+              style={{ width: `${dangerWidthPct}%` }}
+            />
+            <span
+              className="h-full bg-verdant-caution-bright/25"
+              style={{ width: `${cautionWidthPct}%` }}
+            />
+            <span
+              className="h-full bg-verdant-profit-bright/25"
               style={{ width: `${healthyWidthPct}%` }}
             />
           </div>

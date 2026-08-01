@@ -2,12 +2,17 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { parseUnits } from 'viem';
+import { SUPPORTED_TOKENS } from '@/constants/tokens';
 import { useSequencer } from '@/hooks/useSequencer';
-import { computeOptimalCycles } from '@/lib/sequencer/templates/deleverageAave';
+import { PROTOCOL_DISPLAY_MAP } from '@/lib/plugins/protocols/metadata';
+import { computeOptimalCycles, SAFE_TARGET_HF } from '@/lib/sequencer/templates/deleverageAave';
 import { formatPercent, formatToken, formatUsd } from '@/lib/utils/formatting';
 import type { Position } from '@/types/position';
 import type { TemplateParams } from '@/types/sequencer';
-import { Badge } from '../ui/Badge';
+import { HealthFactor } from '../ui/HealthFactor';
+import { Modal } from '../ui/Modal';
+import { WarningBanner } from '../ui/WarningBanner';
 
 interface LoopModalProps {
   isOpen: boolean;
@@ -16,78 +21,123 @@ interface LoopModalProps {
   collateralPosition?: Position;
 }
 
+/**
+ * De-leverage (loop unwind) modal — the single action this component offers.
+ *
+ * A "Leverage" tab used to live here. It was wired to the `crossChainRebalance`
+ * template with identical from/to chain *and* protocol, which emits exactly two
+ * steps — withdraw the collateral, deposit the same asset straight back — so the
+ * user signed twice, paid gas twice, and ended with an unchanged position while
+ * the summary quoted a new debt and health factor that could never materialise.
+ * Real leverage needs its own template in `lib/sequencer/templates/` (supply →
+ * borrow → swap → re-supply, with a per-cycle health-factor projection and the
+ * protocol's real liquidation threshold). Until that template exists, the action
+ * is not offered rather than faked.
+ *
+ * Every number rendered below is read from the `position` / `collateralPosition`
+ * props or derived from them; cost estimates deliberately live downstream, where
+ * `lib/costPreview/calculator.ts` itemizes them from the actual plan steps.
+ */
 export function LoopModal({ isOpen, onClose, position, collateralPosition }: LoopModalProps) {
   const router = useRouter();
   const { createPlan } = useSequencer();
-  const [activeTab, setActiveTab] = useState<'deleverage' | 'leverage'>('deleverage');
   const [isExecuting, setIsExecuting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cycles, setCycles] = useState<number>(1);
 
-  // Deleverage settings
-  const [cycles, setCycles] = useState<number>(3);
+  const debtUsd = position.amountUsd;
+  const collateralUsd = collateralPosition?.amountUsd ?? 0;
+  const healthFactor = position.healthFactor;
 
-  // Leverage settings
-  const [multiplier, setMultiplier] = useState<number>(2.0);
-  const [borrowAsset, setBorrowAsset] = useState<string>(position.asset);
+  // Invert Aave's aggregate health-factor formula to recover the position's real
+  // blended liquidation threshold: HF = (collateralUsd × LT) / debtUsd, so
+  // LT = HF × debtUsd / collateralUsd. `healthFactor` is the one risk field the
+  // Aave fetcher reliably populates on borrow positions; without it there is no
+  // honest way to size the cycles, so we block instead of assuming a threshold.
+  const hasRiskInputs =
+    typeof healthFactor === 'number' &&
+    Number.isFinite(healthFactor) &&
+    healthFactor > 0 &&
+    debtUsd > 0 &&
+    collateralUsd > 0;
+  const liquidationThreshold = hasRiskInputs ? (healthFactor * debtUsd) / collateralUsd : null;
 
-  // Compute optimal cycles for Deleverage
+  // Smallest cycle count that keeps the health factor above SAFE_TARGET_HF at
+  // every intermediate step — the same function the server-side builder uses as
+  // its floor, so anything lower would be silently raised there anyway.
+  const minCycles =
+    liquidationThreshold !== null
+      ? computeOptimalCycles(debtUsd, collateralUsd, liquidationThreshold, SAFE_TARGET_HF)
+      : 1;
+  const effectiveCycles = Math.max(cycles, minCycles);
+  const cycleOptions = Array.from({ length: Math.max(1, 11 - minCycles) }, (_, i) => minCycles + i);
+
+  // Plan amounts must be atomic units: the API divides them by 10**decimals to
+  // re-price the position, and the template forwards them with `isWei: true`.
+  const debtDecimals = SUPPORTED_TOKENS[position.asset]?.decimals;
+  const collateralDecimals = collateralPosition
+    ? SUPPORTED_TOKENS[collateralPosition.asset]?.decimals
+    : undefined;
+
+  const protocolLabel = PROTOCOL_DISPLAY_MAP[position.protocol]?.displayName ?? position.protocol;
+
+  let blockedReason: string | null = null;
+  if (!collateralPosition) {
+    blockedReason = `No supply position was found on ${protocolLabel} · ${position.chain} to unwind this debt against.`;
+  } else if (!hasRiskInputs) {
+    blockedReason =
+      'This position is missing the health-factor data needed to size safe repay/withdraw cycles.';
+  } else if (debtDecimals === undefined || collateralDecimals === undefined) {
+    blockedReason = `Verdant has no token metadata for ${debtDecimals === undefined ? position.asset : collateralPosition.asset} yet, so it cannot size the on-chain amounts.`;
+  }
+
+  // Reset the cycle count and any stale error each time the modal is opened.
   useEffect(() => {
-    if (isOpen && position) {
-      const debtUsd = position.amountUsd;
-      const collUsd = collateralPosition?.amountUsd || 1.0;
-      const hf = position.healthFactor || 2.5;
-      const lt = (hf * debtUsd) / collUsd;
-      const optCycles = computeOptimalCycles(debtUsd, collUsd, lt);
-      setCycles(optCycles);
-    }
-  }, [isOpen, position, collateralPosition]);
+    if (!isOpen) return;
+    setCycles(minCycles);
+    setError(null);
+  }, [isOpen, minCycles]);
 
-  if (!isOpen) return null;
-
-  // Deleverage math
+  // Unwinding repays the whole debt and withdraws the whole collateral, so what
+  // the user keeps is the position's equity: collateral minus the debt it backs.
+  // Priced at the collateral's current price from the same position payload.
   const collateralPrice =
     collateralPosition && collateralPosition.amount > 0
       ? collateralPosition.amountUsd / collateralPosition.amount
-      : 1;
-  const debtAmountInCollateral = position.amountUsd / collateralPrice;
+      : 0;
+  const debtAmountInCollateral = collateralPrice > 0 ? debtUsd / collateralPrice : 0;
   const freedCollateralAmount = collateralPosition
     ? Math.max(collateralPosition.amount - debtAmountInCollateral, 0)
     : 0;
   const freedCollateralUsd = collateralPosition
-    ? Math.max(collateralPosition.amountUsd - position.amountUsd, 0)
+    ? Math.max(collateralPosition.amountUsd - debtUsd, 0)
     : 0;
-  const netGainVsInstant = Math.round(position.amountUsd * 0.003); // ~0.3% savings
-
-  // Leverage math
-  const currentCollateralUsd = collateralPosition?.amountUsd || 0;
-  const newCollateralUsd = currentCollateralUsd * multiplier;
-  const newDebtUsd = newCollateralUsd - currentCollateralUsd;
-  const estHealthFactor = newDebtUsd > 0 ? (newCollateralUsd * 0.82) / newDebtUsd : 99.9;
-
-  // Health Factor styling
-  const getHealthFactorColor = (hf: number) => {
-    if (hf < 1.5) return 'text-verdant-loss font-semibold';
-    if (hf < 2.0) return 'text-amber-600 font-semibold';
-    return 'text-verdant-profit font-semibold';
-  };
 
   const handleExecuteDeleverage = async () => {
-    if (!collateralPosition) return;
+    if (!collateralPosition || !hasRiskInputs) return;
+    if (debtDecimals === undefined || collateralDecimals === undefined) return;
+
     setIsExecuting(true);
+    setError(null);
 
     try {
       const params: TemplateParams = {
         borrowAsset: position.asset,
         collateralAsset: collateralPosition.asset,
-        totalDebt: position.amount.toString(),
-        totalCollateral: collateralPosition.amount.toString(),
-        totalDebtUsd: position.amountUsd,
+        totalDebt: parseUnits(position.amount.toFixed(debtDecimals), debtDecimals).toString(),
+        totalCollateral: parseUnits(
+          collateralPosition.amount.toFixed(collateralDecimals),
+          collateralDecimals,
+        ).toString(),
+        // The API re-prices both legs from live prices and overrides these.
+        totalDebtUsd: debtUsd,
         totalCollateralUsd: collateralPosition.amountUsd,
-        initialHealthFactor: position.healthFactor || 2.0,
-        cycles,
+        initialHealthFactor: healthFactor,
+        cycles: effectiveCycles,
         protocol: position.protocol,
         chain: position.chain,
         walletAddress: '',
-        amountUsd: position.amountUsd,
+        amountUsd: debtUsd,
       };
 
       const plan = await createPlan('deleverageAave', params);
@@ -97,340 +147,143 @@ export function LoopModal({ isOpen, onClose, position, collateralPosition }: Loo
       }
     } catch (e) {
       console.error(e);
-      alert('Failed to execute deleverage plan');
+      setError(e instanceof Error ? e.message : 'Could not build the de-leverage plan.');
     } finally {
       setIsExecuting(false);
     }
   };
 
-  const handleExecuteLeverage = async () => {
-    setIsExecuting(true);
-
-    try {
-      // Stub leverage with crossChainRebalance placeholder in demo mode
-      const params: TemplateParams = {
-        asset: collateralPosition?.asset || 'WETH',
-        amount: (collateralPosition?.amount || 0).toString(),
-        amountUsd: collateralPosition?.amountUsd || 0,
-        fromProtocol: position.protocol,
-        fromChain: position.chain,
-        toProtocol: position.protocol,
-        toChain: position.chain,
-        walletAddress: '',
-        slippagePercent: 0.5,
-      };
-
-      const plan = await createPlan('crossChainRebalance', params);
-      if (plan) {
-        onClose();
-        router.push(`/sequence/${plan.id}`);
-      }
-    } catch (e) {
-      console.error(e);
-      alert('Failed to execute leverage plan');
-    } finally {
-      setIsExecuting(false);
-    }
-  };
+  const footer = (
+    <div className="flex items-center justify-end gap-3">
+      <button type="button" onClick={onClose} disabled={isExecuting} className="btn btn-ghost">
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={handleExecuteDeleverage}
+        disabled={isExecuting || blockedReason !== null}
+        className="btn btn-primary"
+      >
+        {isExecuting ? 'Building plan…' : 'Review unwind plan →'}
+      </button>
+    </div>
+  );
 
   return (
-    <div className="fixed inset-0 bg-[#1A1614]/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="max-w-xl w-full bg-verdant-surface rounded-2xl shadow-organic-lg border border-[#E5E0D8] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="border-b border-[#E5E0D8] px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-verdant-text-primary">Manage Position</h2>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="text-verdant-text-muted hover:text-verdant-text-primary p-1 rounded-md transition-colors"
-          >
-            <svg
-              aria-hidden="true"
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      eyebrow="De-leverage"
+      title="Unwind borrow position"
+      size="md"
+      footer={footer}
+    >
+      <div className="space-y-5">
+        {/* Position — straight from the position payload */}
+        <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-verdant-text-muted">
+            Position
+          </h3>
+          <div className="space-y-2 rounded-xl border border-verdant-rule bg-verdant-paper p-4 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-verdant-text-muted">Debt</span>
+              <span className="font-mono font-semibold text-verdant-loss">
+                {formatToken(position.amount)} {position.asset} (
+                {formatPercent(position.borrowApy ?? position.currentApy)} APY)
+              </span>
+            </div>
 
-        {/* Tabs selector */}
-        <div className="flex border-b border-[#E5E0D8]">
-          <button
-            type="button"
-            onClick={() => setActiveTab('deleverage')}
-            className={`flex-1 py-3 text-center text-sm font-semibold transition-all border-b-2 ${
-              activeTab === 'deleverage'
-                ? 'border-verdant-moss text-verdant-moss'
-                : 'border-transparent text-verdant-text-muted hover:text-verdant-text-primary'
-            }`}
-          >
-            Deleverage
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('leverage')}
-            className={`flex-1 py-3 text-center text-sm font-semibold transition-all border-b-2 ${
-              activeTab === 'leverage'
-                ? 'border-verdant-moss text-verdant-moss'
-                : 'border-transparent text-verdant-text-muted hover:text-verdant-text-primary'
-            }`}
-          >
-            Leverage
-          </button>
-        </div>
-
-        {/* Tab content */}
-        <div className="p-6 flex-1 overflow-y-auto space-y-5">
-          {activeTab === 'deleverage' ? (
-            <>
-              {/* Position details */}
-              <div>
-                <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-2">
-                  Position
-                </h3>
-                <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-xl p-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-verdant-text-muted">Debt:</span>
-                    <span className="font-mono text-verdant-loss font-semibold">
-                      {formatToken(position.amount)} {position.asset} (
-                      {formatPercent(position.currentApy || position.borrowApy || 0)} APY)
-                    </span>
-                  </div>
-                  {collateralPosition && (
-                    <div className="flex justify-between">
-                      <span className="text-verdant-text-muted">Collateral:</span>
-                      <span className="font-mono text-verdant-text-primary font-medium">
-                        {formatToken(collateralPosition.amount)} {collateralPosition.asset} (
-                        {formatUsd(collateralPosition.amountUsd)})
-                      </span>
-                    </div>
-                  )}
-                  {position.healthFactor !== undefined && (
-                    <div className="flex justify-between pt-1 border-t border-[#E5E0D8]/60">
-                      <span className="text-verdant-text-muted">Health Factor:</span>
-                      <span className={`font-mono ${getHealthFactorColor(position.healthFactor)}`}>
-                        {position.healthFactor.toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                </div>
+            {collateralPosition && (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-verdant-text-muted">Collateral</span>
+                <span className="font-mono font-medium text-verdant-text-primary">
+                  {formatToken(collateralPosition.amount)} {collateralPosition.asset} (
+                  {formatUsd(collateralPosition.amountUsd)})
+                </span>
               </div>
+            )}
 
-              {/* Settings */}
-              <div>
-                <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-2">
-                  Unwind Settings
-                </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="loop-cycles" className="text-sm text-verdant-text-primary">
-                      Cycles:
-                    </label>
-                    <select
-                      id="loop-cycles"
-                      value={cycles}
-                      onChange={(e) => setCycles(parseInt(e.target.value, 10))}
-                      className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
-                    >
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex justify-between text-xs text-verdant-text-muted">
-                    <span>Est. gas:</span>
-                    <span className="font-mono">
-                      ~{formatUsd(cycles * 2.8)} ({cycles} × $2.80)
-                    </span>
-                  </div>
-                </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-verdant-text-muted">Market</span>
+              <span className="font-medium text-verdant-text-primary capitalize">
+                {protocolLabel} · {position.chain}
+              </span>
+            </div>
+
+            {typeof healthFactor === 'number' && (
+              <div className="flex items-center justify-between gap-3 border-t border-verdant-rule/60 pt-2">
+                <span className="text-verdant-text-muted">Health Factor</span>
+                <HealthFactor value={healthFactor} showLabel={false} />
               </div>
+            )}
+          </div>
+        </section>
 
-              {/* Summary panel */}
-              <div className="bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 space-y-2 text-sm">
-                <div className="text-xs font-bold text-verdant-moss uppercase tracking-wider mb-1">
-                  After Unwind
-                </div>
-                {collateralPosition && (
-                  <div className="flex justify-between">
-                    <span className="text-verdant-text-muted">Freed Collateral:</span>
-                    <span className="font-mono text-verdant-profit font-semibold">
-                      ~{formatToken(freedCollateralAmount)} {collateralPosition.asset} (~
-                      {formatUsd(freedCollateralUsd)})
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-verdant-text-muted">Remaining Debt:</span>
-                  <span className="font-mono text-verdant-text-primary font-medium">$0</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-[#D5E8E0] text-xs text-verdant-moss font-semibold">
-                  <span>Net gain vs. instant:</span>
-                  <span className="font-mono">
-                    +{formatUsd(netGainVsInstant)} (reduced liquidation risk)
-                  </span>
-                </div>
-              </div>
+        {/* Unwind settings */}
+        <section>
+          <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-verdant-text-muted">
+            Unwind settings
+          </h3>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="loop-cycles" className="text-sm text-verdant-text-primary">
+                Repay / withdraw cycles
+              </label>
+              <select
+                id="loop-cycles"
+                value={effectiveCycles}
+                onChange={(e) => setCycles(parseInt(e.target.value, 10))}
+                disabled={blockedReason !== null}
+                className="rounded-lg border border-verdant-rule bg-verdant-surface px-3 py-1.5 font-mono text-xs text-verdant-text-primary focus:border-verdant-moss focus:outline-none disabled:opacity-50"
+              >
+                {cycleOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {liquidationThreshold !== null && (
+              <p className="text-xs text-verdant-text-muted">
+                {minCycles === 1
+                  ? `One cycle already clears this position without the health factor dropping below ${SAFE_TARGET_HF}.`
+                  : `At least ${minCycles} cycles are needed to keep the health factor above ${SAFE_TARGET_HF} at every step, so lower counts are not offered.`}
+              </p>
+            )}
+          </div>
+        </section>
 
-              {/* Action buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={isExecuting}
-                  className="px-4 py-2 text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-semibold disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExecuteDeleverage}
-                  disabled={isExecuting || !collateralPosition}
-                  className="px-5 py-2.5 bg-verdant-moss hover:bg-verdant-moss-dark text-white rounded-lg transition-colors font-semibold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm"
-                >
-                  {isExecuting ? 'Executing...' : 'Execute Deleverage →'}
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              {/* Position details */}
-              <div>
-                <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-2">
-                  Position
-                </h3>
-                <div className="bg-[#FAF9F6] border border-[#E5E0D8] rounded-xl p-4 space-y-2 text-sm">
-                  {collateralPosition && (
-                    <div className="flex justify-between">
-                      <span className="text-verdant-text-muted">Collateral:</span>
-                      <span className="font-mono text-verdant-text-primary font-semibold">
-                        {formatToken(collateralPosition.amount)} {collateralPosition.asset} (
-                        {formatUsd(collateralPosition.amountUsd)})
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-verdant-text-muted">Protocol:</span>
-                    <span className="font-sans text-verdant-text-primary capitalize font-medium">
-                      {position.protocol === 'aave'
-                        ? 'Aave V3'
-                        : position.protocol === 'morpho'
-                          ? 'Morpho'
-                          : position.protocol}{' '}
-                      · {position.chain}
-                    </span>
-                  </div>
-                </div>
-              </div>
+        {/* After unwind — equity released, derived from the two positions */}
+        {collateralPosition && (
+          <section className="space-y-2 rounded-xl border border-verdant-moss/20 bg-verdant-surface-accent p-4 text-sm">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-verdant-moss">
+              After unwind
+            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-verdant-text-muted">Freed collateral</span>
+              <span className="font-mono font-semibold text-verdant-profit">
+                ~{formatToken(freedCollateralAmount)} {collateralPosition.asset} (~
+                {formatUsd(freedCollateralUsd)})
+              </span>
+            </div>
+            <p className="text-xs leading-relaxed text-verdant-text-muted">
+              The sequence repays the full {formatToken(position.amount)} {position.asset} debt in
+              equal shares across {effectiveCycles} {effectiveCycles === 1 ? 'cycle' : 'cycles'} and
+              withdraws the collateral behind it, so what is left over is the position&apos;s equity
+              at today&apos;s prices.
+            </p>
+          </section>
+        )}
 
-              {/* Settings */}
-              <div>
-                <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-2">
-                  Leverage Settings
-                </h3>
+        <p className="text-xs leading-relaxed text-verdant-text-muted">
+          Every step is simulated and itemized — gas, bridge, and yield impact — on the next screen,
+          before you sign anything.
+        </p>
 
-                {/* Warning Badge */}
-                <div className="mb-4">
-                  <Badge variant="warning">Leverage increases liquidation risk</Badge>
-                </div>
+        {blockedReason && <WarningBanner message={blockedReason} />}
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <label htmlFor="loop-multiplier" className="text-sm text-verdant-text-primary">
-                      Target Multiplier:
-                    </label>
-                    <select
-                      id="loop-multiplier"
-                      value={multiplier}
-                      onChange={(e) => setMultiplier(parseFloat(e.target.value))}
-                      className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
-                    >
-                      <option value="1.5">1.5×</option>
-                      <option value="2.0">2.0×</option>
-                      <option value="2.5">2.5×</option>
-                      <option value="3.0">3.0×</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <label
-                      htmlFor="loop-borrow-asset"
-                      className="text-sm text-verdant-text-primary"
-                    >
-                      Borrow Asset:
-                    </label>
-                    <select
-                      id="loop-borrow-asset"
-                      value={borrowAsset}
-                      onChange={(e) => setBorrowAsset(e.target.value)}
-                      className="bg-verdant-canvas text-verdant-text-primary text-xs px-3 py-1.5 rounded-lg border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none font-mono"
-                    >
-                      <option value="USDC">USDC</option>
-                      <option value="USDT">USDT</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Summary panel */}
-              <div className="bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 space-y-2 text-sm">
-                <div className="text-xs font-bold text-verdant-moss uppercase tracking-wider mb-1">
-                  After Leverage
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-verdant-text-muted">New Collateral:</span>
-                  <span className="font-mono text-verdant-text-primary font-semibold">
-                    ~{formatUsd(newCollateralUsd)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-verdant-text-muted">New Debt:</span>
-                  <span className="font-mono text-verdant-loss font-semibold">
-                    ~{formatUsd(newDebtUsd)} {borrowAsset}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-verdant-text-muted">Est. Health Factor:</span>
-                  <span className={`font-mono ${getHealthFactorColor(estHealthFactor)}`}>
-                    ~{estHealthFactor.toFixed(2)}
-                  </span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-[#D5E8E0] text-xs text-verdant-text-muted">
-                  <span>Est. gas:</span>
-                  <span className="font-mono">~$5.60</span>
-                </div>
-              </div>
-
-              {/* Action buttons */}
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={isExecuting}
-                  className="px-4 py-2 text-sm text-verdant-text-muted hover:text-verdant-loss transition-colors font-semibold disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExecuteLeverage}
-                  disabled={isExecuting}
-                  className="px-5 py-2.5 bg-verdant-moss hover:bg-verdant-moss-dark text-white rounded-lg transition-colors font-semibold text-sm disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm"
-                >
-                  {isExecuting ? 'Executing...' : 'Execute Leverage →'}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+        {error && <WarningBanner message={error} variant="error" />}
       </div>
-    </div>
+    </Modal>
   );
 }

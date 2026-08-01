@@ -41,18 +41,7 @@ export function HarvestButton({
         id={`harvest-btn-${protocol}-${chain}`}
         onClick={handleClick}
         disabled={isDisabled}
-        className={`
-          inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold
-          transition-all duration-150
-          ${
-            isDisabled
-              ? isSimulating || isSigning
-                ? 'bg-verdant-moss text-white opacity-50 cursor-not-allowed'
-                : 'bg-verdant-surface-accent text-verdant-text-muted/50 border border-[#E5E0D8] cursor-not-allowed'
-              : 'bg-verdant-moss hover:bg-verdant-moss-dark text-white'
-          }
-          ${className}
-        `}
+        className={`btn btn-primary ${className}`}
       >
         {(isSimulating || isSigning) && <Spinner size="sm" />}
         {label}

@@ -25,7 +25,8 @@
       "recommended": true,
       "correctness": {
         "useHookAtTopLevel": "off",
-        "useExhaustiveDependencies": "off"
+        "useExhaustiveDependencies": "off",
+        "noUnknownFunction": "off"
       },
       "style": {
         "noNonNullAssertion": "off"

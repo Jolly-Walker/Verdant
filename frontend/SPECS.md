@@ -1265,10 +1265,8 @@ components/
 ├── loop/
 │   └── LoopModal.tsx               # Leverage-loop builder entry point
 ├── execute/
-│   ├── AssetSelector.tsx
 │   ├── BridgeQuoteSelector.tsx     # Compare bridge options
 │   ├── CostPreview.tsx             # Multi-step cost breakdown
-│   ├── SimulationResult.tsx        # Simulation pass/fail + state changes
 │   └── StepOneBridge.tsx
 ├── harvest/
 │   ├── RewardsList.tsx
@@ -1530,7 +1528,8 @@ templates. Replace existing execute flow with sequencer.
 - [x] Tenderly simulation fallback (if env var set)
 - [x] Solana `simulateTransaction` path
 - [x] `POST /api/simulate` — updated to handle all chains
-- [x] `components/execute/SimulationResult.tsx` — pass/fail + state changes display
+- [x] Simulation pass/fail + state changes display — lives in `components/sequence/SequenceStepCard.tsx`
+      (the former `components/execute/SimulationResult.tsx` was orphaned and has been removed)
 - [x] Integrate simulation gate into sequencer step state machine
 - [x] Simulation unit tests with mock RPC responses
 

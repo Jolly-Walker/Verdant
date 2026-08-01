@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { HarvestButton } from '@/components/harvest/HarvestButton';
 import { RewardsList } from '@/components/harvest/RewardsList';
+import { AppHeader } from '@/components/layout/AppHeader';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
+import { WarningBanner } from '@/components/ui/WarningBanner';
 import { type AggregatedReward, useRewards } from '@/hooks/useRewards';
 import { useWallet } from '@/hooks/useWallet';
 import type { ChainId } from '@/types/shared';
@@ -44,21 +47,22 @@ const CHAIN_LABELS: Record<string, string> = {
   base: 'Base',
 };
 
+/** Muted chain identity tints (see `verdant.chain` in tailwind.config.ts). */
 const CHAIN_COLORS: Record<string, string> = {
-  ethereum: 'text-blue-700 bg-blue-50 border-blue-200',
-  arbitrum: 'text-sky-700 bg-sky-50 border-sky-200',
-  base: 'text-indigo-700 bg-indigo-50 border-indigo-200',
+  ethereum:
+    'text-verdant-chain-ethereum bg-verdant-chain-ethereum/10 border-verdant-chain-ethereum/25',
+  arbitrum:
+    'text-verdant-chain-arbitrum bg-verdant-chain-arbitrum/10 border-verdant-chain-arbitrum/25',
+  base: 'text-verdant-chain-base bg-verdant-chain-base/10 border-verdant-chain-base/25',
 };
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 flex flex-col gap-1 shadow-organic">
-      <p className="text-xs text-verdant-text-muted uppercase tracking-wider font-semibold">
-        {label}
-      </p>
+    <Card className="flex flex-col gap-1">
+      <p className="fl-eyebrow">{label}</p>
       <p className="text-2xl font-bold text-verdant-text-primary font-mono">{value}</p>
       {sub && <p className="text-xs text-verdant-text-muted">{sub}</p>}
-    </div>
+    </Card>
   );
 }
 
@@ -76,16 +80,16 @@ function ProtocolRewardGroup({
   const totalUsd = rewards.reduce((s, r) => s + r.amountUsd, 0);
 
   return (
-    <div className="bg-verdant-surface border border-[#E5E0D8] rounded-xl overflow-hidden shadow-organic">
+    <div className="bg-verdant-surface border border-verdant-rule rounded-xl overflow-hidden shadow-organic">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E0D8] bg-verdant-surface-accent/20">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 border-b border-verdant-rule bg-verdant-paper/60">
         <div className="flex items-center gap-3">
-          <span className="text-verdant-text-primary font-semibold">{protocolLabel}</span>
+          <span className="fl-serif text-lg text-verdant-pine">{protocolLabel}</span>
           <div className="flex gap-1">
             {chains.map((c) => (
               <span
                 key={c}
-                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${CHAIN_COLORS[c] ?? 'text-verdant-text-muted bg-verdant-surface border-[#E5E0D8]'}`}
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${CHAIN_COLORS[c] ?? 'text-verdant-text-muted bg-verdant-paper-deep/60 border-verdant-rule'}`}
               >
                 {CHAIN_LABELS[c] ?? c}
               </span>
@@ -154,7 +158,7 @@ function HarvestHistory({ address }: { address: string }) {
     <div className="overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-verdant-text-muted text-xs uppercase tracking-wider border-b border-[#E5E0D8]">
+          <tr className="text-verdant-text-muted text-xs uppercase tracking-wider border-b border-verdant-rule">
             <th className="text-left pb-3 pr-4">Protocol</th>
             <th className="text-left pb-3 pr-4">Chain</th>
             <th className="text-left pb-3 pr-4">Token</th>
@@ -163,9 +167,9 @@ function HarvestHistory({ address }: { address: string }) {
             <th className="text-left pb-3">Date</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#E5E0D8]/60">
+        <tbody className="divide-y divide-verdant-rule/60">
           {history.map((rec) => (
-            <tr key={rec.id} className="hover:bg-verdant-surface-accent/30 transition-colors">
+            <tr key={rec.id} className="hover:bg-verdant-paper/60 transition-colors">
               <td className="py-3 pr-4">
                 <Badge variant="default">{PROTOCOL_LABELS[rec.protocol] ?? rec.protocol}</Badge>
               </td>
@@ -223,7 +227,7 @@ function AutoCompoundToggle({
   };
 
   return (
-    <div className="flex items-center justify-between py-3 border-b border-[#E5E0D8]/60 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-verdant-rule/60 last:border-0">
       <div>
         <p className="text-verdant-text-primary text-sm font-medium">
           {PROTOCOL_LABELS[setting.protocol] ?? setting.protocol}
@@ -241,7 +245,7 @@ function AutoCompoundToggle({
         disabled={isUpdating}
         className={`
           relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200
-          ${enabled ? 'bg-verdant-moss' : 'bg-[#D5E8E0]'}
+          ${enabled ? 'bg-verdant-moss' : 'bg-verdant-rule-strong'}
           ${isUpdating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
         `}
         role="switch"
@@ -316,28 +320,33 @@ export default function HarvestPage() {
   // ── Not connected state ──────────────────────────────────────────────────
   if (!isMounted || !isConnected) {
     return (
-      <div className="min-h-screen bg-verdant-canvas text-verdant-text-primary flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-5xl mb-4">🌾</div>
-          <h1 className="text-xl font-semibold text-verdant-text-primary mb-2">
-            Connect your wallet
-          </h1>
-          <p className="text-verdant-text-muted text-sm">
-            Connect a wallet to view and claim your protocol rewards
-          </p>
+      <div className="min-h-screen text-verdant-text-primary">
+        <AppHeader />
+        <div className="flex items-center justify-center px-4 py-24">
+          <div className="text-center">
+            <div className="text-5xl mb-4">🌾</div>
+            <p className="fl-eyebrow">Harvest</p>
+            <h1 className="fl-serif mt-2 text-2xl text-verdant-pine">Connect your wallet</h1>
+            <p className="text-verdant-text-muted text-sm mt-2">
+              Connect a wallet to view and claim your protocol rewards
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-verdant-canvas text-verdant-text-primary">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 flex flex-col gap-8">
-        {/* ── Page header ─────────────────────────────────────────────────── */}
-        <div className="flex items-start justify-between">
+    <div className="min-h-screen text-verdant-text-primary">
+      <AppHeader />
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-10 flex flex-col gap-8">
+        {/* ── Ledger masthead ─────────────────────────────────────────────── */}
+        <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-verdant-text-primary tracking-tight">Harvest</h1>
-            <p className="text-verdant-text-muted text-sm mt-1">
+            <p className="fl-eyebrow">Field ledger</p>
+            <h1 className="fl-serif mt-2 text-3xl text-verdant-pine md:text-4xl">Harvest</h1>
+            <p className="text-verdant-text-muted text-sm mt-2">
               Claim rewards from your DeFi positions across all protocols
             </p>
           </div>
@@ -346,7 +355,7 @@ export default function HarvestPage() {
             id="harvest-refresh-btn"
             onClick={refetch}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 text-sm text-verdant-text-muted hover:text-verdant-text-primary bg-verdant-surface border border-[#E5E0D8] hover:border-verdant-moss rounded-xl transition-colors disabled:opacity-50"
+            className="btn btn-outline"
           >
             {isLoading ? (
               <Spinner size="sm" />
@@ -368,7 +377,8 @@ export default function HarvestPage() {
             )}
             Refresh
           </button>
-        </div>
+          <hr className="fl-double-rule mt-2 w-full" />
+        </header>
 
         {/* ── Stats row ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -394,14 +404,10 @@ export default function HarvestPage() {
         </div>
 
         {/* ── Error banner ────────────────────────────────────────────────── */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-verdant-loss text-sm font-medium">
-            {error}
-          </div>
-        )}
+        {error && <WarningBanner message={error} variant="error" />}
 
         {/* ── Tabs ────────────────────────────────────────────────────────── */}
-        <div className="flex border-b border-[#E5E0D8]">
+        <div className="flex border-b border-verdant-rule">
           {(['rewards', 'history', 'settings'] as const).map((tab) => (
             <button
               type="button"
@@ -430,7 +436,7 @@ export default function HarvestPage() {
                 {[1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-48 bg-verdant-surface border border-[#E5E0D8] rounded-xl animate-pulse"
+                    className="h-48 bg-verdant-surface border border-verdant-rule rounded-xl animate-pulse"
                   />
                 ))}
               </div>
@@ -457,16 +463,16 @@ export default function HarvestPage() {
 
         {/* ── Tab: History ────────────────────────────────────────────────── */}
         {activeTab === 'history' && evmAddress && (
-          <div className="bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 shadow-organic">
-            <h2 className="text-verdant-text-primary font-semibold mb-5">Harvest History</h2>
+          <Card>
+            <h2 className="fl-serif text-xl text-verdant-pine mb-5">Harvest History</h2>
             <HarvestHistory address={evmAddress} />
-          </div>
+          </Card>
         )}
 
         {/* ── Tab: Settings ───────────────────────────────────────────────── */}
         {activeTab === 'settings' && (
-          <div className="bg-verdant-surface border border-[#E5E0D8] rounded-xl p-5 shadow-organic">
-            <h2 className="text-verdant-text-primary font-semibold mb-1">Auto-Compound Settings</h2>
+          <Card>
+            <h2 className="fl-serif text-xl text-verdant-pine mb-1">Auto-Compound Settings</h2>
             <p className="text-verdant-text-muted text-sm mb-5">
               When enabled, harvested rewards are automatically re-deposited into the same position.
             </p>
@@ -489,9 +495,9 @@ export default function HarvestPage() {
                 ))}
               </div>
             )}
-          </div>
+          </Card>
         )}
-      </div>
+      </main>
     </div>
   );
 }

@@ -41,12 +41,10 @@ export function RepayCard({
       <button
         type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-paper border border-verdant-rule rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
-          <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-            REPAY
-          </div>
+          <div className="fl-eyebrow mb-2">REPAY</div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug">
             {selectedPosition.protocol === 'aave'
               ? 'Aave V3'
@@ -62,7 +60,7 @@ export function RepayCard({
             </span>
           </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-loss font-semibold">
+        <div className="mt-4 pt-2 border-t border-verdant-rule font-mono text-xs text-verdant-loss font-semibold">
           {formatUsd(selectedPosition.amountUsd)} owed
         </div>
       </button>
@@ -72,9 +70,7 @@ export function RepayCard({
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col justify-between">
       <div>
-        <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-          REPAY
-        </div>
+        <div className="fl-eyebrow mb-2">REPAY</div>
 
         <div className="space-y-2 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
           {matchingBorrows.map((pos) => {
@@ -92,8 +88,8 @@ export function RepayCard({
                 onClick={() => handleRowClick(pos)}
                 className={`w-full text-left p-2 rounded text-xs cursor-pointer border transition-colors ${
                   isSel
-                    ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
-                    : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
+                    ? 'bg-verdant-moss/10 border-verdant-moss border-l-2'
+                    : 'border-verdant-rule hover:bg-verdant-paper'
                 }`}
               >
                 <div className="font-medium text-verdant-text-primary leading-snug">

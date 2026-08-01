@@ -19,20 +19,20 @@ export default function Home() {
   if (!isMounted) return null;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="text-center">
-        <h1 className="mb-4 text-5xl font-bold tracking-tight text-verdant-text-primary">
-          Verdant
-        </h1>
-        <p className="mb-8 text-lg text-verdant-text-muted">
-          Discretionary cross-chain yield execution
+    <main className="flex min-h-screen flex-col items-center justify-center p-6 sm:p-12">
+      <div className="w-full max-w-md text-center">
+        <p className="fl-eyebrow">Cross-chain yield execution</p>
+        <h1 className="fl-serif mt-3 text-6xl text-verdant-pine md:text-7xl">Verdant</h1>
+        <p className="mx-auto mt-4 max-w-sm text-base text-verdant-text-muted md:text-lg">
+          Every allocation is yours to decide. Verdant makes executing it fast, simulated, and
+          transparent.
         </p>
-        <div className="flex flex-col items-center gap-4">
+
+        <hr className="fl-double-rule mx-auto mt-8 max-w-[160px]" />
+
+        <div className="mt-8 flex flex-col items-center gap-4">
           {process.env.NEXT_PUBLIC_DEMO_MODE === 'true' && (
-            <Link
-              href="/dashboard"
-              className="inline-block bg-verdant-moss hover:bg-verdant-moss-dark text-white font-semibold px-6 py-3 rounded-lg transition-colors"
-            >
+            <Link href="/dashboard" className="btn btn-primary btn-lg w-full max-w-xs">
               Try Demo
             </Link>
           )}
@@ -40,12 +40,12 @@ export default function Home() {
           <button
             type="button"
             onClick={enableDebug}
-            className="text-sm text-verdant-text-muted hover:text-verdant-text-primary underline underline-offset-4 transition-colors"
+            className="text-sm text-verdant-text-muted underline underline-offset-4 transition-colors hover:text-verdant-text-primary"
           >
             Enter Debug Mode
           </button>
         </div>
       </div>
-    </div>
+    </main>
   );
 }

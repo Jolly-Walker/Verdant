@@ -1,59 +1,11 @@
 /* ============================================================
-   FIELD LEDGER — evolved "Earthy Technologist"
-   Shared signature styles for the sequencer surface:
-     · warm paper grain        · sepia ledger ruling
-     · the living execution spine (growth metaphor, structural)
-     · Fraunces serif numerals over Geist Mono data
-   Fraunces is loaded app-wide via next/font in app/layout.tsx
-   (--font-fraunces). Palette hexes mirror the verdant.* Tailwind
-   tokens (pine / paper / rule) for use in raw CSS here.
+   FIELD LEDGER — the living execution spine
+   Growth metaphor for step progress, used by SequenceProgress.
+   The shared signatures (grain, .fl-serif, .fl-numeral,
+   .fl-double-rule, .fl-eyebrow) live app-wide in app/globals.css.
+   Colors resolve through theme() so tailwind.config.ts stays the
+   single source of truth.
    ============================================================ */
-
-/* Warm paper grain + a soft pine vignette grounding the masthead.
-   Decorative only (aria-hidden in markup; fixed so it never scroll-janks). */
-.grain {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  opacity: 0.05;
-  background:
-    radial-gradient(120% 55% at 50% -12%, rgba(20, 52, 43, 0.5), transparent 62%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-blend-mode: multiply;
-}
-
-/* ---------- Typography signatures ---------- */
-.serif {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-optical-sizing: auto;
-  font-variation-settings:
-    "SOFT" 45,
-    "WONK" 0;
-  letter-spacing: -0.015em;
-}
-
-/* the almanac "chapter" numeral */
-.numeral {
-  font-family: var(--font-fraunces), Georgia, serif;
-  font-optical-sizing: auto;
-  font-variation-settings:
-    "SOFT" 64,
-    "WONK" 0;
-  font-weight: 380;
-  letter-spacing: -0.02em;
-  font-variant-numeric: lining-nums tabular-nums;
-  line-height: 1;
-}
-
-/* ledger double-rule: a sepia bar over a hairline */
-.doubleRule {
-  border: 0;
-  height: 3px;
-  background:
-    linear-gradient(#cbbca3, #cbbca3) top / 100% 2px no-repeat,
-    linear-gradient(#e3dacb, #e3dacb) bottom / 100% 1px no-repeat;
-}
 
 /* ---------- The execution spine ---------- */
 .spine {
@@ -68,7 +20,7 @@
   left: 15px;
   width: 2px;
   border-radius: 2px;
-  background-image: linear-gradient(#cbbca3 55%, transparent 0);
+  background-image: linear-gradient(theme("colors.verdant.rule.strong") 55%, transparent 0);
   background-size: 2px 9px;
   background-repeat: repeat-y;
 }
@@ -81,7 +33,12 @@
   width: 2px;
   border-radius: 2px;
   transform-origin: top;
-  background: linear-gradient(180deg, #14342b, #2d6a4f 72%, #74c69d);
+  background: linear-gradient(
+    180deg,
+    theme("colors.verdant.pine.DEFAULT"),
+    theme("colors.verdant.moss.DEFAULT") 72%,
+    theme("colors.verdant.glacial")
+  );
 }
 
 .node {
@@ -99,21 +56,22 @@
   width: 14px;
   height: 14px;
   border-radius: 999px;
-  background: #f4f1ea;
-  border: 2px solid #cbbca3;
+  background: theme("colors.verdant.paper.DEFAULT");
+  border: 2px solid theme("colors.verdant.rule.strong");
   /* paper ring masks the stem passing behind the marker */
-  box-shadow: 0 0 0 5px #f4f1ea;
+  box-shadow: 0 0 0 5px theme("colors.verdant.paper.DEFAULT");
 }
 .nodeConfirmed .nodeDot {
-  background: #2d6a4f;
-  border-color: #14342b;
+  background: theme("colors.verdant.moss.DEFAULT");
+  border-color: theme("colors.verdant.pine.DEFAULT");
 }
 .nodeActive .nodeDot {
-  background: #fff;
-  border-color: #2d6a4f;
+  background: theme("colors.white");
+  border-color: theme("colors.verdant.moss.DEFAULT");
 }
 .nodeFailed .nodeDot {
-  background: #c95252;
+  background: theme("colors.verdant.loss.bright");
+  /* loss.bright darkened for the ring; deliberately not a token */
   border-color: #9f3b3b;
 }
 
@@ -124,7 +82,7 @@
   z-index: 1;
   inset: -3px;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(116, 198, 157, 0.6), transparent 68%);
+  background: radial-gradient(circle, theme("colors.verdant.glacial / 60%"), transparent 68%);
   animation: budPulse 2.6s ease-in-out infinite;
 }
 .nodeBud {
@@ -133,7 +91,7 @@
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #2d6a4f;
+  background: theme("colors.verdant.moss.DEFAULT");
   animation: budCore 2.6s ease-in-out infinite;
 }
 

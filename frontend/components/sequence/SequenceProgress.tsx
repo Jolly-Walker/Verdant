@@ -23,6 +23,13 @@ const PILL: Record<NodeKind, { label: string; cls: string }> = {
   pending: { label: 'Queued', cls: 'text-verdant-text-muted bg-verdant-rule/50' },
 };
 
+const NODE_CLS: Record<NodeKind, string> = {
+  confirmed: fl.nodeConfirmed,
+  active: fl.nodeActive,
+  failed: fl.nodeFailed,
+  pending: '',
+};
+
 // An active node's pill reads the live sub-status so the spine narrates execution.
 function activeLabel(status: StepStatus): string {
   if (status === 'simulating') return 'Simulating…';
@@ -85,14 +92,7 @@ export function SequenceProgress({
         {steps.map((step: SequenceStep, i) => {
           const isActive = step.id === currentStepId;
           const kind = nodeKind(step.status, isActive);
-          const nodeCls =
-            kind === 'confirmed'
-              ? fl.nodeConfirmed
-              : kind === 'active'
-                ? fl.nodeActive
-                : kind === 'failed'
-                  ? fl.nodeFailed
-                  : '';
+          const nodeCls = NODE_CLS[kind];
           const pill =
             kind === 'active'
               ? { label: activeLabel(step.status), cls: PILL.active.cls }
@@ -106,7 +106,7 @@ export function SequenceProgress({
               </span>
 
               <span
-                className={`${fl.numeral} w-7 shrink-0 pt-0.5 text-2xl ${
+                className={`fl-numeral w-7 shrink-0 pt-0.5 text-2xl ${
                   kind === 'pending' ? 'text-verdant-rule-strong' : 'text-verdant-pine'
                 }`}
                 aria-hidden
@@ -117,7 +117,7 @@ export function SequenceProgress({
               <div className="min-w-0 flex-1 pt-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <h4
-                    className={`${fl.serif} text-[15px] ${
+                    className={`fl-serif text-[15px] ${
                       kind === 'pending' ? 'text-verdant-text-muted' : 'text-verdant-text-primary'
                     }`}
                   >

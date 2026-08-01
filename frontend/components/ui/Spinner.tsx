@@ -1,5 +1,7 @@
 interface SpinnerProps {
   size?: 'sm' | 'md' | 'lg';
+  /** `onDark` renders a white spinner for use on filled (e.g. moss) buttons. */
+  tone?: 'default' | 'onDark';
   className?: string;
 }
 
@@ -9,10 +11,13 @@ const sizeMap = {
   lg: 'h-8 w-8 border-4',
 };
 
-export function Spinner({ size = 'md', className = '' }: SpinnerProps) {
+const toneMap = {
+  default: 'border-verdant-rule border-t-verdant-moss',
+  onDark: 'border-white/40 border-t-white',
+};
+
+export function Spinner({ size = 'md', tone = 'default', className = '' }: SpinnerProps) {
   return (
-    <div
-      className={`animate-spin rounded-full border-verdant-surface-accent border-t-verdant-moss ${sizeMap[size]} ${className}`}
-    />
+    <div className={`animate-spin rounded-full ${toneMap[tone]} ${sizeMap[size]} ${className}`} />
   );
 }

@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Fraunces } from 'next/font/google';
 import localFont from 'next/font/local';
 import './globals.css';
@@ -18,7 +18,7 @@ const geistMono = localFont({
 // Geist Mono still owns all financial data; Fraunces is for headers + step numerals.
 const fraunces = Fraunces({
   subsets: ['latin'],
-  axes: ['SOFT', 'WONK', 'opsz'],
+  axes: ['SOFT', 'opsz'],
   variable: '--font-fraunces',
   display: 'swap',
 });
@@ -26,6 +26,10 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: 'Verdant — Cross-chain Yield Execution',
   description: 'Discretionary cross-chain yield execution for on-chain power users',
+};
+
+export const viewport: Viewport = {
+  themeColor: '#F4F1EA', // verdant.paper — tints mobile browser chrome to match
 };
 
 export default function RootLayout({

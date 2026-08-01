@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { Modal } from '@/components/ui/Modal';
+import { WarningBanner } from '@/components/ui/WarningBanner';
 import { usePositions } from '@/hooks/usePositions';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useWallet } from '@/hooks/useWallet';
@@ -40,6 +42,7 @@ export function SequenceBuilderModal({
   const { createPlan } = useSequencer();
   const { address } = useWallet();
   const [isExecuting, setIsExecuting] = useState(false);
+  const [executeError, setExecuteError] = useState<string | null>(null);
 
   // Initialize steps array
   const [steps, setSteps] = useState<BuilderStep[]>([
@@ -74,6 +77,11 @@ export function SequenceBuilderModal({
       setActiveStepIndex(0);
     }
   }, [isOpen, initialPositionId, positions]);
+
+  // A stale failure from a previous attempt must not greet the next open.
+  useEffect(() => {
+    if (isOpen) setExecuteError(null);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -206,159 +214,143 @@ export function SequenceBuilderModal({
   const handleExecute = async () => {
     if (!canSubmit(steps)) return;
     setIsExecuting(true);
+    setExecuteError(null);
 
     try {
       const activeAddress = address || DEMO_WALLET_ADDRESS;
       const customPlan = builderStepsToSequencePlan(steps, activeAddress, positions);
 
       const plan = await createPlan('custom', { customPlan });
-      if (plan) {
-        onClose();
-        router.push(`/sequence/${plan.id}`);
-      }
+      onClose();
+      router.push(`/sequence/${plan.id}`);
     } catch (e) {
       console.error(e);
-      alert('Failed to execute sequence');
+      // createPlan throws an Error carrying the server's message — surface it.
+      setExecuteError(e instanceof Error ? e.message : 'Failed to execute sequence.');
     } finally {
       setIsExecuting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-[#1A1614]/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="max-w-5xl w-full bg-verdant-surface rounded-2xl shadow-organic-lg border border-[#E5E0D8] flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="border-b border-[#E5E0D8] px-6 py-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-verdant-text-primary">Build a Sequence</h2>
-          <button
-            type="button"
-            aria-label="Close"
-            onClick={onClose}
-            className="text-verdant-text-muted hover:text-verdant-text-primary p-1 rounded-md transition-colors"
-          >
-            <svg
-              aria-hidden="true"
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      eyebrow="Custom sequence"
+      title="Build a Sequence"
+      size="xl"
+      footer={
+        <div className="flex flex-col gap-3">
+          {executeError && <WarningBanner message={executeError} variant="error" />}
+          <SummaryBar
+            steps={steps}
+            onCancel={onClose}
+            onExecute={handleExecute}
+            isExecuting={isExecuting}
+          />
         </div>
+      }
+    >
+      {/* Steps Grid — single column on phones; the cards are a fixed 14rem
+          wide and cannot reflow narrower than that. */}
+      <div className="grid grid-cols-1 gap-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {steps.map((step, idx) => {
+          const isActive = idx === activeStepIndex;
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: builder steps have no stable id; a step's identity is its position in the pipeline (edits truncate the array from that index)
+            <div key={idx} className="relative flex justify-center">
+              {step.kind === 'source' && (
+                <SourceCard
+                  step={step}
+                  isActive={isActive}
+                  userPositions={positions}
+                  onSelect={handleSourceSelect}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-        {/* Steps Grid */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 min-h-[300px]">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6 gap-y-8">
-            {steps.map((step, idx) => {
-              const isActive = idx === activeStepIndex;
-              return (
-                // biome-ignore lint/suspicious/noArrayIndexKey: builder steps have no stable id; a step's identity is its position in the pipeline (edits truncate the array from that index)
-                <div key={idx} className="relative flex justify-center">
-                  {step.kind === 'source' && (
-                    <SourceCard
-                      step={step}
-                      isActive={isActive}
-                      userPositions={positions}
-                      onSelect={handleSourceSelect}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
+              {step.kind === 'action-select' && (
+                <ActionSelectCard
+                  tokenIn={step.tokenIn}
+                  userPositions={positions}
+                  onSelect={handleActionSelect}
+                />
+              )}
 
-                  {step.kind === 'action-select' && (
-                    <ActionSelectCard
-                      tokenIn={step.tokenIn}
-                      userPositions={positions}
-                      onSelect={handleActionSelect}
-                    />
-                  )}
+              {step.kind === 'deposit' && (
+                <DepositCard
+                  tokenIn={step.tokenIn}
+                  selectedDestination={step.destination.id ? step.destination : undefined}
+                  isActive={isActive}
+                  onSelect={handleDepositSelect}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-                  {step.kind === 'deposit' && (
-                    <DepositCard
-                      tokenIn={step.tokenIn}
-                      selectedDestination={step.destination.id ? step.destination : undefined}
-                      isActive={isActive}
-                      onSelect={handleDepositSelect}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
+              {step.kind === 'repay' && (
+                <RepayCard
+                  tokenIn={step.tokenIn}
+                  userPositions={positions}
+                  selectedPositionId={step.targetPositionId || undefined}
+                  isActive={isActive}
+                  onSelect={handleRepaySelect}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-                  {step.kind === 'repay' && (
-                    <RepayCard
-                      tokenIn={step.tokenIn}
-                      userPositions={positions}
-                      selectedPositionId={step.targetPositionId || undefined}
-                      isActive={isActive}
-                      onSelect={handleRepaySelect}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
+              {step.kind === 'repayAndWithdraw' && (
+                <RepayAndWithdrawCard
+                  tokenIn={step.tokenIn}
+                  userPositions={positions}
+                  selectedPositionId={step.targetPositionId || undefined}
+                  isActive={isActive}
+                  onSelect={handleRepayAndWithdrawSelect}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-                  {step.kind === 'repayAndWithdraw' && (
-                    <RepayAndWithdrawCard
-                      tokenIn={step.tokenIn}
-                      userPositions={positions}
-                      selectedPositionId={step.targetPositionId || undefined}
-                      isActive={isActive}
-                      onSelect={handleRepayAndWithdrawSelect}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
+              {step.kind === 'bridge' && (
+                <BridgeCard
+                  tokenIn={step.tokenIn}
+                  selectedToChain={step.toChain || undefined}
+                  selectedBridgeId={step.bridgeId || undefined}
+                  selectedFeeUsd={step.feeUsd || undefined}
+                  isActive={isActive}
+                  onSelect={handleBridgeSelect}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-                  {step.kind === 'bridge' && (
-                    <BridgeCard
-                      tokenIn={step.tokenIn}
-                      selectedToChain={step.toChain || undefined}
-                      selectedBridgeId={step.bridgeId || undefined}
-                      selectedFeeUsd={step.feeUsd || undefined}
-                      isActive={isActive}
-                      onSelect={handleBridgeSelect}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
+              {step.kind === 'swap' && (
+                <SwapCard
+                  tokenIn={step.tokenIn}
+                  selectedToToken={step.toToken || undefined}
+                  selectedFeeUsd={step.feeUsd || undefined}
+                  isActive={isActive}
+                  onSelect={handleSwapSelect}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-                  {step.kind === 'swap' && (
-                    <SwapCard
-                      tokenIn={step.tokenIn}
-                      selectedToToken={step.toToken || undefined}
-                      selectedFeeUsd={step.feeUsd || undefined}
-                      isActive={isActive}
-                      onSelect={handleSwapSelect}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
+              {step.kind === 'withdraw' && (
+                <WithdrawCard
+                  tokenIn={step.tokenIn}
+                  isActive={isActive}
+                  onConfirm={handleWithdrawConfirm}
+                  onFocus={() => handleStepFocus(idx)}
+                />
+              )}
 
-                  {step.kind === 'withdraw' && (
-                    <WithdrawCard
-                      tokenIn={step.tokenIn}
-                      isActive={isActive}
-                      onConfirm={handleWithdrawConfirm}
-                      onFocus={() => handleStepFocus(idx)}
-                    />
-                  )}
-
-                  {/* Right arrow connector */}
-                  {idx < steps.length - 1 && (
-                    <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-verdant-text-muted text-lg hidden sm:block pointer-events-none select-none">
-                      →
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Footer/Summary */}
-        <SummaryBar
-          steps={steps}
-          onCancel={onClose}
-          onExecute={handleExecute}
-          isExecuting={isExecuting}
-        />
+              {/* Right arrow connector */}
+              {idx < steps.length - 1 && (
+                <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-verdant-text-muted text-lg hidden sm:block pointer-events-none select-none">
+                  →
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
+    </Modal>
   );
 }

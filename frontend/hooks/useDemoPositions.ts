@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DEMO_POSITIONS, DEMO_TOTAL_REWARDS_USD, DEMO_TOTAL_VALUE_USD } from '@/lib/demo/positions';
 
 /**
@@ -17,12 +17,15 @@ export function useDemoPositions() {
     return () => clearTimeout(t);
   }, []);
 
-  return {
-    positions: isLoading ? [] : DEMO_POSITIONS,
-    isLoading,
-    error: null,
-    refetch: () => {},
-    totalValueUsd: DEMO_TOTAL_VALUE_USD,
-    totalRewardsUsd: DEMO_TOTAL_REWARDS_USD,
-  };
+  return useMemo(
+    () => ({
+      positions: isLoading ? [] : DEMO_POSITIONS,
+      isLoading,
+      error: null,
+      refetch: () => {},
+      totalValueUsd: DEMO_TOTAL_VALUE_USD,
+      totalRewardsUsd: DEMO_TOTAL_REWARDS_USD,
+    }),
+    [isLoading],
+  );
 }

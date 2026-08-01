@@ -45,9 +45,7 @@ export function BridgeQuoteSelector({
 
   return (
     <div className="space-y-3">
-      <h3 className="text-xs font-bold text-verdant-text-muted uppercase tracking-wider mb-2">
-        Select Bridge Provider
-      </h3>
+      <h3 className="fl-eyebrow mb-2">Select Bridge Provider</h3>
       {quotes.map((quote) => {
         const metadata = BRIDGE_METADATA[quote.bridgeId];
         const isSelected = selectedId === quote.bridgeId;
@@ -64,8 +62,8 @@ export function BridgeQuoteSelector({
             <div
               className={`p-4 border-2 rounded-lg transition-all ${
                 isSelected
-                  ? 'border-verdant-moss bg-verdant-surface-accent'
-                  : 'border-[#E5E0D8] bg-verdant-surface hover:bg-verdant-surface-accent/30'
+                  ? 'border-verdant-moss bg-verdant-moss/10'
+                  : 'border-verdant-rule bg-verdant-surface hover:bg-verdant-paper'
               }`}
             >
               <div className="flex justify-between items-start mb-1">
@@ -75,7 +73,7 @@ export function BridgeQuoteSelector({
                     {formatUsd(quote.feeUsd)}
                   </div>
                   {isHighFee && (
-                    <span className="text-[10px] text-verdant-loss font-bold bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] text-verdant-loss font-bold bg-verdant-loss/10 border border-verdant-loss/25 px-1.5 py-0.5 rounded">
                       HIGH FEE: <span className="font-mono">{feePercent.toFixed(2)}%</span>
                     </span>
                   )}

@@ -43,12 +43,10 @@ export function DepositCard({
       <button
         type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-paper border border-verdant-rule rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
-          <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-            DEPOSIT
-          </div>
+          <div className="fl-eyebrow mb-2">DEPOSIT</div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug">
             {selectedDestination.displayName}
           </div>
@@ -63,13 +61,13 @@ export function DepositCard({
               </span>
             )}
             {selectedDestination.lockPeriodDays != null && (
-              <span className="ml-1 text-amber-600">
+              <span className="ml-1 text-verdant-caution">
                 · 🔒 {selectedDestination.lockPeriodDays}d lock
               </span>
             )}
           </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
+        <div className="mt-4 pt-2 border-t border-verdant-rule font-mono text-xs text-verdant-text-muted">
           → {selectedDestination.outputTokenSymbol}
         </div>
       </button>
@@ -79,15 +77,13 @@ export function DepositCard({
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col justify-between">
       <div>
-        <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-          DEPOSIT
-        </div>
+        <div className="fl-eyebrow mb-2">DEPOSIT</div>
 
         <div className="space-y-2 max-h-36 overflow-y-auto pr-1 scrollbar-thin">
           {isLoading && (
             <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="h-12 bg-verdant-surface-accent rounded animate-pulse" />
+                <div key={i} className="h-12 bg-verdant-paper-deep rounded animate-pulse" />
               ))}
             </div>
           )}
@@ -116,8 +112,8 @@ export function DepositCard({
                   onClick={() => handleRowClick(dest)}
                   className={`w-full text-left p-2 rounded text-xs cursor-pointer border transition-colors ${
                     isSel
-                      ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
-                      : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
+                      ? 'bg-verdant-moss/10 border-verdant-moss border-l-2'
+                      : 'border-verdant-rule hover:bg-verdant-paper'
                   }`}
                 >
                   {/* Name row */}
@@ -125,7 +121,7 @@ export function DepositCard({
                     {dest.displayName}
                     {dest.lockPeriodDays != null && (
                       <span
-                        className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200
+                        className="text-[9px] bg-verdant-caution/10 text-verdant-caution border border-verdant-caution/25
                                      px-1 py-0.5 rounded font-semibold uppercase tracking-wide"
                       >
                         🔒 {dest.lockPeriodDays}d
@@ -133,7 +129,7 @@ export function DepositCard({
                     )}
                     {dest.lockDescription && dest.lockPeriodDays == null && (
                       <span
-                        className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200
+                        className="text-[9px] bg-verdant-caution/10 text-verdant-caution border border-verdant-caution/25
                                      px-1 py-0.5 rounded font-semibold uppercase tracking-wide"
                       >
                         🔒 Locked
@@ -162,8 +158,8 @@ export function DepositCard({
                       {dest.rewardTokens.slice(0, 3).map((addr) => (
                         <span
                           key={addr}
-                          className="text-[9px] bg-verdant-surface-accent text-verdant-text-muted
-                                   border border-[#D5E8E0] px-1 py-0.5 rounded font-mono"
+                          className="text-[9px] bg-verdant-paper-deep/60 text-verdant-text-muted
+                                   border border-verdant-rule px-1 py-0.5 rounded font-mono"
                         >
                           +{addr.slice(0, 6)}
                         </span>

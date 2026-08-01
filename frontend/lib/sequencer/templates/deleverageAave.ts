@@ -1,10 +1,14 @@
 import type { DeleverageAaveParams, SequencePlan } from '@/types/sequencer';
 
+// The health-factor floor every intermediate cycle must stay above; also the
+// default target for computeOptimalCycles and the number quoted in the UI.
+export const SAFE_TARGET_HF = 1.05;
+
 export function computeOptimalCycles(
   totalDebtUsd: number,
   totalCollateralUsd: number,
   lt: number,
-  targetHF: number = 1.05,
+  targetHF: number = SAFE_TARGET_HF,
   maxCycles: number = 20,
 ): number {
   for (let i = 1; i <= maxCycles; i++) {
@@ -82,7 +86,10 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     if (debtAfterRepayUsd === 0) {
       maxWithdrawUsd = currentCollateralUsd;
     } else {
-      maxWithdrawUsd = Math.max(0, currentCollateralUsd - (debtAfterRepayUsd * 1.05) / lt);
+      maxWithdrawUsd = Math.max(
+        0,
+        currentCollateralUsd - (debtAfterRepayUsd * SAFE_TARGET_HF) / lt,
+      );
     }
 
     // Convert to token units using BigInt for precision. The final cycle
@@ -133,10 +140,10 @@ export function buildDeleverageAavePlan(params: DeleverageAaveParams): SequenceP
     const projectedHF =
       debtAfterRepayUsd > 0 ? (projectedCollateralUsd * lt) / debtAfterRepayUsd : Infinity;
 
-    if (projectedHF < 1.049 && debtAfterRepayUsd > 0) {
-      // Using 1.049 to avoid float precision issues in check
+    // 0.001 tolerance below the floor to avoid float precision issues in check
+    if (projectedHF < SAFE_TARGET_HF - 0.001 && debtAfterRepayUsd > 0) {
       throw new Error(
-        `Cycle ${i + 1} withdrawal would drop Health Factor to ${projectedHF.toFixed(2)}, which is below the safe limit of 1.05. Aborting plan creation.`,
+        `Cycle ${i + 1} withdrawal would drop Health Factor to ${projectedHF.toFixed(2)}, which is below the safe limit of ${SAFE_TARGET_HF}. Aborting plan creation.`,
       );
     }
 

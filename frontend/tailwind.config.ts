@@ -49,15 +49,38 @@ const config: Config = {
             muted: '#70655D',
           },
 
-          // Financial Indicators
-          profit: '#27AE60', // Nephrite Green (Yields, Success)
-          loss: '#C95252', // Muted Brick Red (Losses, Errors, Destructive)
+          // Financial Indicators — DEFAULT is text-safe (≥4.5:1 on white AND paper);
+          // `bright` is for fills, strokes, and meter bands only, never text.
+          profit: {
+            DEFAULT: '#187443', // 5.8:1 on white, 5.15:1 on paper
+            bright: '#27AE60', // Nephrite Green — decorative fills
+          },
+          loss: {
+            DEFAULT: '#AE4343', // 5.7:1 on white; white-on-loss buttons also pass
+            bright: '#C95252', // Muted Brick Red — decorative fills
+          },
+          caution: {
+            DEFAULT: '#92610C', // 5.33:1 on white — replaces raw amber-* text
+            bright: '#B45309', // decorative fills / meter bands
+          },
+
+          // Chain identity tints — the ONLY hue-coded, non-semantic colors in
+          // the palette. Each chain's brand hue pulled down to the same muted,
+          // low-chroma register as moss/teak so the pills read as almanac map
+          // keys rather than SaaS chips. Every value is text-safe (≥4.5:1 on
+          // white, on paper, AND on its own /10 tint); use as
+          // `text-verdant-chain-x bg-verdant-chain-x/10 border-verdant-chain-x/25`.
+          // Never reuse these for state — profit/loss/caution own that.
+          chain: {
+            ethereum: '#4A5B6E', // slate ink   — 6.97:1 white, 6.18:1 paper
+            arbitrum: '#2F6E6B', // verdigris   — 5.89:1 white, 5.22:1 paper
+            base: '#585089', // woad indigo — 7.18:1 white, 6.37:1 paper
+          },
         },
       },
       fontFamily: {
         sans: ['var(--font-geist-sans)'],
         mono: ['var(--font-geist-mono)'],
-        display: ['var(--font-fraunces)', 'Georgia', 'Cambria', 'serif'],
       },
       boxShadow: {
         organic: '0 4px 20px -4px rgba(26, 22, 20, 0.05)',

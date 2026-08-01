@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useAccount, useSendTransaction } from 'wagmi';
 import { Spinner } from '@/components/ui/Spinner';
+import { WarningBanner } from '@/components/ui/WarningBanner';
 import { useBridges } from '@/hooks/useBridges';
 import { getChainDisplayName, getExplorerTxUrl } from '@/lib/utils/chains';
 import type { SerializedUnsignedTx } from '@/types/sequencer';
@@ -164,11 +165,7 @@ export function StepOneBridge({
   }
 
   if (error) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-        <p className="text-verdant-loss text-sm font-mono">{error}</p>
-      </div>
-    );
+    return <WarningBanner message={error} variant="error" />;
   }
 
   const isSigning = isBuildingTx || isPending || isSimulating;
@@ -188,7 +185,7 @@ export function StepOneBridge({
             type="button"
             onClick={handleBridge}
             disabled={isSigning || !selectedQuote || !serializedTx}
-            className="w-full bg-verdant-moss hover:bg-verdant-moss-dark disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition-colors"
+            className="btn btn-primary btn-lg w-full"
           >
             {isSimulating
               ? 'Simulating route...'
@@ -199,7 +196,7 @@ export function StepOneBridge({
         </>
       ) : (
         <div className="space-y-4">
-          <div className="flex items-center justify-center py-6 px-4 bg-verdant-surface-accent rounded-lg border border-[#D5E8E0]">
+          <div className="flex items-center justify-center py-6 px-4 bg-verdant-paper rounded-lg border border-verdant-rule">
             {bridgeStatus === 'pending' ? (
               <div className="text-center">
                 <Spinner size="md" className="mx-auto mb-3" />
@@ -232,15 +229,11 @@ export function StepOneBridge({
               href={getExplorerTxUrl(fromChain, txHash)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-center py-2 bg-verdant-moss hover:bg-verdant-moss-dark text-white text-sm rounded-md transition-colors font-medium"
+              className="btn btn-primary flex-1"
             >
               View Transaction
             </a>
-            <button
-              type="button"
-              onClick={() => setTxHash(null)}
-              className="px-4 py-2 bg-transparent text-verdant-text-muted hover:text-verdant-text-primary text-sm transition-colors"
-            >
+            <button type="button" onClick={() => setTxHash(null)} className="btn btn-ghost">
               Cancel
             </button>
           </div>

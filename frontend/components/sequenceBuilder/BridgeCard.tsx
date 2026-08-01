@@ -97,12 +97,10 @@ export function BridgeCard({
       <button
         type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-paper border border-verdant-rule rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
-          <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-            BRIDGE
-          </div>
+          <div className="fl-eyebrow mb-2">BRIDGE</div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug capitalize">
             {tokenIn.chain} → {selectedToChain}
           </div>
@@ -113,7 +111,7 @@ export function BridgeCard({
             </span>
           </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
+        <div className="mt-4 pt-2 border-t border-verdant-rule font-mono text-xs text-verdant-text-muted">
           ~{displayQuote.timeSeconds}s transfer time
         </div>
       </button>
@@ -123,15 +121,13 @@ export function BridgeCard({
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col justify-between">
       <div>
-        <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-          BRIDGE
-        </div>
+        <div className="fl-eyebrow mb-2">BRIDGE</div>
 
         {/* Chain selector */}
         <div className="mb-2">
           <label
             htmlFor={toChainSelectId}
-            className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1"
+            className="field-label text-[9px] uppercase tracking-wider"
           >
             To Chain
           </label>
@@ -139,7 +135,7 @@ export function BridgeCard({
             id={toChainSelectId}
             value={toChain}
             onChange={handleChainChange}
-            className="w-full bg-verdant-canvas text-verdant-text-primary text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none"
+            className="field-input"
           >
             {availableChains.map((c) => (
               <option key={c} value={c} className="capitalize">
@@ -151,9 +147,7 @@ export function BridgeCard({
 
         {/* Bridge options */}
         <div>
-          <span className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1">
-            Route Quotes
-          </span>
+          <span className="field-label text-[9px] uppercase tracking-wider">Route Quotes</span>
           <div className="space-y-1.5 max-h-24 overflow-y-auto pr-1 scrollbar-thin">
             {quotes.map((q) => {
               const isSel = q.bridgeId === bridgeId;
@@ -164,8 +158,8 @@ export function BridgeCard({
                   onClick={() => handleBridgeClick(q)}
                   className={`w-full text-left p-1.5 rounded text-[11px] cursor-pointer border transition-colors ${
                     isSel
-                      ? 'bg-verdant-surface-accent border-verdant-moss border-l-2'
-                      : 'border-[#E5E0D8] hover:bg-[#FAF9F6]'
+                      ? 'bg-verdant-moss/10 border-verdant-moss border-l-2'
+                      : 'border-verdant-rule hover:bg-verdant-paper'
                   }`}
                 >
                   <div className="flex items-center justify-between font-medium text-verdant-text-primary">

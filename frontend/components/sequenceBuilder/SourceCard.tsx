@@ -115,12 +115,10 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
       <button
         type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-paper border border-verdant-rule rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
-          <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-            SOURCE
-          </div>
+          <div className="fl-eyebrow mb-2">SOURCE</div>
           <div className="flex items-center gap-2 mb-2">
             <TokenIcon symbol={step.tokenOut.token} className="w-5 h-5" />
             <span className="font-semibold text-verdant-text-primary text-sm">
@@ -132,7 +130,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
             {isWallet ? 'Wallet' : 'Aave supply'}
           </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-[#D5E8E0]">
+        <div className="mt-4 pt-2 border-t border-verdant-rule">
           <div className="font-mono text-sm font-bold text-verdant-text-primary">
             {formatToken(step.tokenOut.amount)} {step.tokenOut.token}
           </div>
@@ -147,15 +145,13 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col justify-between">
       <div>
-        <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-          SOURCE
-        </div>
+        <div className="fl-eyebrow mb-2">SOURCE</div>
 
         {/* List of positions */}
         <div className="space-y-2 max-h-36 overflow-y-auto pr-1 mb-3 scrollbar-thin">
           {supplyPositions.length > 0 && (
             <div>
-              <div className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider mb-1">
+              <div className="field-label text-[9px] uppercase tracking-wider">
                 Protocol Positions
               </div>
               {supplyPositions.map((pos) => {
@@ -167,8 +163,8 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
                     onClick={() => handlePositionClick(pos)}
                     className={`w-full text-left flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
                       isSel
-                        ? 'bg-verdant-surface-accent border border-verdant-moss/30'
-                        : 'hover:bg-[#FAF9F6]'
+                        ? 'bg-verdant-moss/10 border border-verdant-moss/40'
+                        : 'hover:bg-verdant-paper'
                     }`}
                   >
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -195,9 +191,7 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
 
           {walletPositions.length > 0 && (
             <div className="mt-2">
-              <div className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider mb-1">
-                Wallet
-              </div>
+              <div className="field-label text-[9px] uppercase tracking-wider">Wallet</div>
               {walletPositions.map((pos) => {
                 const id = `wallet-${pos.asset}-${pos.chain}`;
                 const isSel = id === selectedPositionId;
@@ -208,8 +202,8 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
                     onClick={() => handlePositionClick(pos)}
                     className={`w-full text-left flex items-center justify-between p-1.5 rounded text-xs cursor-pointer transition-colors ${
                       isSel
-                        ? 'bg-verdant-surface-accent border border-verdant-moss/30'
-                        : 'hover:bg-[#FAF9F6]'
+                        ? 'bg-verdant-moss/10 border border-verdant-moss/40'
+                        : 'hover:bg-verdant-paper'
                     }`}
                   >
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -237,25 +231,25 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
       </div>
 
       {selectedPosition && (
-        <div className="mt-2 pt-2 border-t border-[#E5E0D8]/60">
-          <div className="flex items-center justify-between gap-1 mb-1">
-            <span className="text-[10px] text-verdant-text-muted font-semibold">Amount</span>
+        <div className="mt-2 pt-2 border-t border-verdant-rule/60">
+          <div className="flex items-center justify-between gap-1">
+            <span className="field-label mb-0 text-[10px] font-semibold">Amount</span>
             <span className="text-[10px] text-verdant-text-muted font-mono">
               Max: {formatToken(selectedPosition.amount)}
             </span>
           </div>
-          <div className="relative flex items-center">
+          <div className="relative mt-1 flex items-center">
             <input
               type="text"
               value={amountStr}
               onChange={handleAmountChange}
               placeholder="0.0"
-              className="w-full bg-verdant-canvas text-verdant-text-primary font-mono text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none pr-10"
+              className="field-input font-mono pr-12"
             />
             <button
               type="button"
               onClick={handleMaxClick}
-              className="absolute right-1 text-[10px] bg-verdant-surface-accent text-verdant-moss hover:bg-verdant-glacial/20 font-bold px-1.5 py-0.5 rounded transition-colors"
+              className="absolute right-2 text-[10px] bg-verdant-moss/10 text-verdant-moss hover:bg-verdant-moss/20 font-bold px-1.5 py-0.5 rounded transition-colors"
             >
               MAX
             </button>

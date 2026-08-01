@@ -78,12 +78,10 @@ export function SwapCard({
       <button
         type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-paper border border-verdant-rule rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
-          <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-            SWAP
-          </div>
+          <div className="fl-eyebrow mb-2">SWAP</div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug">
             {tokenIn.token} → {selectedToToken}
           </div>
@@ -94,7 +92,7 @@ export function SwapCard({
             </span>
           </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-muted">
+        <div className="mt-4 pt-2 border-t border-verdant-rule font-mono text-xs text-verdant-text-muted">
           Rate: 1 {selectedToToken} = {formatUsd(toPrice)}
         </div>
       </button>
@@ -104,9 +102,7 @@ export function SwapCard({
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col justify-between">
       <div>
-        <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-          SWAP
-        </div>
+        <div className="fl-eyebrow mb-2">SWAP</div>
 
         <div className="text-xs text-verdant-text-muted mb-2">
           From: <span className="font-semibold text-verdant-text-primary">{tokenIn.token}</span>
@@ -116,7 +112,7 @@ export function SwapCard({
         <div className="mb-2">
           <label
             htmlFor={toTokenSelectId}
-            className="text-[9px] text-verdant-text-muted font-semibold uppercase tracking-wider block mb-1"
+            className="field-label text-[9px] uppercase tracking-wider"
           >
             To Token
           </label>
@@ -124,7 +120,7 @@ export function SwapCard({
             id={toTokenSelectId}
             value={toToken}
             onChange={handleTokenChange}
-            className="w-full bg-verdant-canvas text-verdant-text-primary text-xs px-2 py-1.5 rounded border border-[#E5E0D8] focus:border-verdant-moss focus:outline-none"
+            className="field-input"
           >
             {availableTokens.map((symbol) => (
               <option key={symbol} value={symbol}>
@@ -135,7 +131,7 @@ export function SwapCard({
         </div>
 
         {/* Route info */}
-        <div className="text-[10px] text-verdant-text-muted space-y-1 mt-3 pt-2 border-t border-[#E5E0D8]/60">
+        <div className="text-[10px] text-verdant-text-muted space-y-1 mt-3 pt-2 border-t border-verdant-rule/60">
           <div className="flex justify-between">
             <span>Routing:</span>
             <span className="font-medium text-verdant-text-primary">1inch</span>

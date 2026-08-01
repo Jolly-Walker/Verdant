@@ -29,12 +29,10 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
       <button
         type="button"
         onClick={onFocus}
-        className="w-56 min-h-48 text-left bg-verdant-surface-accent border border-[#D5E8E0] rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
+        className="w-56 min-h-48 text-left bg-verdant-paper border border-verdant-rule rounded-xl p-4 cursor-pointer hover:border-verdant-moss transition-all flex flex-col justify-between"
       >
         <div>
-          <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-            WITHDRAW
-          </div>
+          <div className="fl-eyebrow mb-2">WITHDRAW</div>
           <div className="font-semibold text-verdant-text-primary text-sm leading-snug">
             {protocolLabel} {tokenIn.token}
           </div>
@@ -42,7 +40,7 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
             {tokenIn.chain}
           </div>
         </div>
-        <div className="mt-4 pt-2 border-t border-[#D5E8E0] font-mono text-xs text-verdant-text-primary font-bold">
+        <div className="mt-4 pt-2 border-t border-verdant-rule font-mono text-xs text-verdant-text-primary font-bold">
           {formatUsd(tokenIn.amountUsd)} → {formatToken(tokenIn.amount)} {tokenIn.token}
         </div>
       </button>
@@ -52,9 +50,7 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
   return (
     <div className="w-56 min-h-48 bg-verdant-surface border-2 border-verdant-moss rounded-xl p-4 shadow-organic flex flex-col justify-between">
       <div>
-        <div className="text-[10px] text-verdant-text-muted uppercase tracking-wider font-semibold mb-2">
-          WITHDRAW
-        </div>
+        <div className="fl-eyebrow mb-2">WITHDRAW</div>
 
         <div className="text-xs text-verdant-text-primary mb-2">
           Confirm exit from supply position:
@@ -82,11 +78,7 @@ export function WithdrawCard({ tokenIn, isActive, onConfirm, onFocus }: Withdraw
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={handleConfirm}
-        className="w-full text-xs bg-verdant-moss hover:bg-verdant-moss-dark text-white py-1.5 rounded transition-colors font-medium font-sans cursor-pointer mt-3"
-      >
+      <button type="button" onClick={handleConfirm} className="btn btn-primary btn-sm mt-3 w-full">
         Confirm Withdraw
       </button>
     </div>
