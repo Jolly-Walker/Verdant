@@ -44,19 +44,6 @@ export function canSubmit(steps: BuilderStep[]): boolean {
   return last.kind === 'deposit' || last.kind === 'repay';
 }
 
-// Returns true if the sequence is in a valid intermediate state
-// where the user can optionally add more steps or submit
-export function canAddMore(steps: BuilderStep[]): boolean {
-  if (steps.length < 2) return false;
-  const last = steps[steps.length - 1];
-  return (
-    last.kind === 'withdraw' ||
-    last.kind === 'repayAndWithdraw' ||
-    last.kind === 'bridge' ||
-    last.kind === 'swap'
-  );
-}
-
 // Computes the net token delta for the summary bar
 export function computeTokenDelta(steps: BuilderStep[]): {
   input: { token: string; amount: number; chain: ChainId } | null;

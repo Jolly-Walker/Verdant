@@ -1,0 +1,22 @@
+/* React Flow theme hooks for the sequence canvas. Every colour resolves
+   through Tailwind's theme() so the canvas stays on the Field Ledger tokens;
+   the `-default` custom properties are @xyflow/react v12's documented
+   override points.
+
+   The class is doubled deliberately: these variables land on the very element
+   that also carries React Flow's own `.react-flow`, which sets the same
+   properties at specificity (0,1,0). Next.js emits the package stylesheet and
+   this module as separate chunks, so a plain `.flow` would be a pure
+   stylesheet-order coin flip. */
+.flow.flow {
+  --xy-background-color-default: theme("colors.verdant.paper.DEFAULT");
+  --xy-background-pattern-dots-color-default: theme("colors.verdant.rule.strong");
+  --xy-edge-stroke-default: theme("colors.verdant.rule.strong");
+  --xy-edge-stroke-selected-default: theme("colors.verdant.moss.DEFAULT");
+  --xy-edge-stroke-width-default: 1.5;
+}
+
+/* Handles exist only to anchor edges; connections are disabled. */
+.flow.flow :global(.react-flow__handle) {
+  opacity: 0;
+}

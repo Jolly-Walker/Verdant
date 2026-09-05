@@ -1,13 +1,17 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CloseButton } from '@/components/ui/CloseButton';
 import { Modal } from '@/components/ui/Modal';
+import { PlusIcon } from '@/components/ui/PlusIcon';
 import { WarningBanner } from '@/components/ui/WarningBanner';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { usePositions } from '@/hooks/usePositions';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useWallet } from '@/hooks/useWallet';
 import { DEMO_WALLET_ADDRESS } from '@/lib/demo/wallet';
+import { appendStepOfKind, removeStepAt } from '@/lib/sequenceBuilder/canvas';
 import { builderStepsToSequencePlan, canSubmit } from '@/lib/sequenceBuilder/logic';
 import type {
   ActionType,
@@ -16,21 +20,23 @@ import type {
   TokenState,
 } from '@/lib/sequenceBuilder/types';
 import type { BridgeId, ChainId } from '@/types/shared';
-import { ActionSelectCard } from './ActionSelectCard';
-import { BridgeCard } from './BridgeCard';
-import { DepositCard } from './DepositCard';
-import { RepayAndWithdrawCard } from './RepayAndWithdrawCard';
-import { RepayCard } from './RepayCard';
-import { SourceCard } from './SourceCard';
+import { SequenceCanvas } from './canvas/SequenceCanvas';
+import { SidePanel } from './canvas/SidePanel';
 import { SummaryBar } from './SummaryBar';
-import { SwapCard } from './SwapCard';
-import { WithdrawCard } from './WithdrawCard';
 
 interface SequenceBuilderModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialPositionId?: string;
 }
+
+/** A factory, not a shared constant: the returned array becomes mutable state. */
+function createInitialSteps(): BuilderStep[] {
+  return [{ kind: 'source', tokenOut: { token: '', chain: 'ethereum', amount: 0, amountUsd: 0 } }];
+}
+
+/** Tailwind's `lg` breakpoint — above it the side panel is permanently docked. */
+const DESKTOP_QUERY = '(min-width: 1024px)';
 
 export function SequenceBuilderModal({
   isOpen,
@@ -43,12 +49,21 @@ export function SequenceBuilderModal({
   const { address } = useWallet();
   const [isExecuting, setIsExecuting] = useState(false);
   const [executeError, setExecuteError] = useState<string | null>(null);
+  // Below `lg` the side panel lives in an overlay sheet toggled by a floating
+  // button — rendered *instead of* the docked aside, never alongside it, so
+  // only one SourceCard / PalettePanel state ever exists.
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const sheetRef = useRef<HTMLElement>(null);
+  const sheetTriggerRef = useRef<HTMLButtonElement>(null);
+  const wasSheetOpen = useRef(false);
 
   // Initialize steps array
-  const [steps, setSteps] = useState<BuilderStep[]>([
-    { kind: 'source', tokenOut: { token: '', chain: 'ethereum', amount: 0, amountUsd: 0 } },
-  ]);
+  const [steps, setSteps] = useState<BuilderStep[]>(createInitialSteps);
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
+  // Bumped whenever the control the user was on is about to unmount; SidePanel
+  // parks focus on its heading so keyboard focus never falls back to <body>.
+  const [panelFocusNonce, setPanelFocusNonce] = useState(0);
 
   // Sync / pre-seed from initialPositionId
   useEffect(() => {
@@ -71,23 +86,61 @@ export function SequenceBuilderModal({
       }
     } else if (isOpen && !initialPositionId) {
       // Reset
-      setSteps([
-        { kind: 'source', tokenOut: { token: '', chain: 'ethereum', amount: 0, amountUsd: 0 } },
-      ]);
+      setSteps(createInitialSteps());
       setActiveStepIndex(0);
     }
   }, [isOpen, initialPositionId, positions]);
 
   // A stale failure from a previous attempt must not greet the next open.
   useEffect(() => {
-    if (isOpen) setExecuteError(null);
+    if (isOpen) {
+      setExecuteError(null);
+      setIsSheetOpen(false);
+    }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Sheet focus: in on open, back to the trigger on close (the trigger only
+  // re-mounts on the closing render, so restoring has to happen in an effect).
+  useEffect(() => {
+    if (isSheetOpen) sheetRef.current?.focus();
+    else if (wasSheetOpen.current) sheetTriggerRef.current?.focus();
+    wasSheetOpen.current = isSheetOpen;
+  }, [isSheetOpen]);
 
-  const handleStepFocus = (idx: number) => {
-    setActiveStepIndex(idx);
-  };
+  // Stable identities: these ride inside React Flow node data, so the canvas'
+  // node-graph memo re-derives only when the graph really changed and not on
+  // unrelated re-renders (opening the mobile sheet, an execute error landing).
+  const handleStepFocus = useCallback(
+    (idx: number) => {
+      setActiveStepIndex(idx);
+      // Below `lg` the SidePanel is not mounted until the sheet opens, so
+      // without this a node tap changes nothing the user can see.
+      if (!isDesktop) setIsSheetOpen(true);
+    },
+    [isDesktop],
+  );
+
+  const handleFocusPalette = useCallback(() => {
+    setActiveStepIndex(steps.length - 1);
+    setPanelFocusNonce((n) => n + 1);
+    if (!isDesktop) setIsSheetOpen(true);
+  }, [steps.length, isDesktop]);
+
+  const handleRemoveStep = useCallback(
+    (idx: number) => {
+      const next = removeStepAt(steps, idx);
+      if (next === steps) return;
+      setSteps(next);
+      // Focus follows the new tail when the removed step was at/before focus;
+      // an earlier step still under review keeps its form.
+      setActiveStepIndex((current) => (current >= idx ? next.length - 1 : current));
+      // The "x" that was just activated has unmounted with its own node.
+      setPanelFocusNonce((n) => n + 1);
+    },
+    [steps],
+  );
+
+  if (!isOpen) return null;
 
   // Truncates subsequent steps when a change occurs at idx
   const updateStepsAndTruncate = (idx: number, newStep: BuilderStep) => {
@@ -104,62 +157,27 @@ export function SequenceBuilderModal({
     updated.push({ kind: 'action-select', tokenIn: tokenOut });
     setSteps(updated);
     setActiveStepIndex(activeStepIndex + 1);
+    // The confirm button the user just pressed unmounts with its config card.
+    setPanelFocusNonce((n) => n + 1);
   };
 
   // Step event handlers
+  // SourceCard emits on every valid keystroke, so focus deliberately stays on
+  // the root while it is being edited (advancing would unmount the form
+  // mid-typing). The root's "+" port / the panel's "Choose next action" CTA
+  // move focus to the palette.
   const handleSourceSelect = (tokenOut: TokenState) => {
     const newStep: BuilderStep = { kind: 'source', tokenOut };
-    const updated = [newStep, { kind: 'action-select', tokenIn: tokenOut } as BuilderStep];
-    setSteps(updated);
-    setActiveStepIndex(1);
+    setSteps([newStep, { kind: 'action-select', tokenIn: tokenOut }]);
   };
 
   const handleActionSelect = (action: ActionType) => {
-    const currentStep = steps[activeStepIndex];
-    if (currentStep.kind !== 'action-select') return;
-
-    const tokenIn = currentStep.tokenIn;
-    let newStep: BuilderStep;
-
-    switch (action) {
-      case 'deposit':
-        newStep = { kind: 'deposit', tokenIn, destination: {} as DepositDestination };
-        break;
-      case 'repay':
-        newStep = { kind: 'repay', tokenIn, targetPositionId: '' };
-        break;
-      case 'withdraw':
-        newStep = {
-          kind: 'withdraw',
-          tokenIn,
-          sourcePositionId: tokenIn.sourcePositionId || '',
-          tokenOut: {} as TokenState,
-        };
-        break;
-      case 'repayAndWithdraw':
-        newStep = {
-          kind: 'repayAndWithdraw',
-          tokenIn,
-          targetPositionId: '',
-          tokenOut: {} as TokenState,
-        };
-        break;
-      case 'bridge':
-        newStep = {
-          kind: 'bridge',
-          tokenIn,
-          toChain: '' as ChainId,
-          bridgeId: '' as BridgeId,
-          feeUsd: 0,
-          tokenOut: {} as TokenState,
-        };
-        break;
-      case 'swap':
-        newStep = { kind: 'swap', tokenIn, toToken: '', feeUsd: 0, tokenOut: {} as TokenState };
-        break;
-    }
-
-    updateStepsAndTruncate(activeStepIndex, newStep);
+    const next = appendStepOfKind(steps, action);
+    if (next === steps) return;
+    setSteps(next);
+    setActiveStepIndex(next.length - 1);
+    // The palette row that was just activated unmounts with the palette.
+    setPanelFocusNonce((n) => n + 1);
   };
 
   const handleDepositSelect = (destination: DepositDestination) => {
@@ -232,13 +250,36 @@ export function SequenceBuilderModal({
     }
   };
 
+  const sidePanel = (
+    <SidePanel
+      steps={steps}
+      activeStepIndex={activeStepIndex}
+      userPositions={positions}
+      focusNonce={panelFocusNonce}
+      onFocusStep={handleStepFocus}
+      onFocusPalette={handleFocusPalette}
+      onAddAction={handleActionSelect}
+      onSourceSelect={handleSourceSelect}
+      onDepositSelect={handleDepositSelect}
+      onRepaySelect={handleRepaySelect}
+      onWithdrawConfirm={handleWithdrawConfirm}
+      onRepayAndWithdrawSelect={handleRepayAndWithdrawSelect}
+      onBridgeSelect={handleBridgeSelect}
+      onSwapSelect={handleSwapSelect}
+    />
+  );
+
+  // Same predicate SidePanel uses to pick palette-vs-form, spelled once.
+  const paletteMode = steps[activeStepIndex]?.kind === 'action-select';
+  const sheetLabel = paletteMode ? 'Add step' : 'Configure step';
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       eyebrow="Custom sequence"
       title="Build a Sequence"
-      size="xl"
+      size="2xl"
       footer={
         <div className="flex flex-col gap-3">
           {executeError && <WarningBanner message={executeError} variant="error" />}
@@ -248,108 +289,62 @@ export function SequenceBuilderModal({
             onExecute={handleExecute}
             isExecuting={isExecuting}
           />
+          {/* React Flow's own badge is hidden (`hideAttribution`), so the MIT
+              attribution is discharged here, where users can actually see it. */}
+          <p className="text-center text-[11px] text-verdant-text-muted">
+            Canvas by{' '}
+            <a
+              href="https://reactflow.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-verdant-text-primary"
+            >
+              React Flow
+            </a>
+          </p>
         </div>
       }
     >
-      {/* Steps Grid — single column on phones; the cards are a fixed 14rem
-          wide and cannot reflow narrower than that. */}
-      <div className="grid grid-cols-1 gap-6 gap-y-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {steps.map((step, idx) => {
-          const isActive = idx === activeStepIndex;
-          return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: builder steps have no stable id; a step's identity is its position in the pipeline (edits truncate the array from that index)
-            <div key={idx} className="relative flex justify-center">
-              {step.kind === 'source' && (
-                <SourceCard
-                  step={step}
-                  isActive={isActive}
-                  userPositions={positions}
-                  onSelect={handleSourceSelect}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
+      <div className="relative flex h-[clamp(420px,60dvh,640px)] gap-4">
+        <SequenceCanvas
+          className="min-w-0 flex-1"
+          steps={steps}
+          activeStepIndex={activeStepIndex}
+          onFocusStep={handleStepFocus}
+          onRemoveStep={handleRemoveStep}
+          onFocusPalette={handleFocusPalette}
+          onAddAction={handleActionSelect}
+        />
 
-              {step.kind === 'action-select' && (
-                <ActionSelectCard
-                  tokenIn={step.tokenIn}
-                  userPositions={positions}
-                  onSelect={handleActionSelect}
-                />
-              )}
-
-              {step.kind === 'deposit' && (
-                <DepositCard
-                  tokenIn={step.tokenIn}
-                  selectedDestination={step.destination.id ? step.destination : undefined}
-                  isActive={isActive}
-                  onSelect={handleDepositSelect}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
-
-              {step.kind === 'repay' && (
-                <RepayCard
-                  tokenIn={step.tokenIn}
-                  userPositions={positions}
-                  selectedPositionId={step.targetPositionId || undefined}
-                  isActive={isActive}
-                  onSelect={handleRepaySelect}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
-
-              {step.kind === 'repayAndWithdraw' && (
-                <RepayAndWithdrawCard
-                  tokenIn={step.tokenIn}
-                  userPositions={positions}
-                  selectedPositionId={step.targetPositionId || undefined}
-                  isActive={isActive}
-                  onSelect={handleRepayAndWithdrawSelect}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
-
-              {step.kind === 'bridge' && (
-                <BridgeCard
-                  tokenIn={step.tokenIn}
-                  selectedToChain={step.toChain || undefined}
-                  selectedBridgeId={step.bridgeId || undefined}
-                  selectedFeeUsd={step.feeUsd || undefined}
-                  isActive={isActive}
-                  onSelect={handleBridgeSelect}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
-
-              {step.kind === 'swap' && (
-                <SwapCard
-                  tokenIn={step.tokenIn}
-                  selectedToToken={step.toToken || undefined}
-                  selectedFeeUsd={step.feeUsd || undefined}
-                  isActive={isActive}
-                  onSelect={handleSwapSelect}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
-
-              {step.kind === 'withdraw' && (
-                <WithdrawCard
-                  tokenIn={step.tokenIn}
-                  isActive={isActive}
-                  onConfirm={handleWithdrawConfirm}
-                  onFocus={() => handleStepFocus(idx)}
-                />
-              )}
-
-              {/* Right arrow connector */}
-              {idx < steps.length - 1 && (
-                <span className="absolute -right-5 top-1/2 -translate-y-1/2 text-verdant-text-muted text-lg hidden sm:block pointer-events-none select-none">
-                  →
-                </span>
-              )}
+        {/* Persistent side panel from `lg` up; below it, a floating trigger and
+            an overlay sheet hosting the one and only SidePanel instance. */}
+        {isDesktop ? (
+          <aside className="flex w-80 shrink-0 flex-col overflow-hidden rounded-2xl border border-verdant-rule bg-verdant-surface">
+            {sidePanel}
+          </aside>
+        ) : isSheetOpen ? (
+          <section
+            ref={sheetRef}
+            tabIndex={-1}
+            aria-label={`${sheetLabel} panel`}
+            className="absolute inset-0 z-10 flex flex-col overflow-hidden rounded-2xl border border-verdant-rule bg-verdant-surface shadow-organic-xl focus:outline-none"
+          >
+            <div className="flex items-center justify-end border-b border-verdant-rule px-2 py-1">
+              <CloseButton label="Back to canvas" onClick={() => setIsSheetOpen(false)} />
             </div>
-          );
-        })}
+            <div className="min-h-0 flex-1">{sidePanel}</div>
+          </section>
+        ) : (
+          <button
+            ref={sheetTriggerRef}
+            type="button"
+            onClick={() => setIsSheetOpen(true)}
+            className="btn btn-primary absolute right-4 bottom-4 shadow-organic-lg"
+          >
+            <PlusIcon />
+            {sheetLabel}
+          </button>
+        )}
       </div>
     </Modal>
   );

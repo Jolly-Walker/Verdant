@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import type { Position } from '@/types/position';
 import {
   builderStepsToSequencePlan,
-  canAddMore,
   canSubmit,
   computeTokenDelta,
   getEligibleActions,
@@ -141,50 +140,6 @@ describe('Sequence Builder Logic', () => {
         },
       ];
       expect(canSubmit(steps)).toBe(true);
-    });
-  });
-
-  describe('canAddMore', () => {
-    it('should return false for terminal steps', () => {
-      const steps: BuilderStep[] = [
-        {
-          kind: 'source',
-          tokenOut: { token: 'USDC', chain: 'arbitrum', amount: 100, amountUsd: 100 },
-        },
-        {
-          kind: 'deposit',
-          tokenIn: { token: 'USDC', chain: 'arbitrum', amount: 100, amountUsd: 100 },
-          destination: {
-            id: 'aave-usdc-arb',
-            protocol: 'aave',
-            chain: 'arbitrum',
-            token: 'USDC',
-            apy: 0.044,
-            displayName: 'Aave V3 — USDC',
-            outputTokenSymbol: 'aUSDC',
-            apyType: 'variable',
-          } as DepositDestination,
-        },
-      ];
-      expect(canAddMore(steps)).toBe(false);
-    });
-
-    it('should return true for transit steps', () => {
-      const steps: BuilderStep[] = [
-        {
-          kind: 'source',
-          tokenOut: { token: 'USDC', chain: 'arbitrum', amount: 100, amountUsd: 100 },
-        },
-        {
-          kind: 'bridge',
-          tokenIn: { token: 'USDC', chain: 'arbitrum', amount: 100, amountUsd: 100 },
-          toChain: 'base',
-          bridgeId: 'across',
-          feeUsd: 1.5,
-          tokenOut: { token: 'USDC', chain: 'base', amount: 98.5, amountUsd: 98.5 },
-        },
-      ];
-      expect(canAddMore(steps)).toBe(true);
     });
   });
 

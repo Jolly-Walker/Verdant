@@ -2,6 +2,7 @@
 
 import type React from 'react';
 import { useEffect, useId, useRef } from 'react';
+import { CloseButton } from './CloseButton';
 
 interface ModalProps {
   isOpen: boolean;
@@ -9,16 +10,17 @@ interface ModalProps {
   title: string;
   /** Optional mono eyebrow line above the title (e.g. "Transaction sequence"). */
   eyebrow?: string;
-  size?: 'md' | 'lg' | 'xl';
+  size?: 'md' | 'lg' | 'xl' | '2xl';
   /** Sticky footer slot — keeps the primary CTA reachable inside the mobile sheet. */
   footer?: React.ReactNode;
   children: React.ReactNode;
 }
 
-const sizeMap: Record<string, string> = {
+const sizeMap: Record<NonNullable<ModalProps['size']>, string> = {
   md: 'sm:max-w-xl',
   lg: 'sm:max-w-2xl',
   xl: 'sm:max-w-5xl',
+  '2xl': 'sm:max-w-6xl',
 };
 
 /**
@@ -156,21 +158,7 @@ export function Modal({
               {title}
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-verdant-text-muted transition-colors hover:bg-verdant-paper-deep/60 hover:text-verdant-text-primary"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M6 6l12 12M18 6L6 18"
-                stroke="currentColor"
-                strokeWidth={2}
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
+          <CloseButton label="Close" onClick={onClose} />
         </header>
 
         <div

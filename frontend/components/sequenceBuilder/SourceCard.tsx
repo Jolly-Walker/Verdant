@@ -38,10 +38,20 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
     return p.id === selectedPositionId;
   });
 
-  // Synchronize internal state with step prop changes (e.g. pre-seeding)
+  // Synchronize internal state with step prop changes (e.g. pre-seeding).
   useEffect(() => {
     if (step.tokenOut.amount > 0) {
-      setAmountStr(step.tokenOut.amount.toString());
+      // Only re-seed when the step really carries a different number than the
+      // box does. The parent emits a fresh `step` object on every valid
+      // keystroke, and writing `amount.toString()` back unconditionally would
+      // eat a trailing separator mid-typing ("55." → 55 → "55", so "55.5"
+      // could never be typed). The functional form reads the current text
+      // without making the effect re-run on every keystroke.
+      setAmountStr((current) =>
+        Number.parseFloat(current) === step.tokenOut.amount
+          ? current
+          : step.tokenOut.amount.toString(),
+      );
     }
     if (step.tokenOut.sourcePositionId) {
       setSelectedPositionId(step.tokenOut.sourcePositionId);
