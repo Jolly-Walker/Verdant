@@ -1252,8 +1252,15 @@ components/
 │   ├── SequenceProgress.tsx
 │   └── SequenceComplete.tsx
 ├── sequenceBuilder/                # Freeform CUSTOM builder
-│   ├── SequenceBuilderModal.tsx
-│   ├── ActionSelectCard.tsx
+│   ├── SequenceBuilderModal.tsx    # Canvas + side panel; owns steps/activeStepIndex
+│   ├── canvas/                     # React Flow node canvas (@xyflow/react lives only here)
+│   │   ├── SequenceCanvas.tsx      # <ReactFlow> wrapper, dot grid, palette drag/drop
+│   │   ├── DepositNode.tsx         # Root "source of funds" card
+│   │   ├── StepNode.tsx            # Compact read-only summary card per step
+│   │   ├── SidePanel.tsx           # Palette ⇄ active step's config card
+│   │   ├── PalettePanel.tsx        # Filter chips + addable-action rows
+│   │   ├── PaletteRow.tsx          # One row: "+" button + drag source
+│   │   └── canvas.module.css       # React Flow theme hooks via theme()
 │   ├── SourceCard.tsx
 │   ├── BridgeCard.tsx
 │   ├── SwapCard.tsx                # 1inch same-chain swap step
@@ -1274,11 +1281,19 @@ components/
 └── ui/
     ├── Badge.tsx
     ├── Card.tsx
+    ├── CloseButton.tsx             # Shared dismiss control (Modal header, sheets)
+    ├── Modal.tsx                   # Dialog shell: focus trap, Escape, scroll lock
+    ├── PlusIcon.tsx                # Shared "+" glyph
     ├── Spinner.tsx
     ├── Tooltip.tsx
     ├── WarningBanner.tsx
     └── HealthFactor.tsx            # Colour-coded health factor display
 ```
+
+The sequence canvas is built on [React Flow](https://reactflow.dev) (`@xyflow/react`, MIT). Its
+in-canvas attribution badge is disabled via `proOptions.hideAttribution` because the canvas is
+rendered inside a focus-trapped modal, where an external link is a dialog-escaping tab stop; the
+credit lives here instead.
 
 ### 16.3 Dashboard Position Display
 
