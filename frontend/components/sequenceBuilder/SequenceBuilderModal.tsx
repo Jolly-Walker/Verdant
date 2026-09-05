@@ -110,14 +110,21 @@ export function SequenceBuilderModal({
   // Stable identities: these ride inside React Flow node data, so the canvas'
   // node-graph memo re-derives only when the graph really changed and not on
   // unrelated re-renders (opening the mobile sheet, an execute error landing).
-  const handleStepFocus = useCallback((idx: number) => {
-    setActiveStepIndex(idx);
-  }, []);
+  const handleStepFocus = useCallback(
+    (idx: number) => {
+      setActiveStepIndex(idx);
+      // Below `lg` the SidePanel is not mounted until the sheet opens, so
+      // without this a node tap changes nothing the user can see.
+      if (!isDesktop) setIsSheetOpen(true);
+    },
+    [isDesktop],
+  );
 
   const handleFocusPalette = useCallback(() => {
     setActiveStepIndex(steps.length - 1);
     setPanelFocusNonce((n) => n + 1);
-  }, [steps.length]);
+    if (!isDesktop) setIsSheetOpen(true);
+  }, [steps.length, isDesktop]);
 
   const handleRemoveStep = useCallback(
     (idx: number) => {
@@ -150,6 +157,8 @@ export function SequenceBuilderModal({
     updated.push({ kind: 'action-select', tokenIn: tokenOut });
     setSteps(updated);
     setActiveStepIndex(activeStepIndex + 1);
+    // The confirm button the user just pressed unmounts with its config card.
+    setPanelFocusNonce((n) => n + 1);
   };
 
   // Step event handlers
@@ -280,6 +289,19 @@ export function SequenceBuilderModal({
             onExecute={handleExecute}
             isExecuting={isExecuting}
           />
+          {/* React Flow's own badge is hidden (`hideAttribution`), so the MIT
+              attribution is discharged here, where users can actually see it. */}
+          <p className="text-center text-[11px] text-verdant-text-muted">
+            Canvas by{' '}
+            <a
+              href="https://reactflow.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-verdant-text-primary"
+            >
+              React Flow
+            </a>
+          </p>
         </div>
       }
     >

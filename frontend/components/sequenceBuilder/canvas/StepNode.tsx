@@ -87,7 +87,8 @@ export function CardFocusButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      aria-pressed={selected}
+      // Not a toggle: activating it makes this step the current one.
+      aria-current={selected ? 'step' : undefined}
       className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-verdant-moss focus-visible:ring-offset-2"
     />
   );

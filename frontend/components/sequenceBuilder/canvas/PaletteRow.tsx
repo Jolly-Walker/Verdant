@@ -7,6 +7,10 @@ import type { ActionType } from '@/lib/sequenceBuilder/types';
 
 interface PaletteRowProps {
   item: PaletteItem;
+  /** False whenever the trailing step is not an action-select — the row is
+   *  still legible, but it must not be a drag source for a step that cannot
+   *  be appended. */
+  isDraggable: boolean;
   onAdd: (kind: ActionType) => void;
 }
 
@@ -19,7 +23,7 @@ const GLYPHS: Record<ActionType, string> = {
   withdraw: '↑',
 };
 
-export function PaletteRow({ item, onAdd }: PaletteRowProps) {
+export function PaletteRow({ item, isDraggable, onAdd }: PaletteRowProps) {
   const handleDragStart = (e: React.DragEvent<HTMLLIElement>) => {
     e.dataTransfer.setData(ACTION_DRAG_MIME, item.action);
     e.dataTransfer.effectAllowed = 'move';
@@ -27,7 +31,7 @@ export function PaletteRow({ item, onAdd }: PaletteRowProps) {
 
   return (
     <li
-      draggable
+      draggable={isDraggable}
       onDragStart={handleDragStart}
       className="group flex cursor-grab items-center gap-3 rounded-xl border border-transparent py-1.5 pr-1 pl-2 transition-colors duration-150 hover:border-verdant-rule hover:bg-verdant-paper active:cursor-grabbing"
     >

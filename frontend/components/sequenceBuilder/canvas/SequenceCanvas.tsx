@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ACTION_DRAG_MIME,
   isActionType,
@@ -84,12 +84,16 @@ function FitOnGraphChange({ count }: { count: number }) {
   const { fitView } = useReactFlow();
   // Node measurement lands in the store after layout, so subscribe to the
   // measured sizes rather than guessing from `count` alone.
+  // A primitive hash, not a built string: this selector runs on *every* store
+  // commit (including each viewport frame of a pan or the fitView animation),
+  // so it must not allocate. `Object.is` on the number keeps re-renders at zero.
   const measuredKey = useStore((state) => {
-    let key = '';
+    let hash = 0;
     state.nodeLookup.forEach((node) => {
-      key += `${node.measured.width}x${node.measured.height}|`;
+      hash = (hash * 31 + (node.measured.width ?? 0)) % 1_000_003;
+      hash = (hash * 31 + (node.measured.height ?? 0)) % 1_000_003;
     });
-    return key;
+    return hash;
   });
 
   useEffect(() => {
@@ -159,10 +163,19 @@ export function SequenceCanvas({
   // inspecting the target, or the hint flickers mid-canvas.
   const dragDepth = useRef(0);
 
-  const endDrag = () => {
+  const endDrag = useCallback(() => {
     dragDepth.current = 0;
     setIsDragOver(false);
-  };
+  }, []);
+
+  // `dragend` fires on the drag *source* (a palette row living in the side
+  // panel), so it never reaches the canvas' own handlers — listen on the
+  // window. Without it an unpaired `dragenter` (a descendant unmounting
+  // mid-drag, some WebKit sequences) latches the ring on until the next drop.
+  useEffect(() => {
+    window.addEventListener('dragend', endDrag);
+    return () => window.removeEventListener('dragend', endDrag);
+  }, [endDrag]);
 
   const handleDragEnter = () => {
     dragDepth.current += 1;
@@ -190,7 +203,8 @@ export function SequenceCanvas({
   };
 
   return (
-    <div
+    <section
+      aria-label="Sequence canvas"
       className={`relative overflow-hidden rounded-2xl border transition-[box-shadow,border-color] duration-200 ${
         isDragOver ? 'border-verdant-moss ring-2 ring-verdant-moss/30' : 'border-verdant-rule'
       } ${className}`}
@@ -237,6 +251,6 @@ export function SequenceCanvas({
           </span>
         </div>
       )}
-    </div>
+    </section>
   );
 }

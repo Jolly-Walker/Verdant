@@ -450,6 +450,13 @@ describe('Sequence Builder Canvas', () => {
       const steps: BuilderStep[] = [source, actionSelect];
       expect(removeStepAt(steps, 1)).toBe(steps);
     });
+
+    it('truncates instead of re-deriving when the predecessor has no output token', () => {
+      // An unconfigured transit placeholder carries `{} as TokenState`.
+      const unconfiguredBridge: BuilderStep = { ...bridge, tokenOut: {} as TokenState };
+      const steps: BuilderStep[] = [source, unconfiguredBridge, deposit];
+      expect(removeStepAt(steps, 2)).toEqual([source, unconfiguredBridge]);
+    });
   });
 
   describe('summarizeStep', () => {

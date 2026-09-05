@@ -34,7 +34,7 @@
     "@solana/wallet-adapter-wallets": "^0.19.38",
     "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.100.10",
-    "@xyflow/react": "^12.11.6",
+    "@xyflow/react": "12.11.6",
     "drizzle-orm": "^0.45.2",
     "framer-motion": "^12.40.0",
     "near-api-js": "^7.2.0",

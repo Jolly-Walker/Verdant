@@ -198,7 +198,13 @@ export function removeStepAt(steps: BuilderStep[], idx: number): BuilderStep[] {
     case 'repayAndWithdraw':
     case 'bridge':
     case 'swap':
-      return [...truncated, { kind: 'action-select', tokenIn: prev.tokenOut }];
+      // Placeholders carry `{} as TokenState`, so a predecessor left unconfigured
+      // has no output to feed the palette. Unreachable via appendStepOfKind (a
+      // placeholder is always the tail), but this is an exported pure function:
+      // enforce the invariant rather than rely on call-site positioning.
+      return prev.tokenOut?.token
+        ? [...truncated, { kind: 'action-select', tokenIn: prev.tokenOut }]
+        : truncated;
     default:
       return truncated;
   }

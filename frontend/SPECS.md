@@ -1292,8 +1292,9 @@ components/
 
 The sequence canvas is built on [React Flow](https://reactflow.dev) (`@xyflow/react`, MIT). Its
 in-canvas attribution badge is disabled via `proOptions.hideAttribution` because the canvas is
-rendered inside a focus-trapped modal, where an external link is a dialog-escaping tab stop; the
-credit lives here instead.
+rendered inside a focus-trapped modal, where the badge's placement is a poor fit; the credit is
+carried instead by a muted "Canvas by React Flow" link in the builder modal's footer (visible to
+users, and inside the trap rather than escaping it), and repeated here.
 
 ### 16.3 Dashboard Position Display
 

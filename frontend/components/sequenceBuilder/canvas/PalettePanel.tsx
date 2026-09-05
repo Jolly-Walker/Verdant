@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   getPaletteItems,
+  isPaletteOpen,
   type PaletteFilter,
   visiblePaletteFilters,
 } from '@/lib/sequenceBuilder/canvas';
@@ -27,10 +28,15 @@ export function PalettePanel({ steps, userPositions, onAddAction }: PalettePanel
     getPaletteItems(steps, userPositions) ?? [],
     filter,
   );
+  const paletteOpen = isPaletteOpen(steps);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-wrap gap-2 px-4 pt-4">
+      {/* A labelled group so AT announces what the pressed chips filter.
+          `<fieldset>`/`<legend>` rather than role="group" — Biome's
+          useSemanticElements prefers the element over the ARIA role. */}
+      <fieldset className="flex flex-wrap gap-2 px-4 pt-4">
+        <legend className="sr-only">Filter actions</legend>
         {chips.map((chip) => (
           <button
             type="button"
@@ -46,7 +52,7 @@ export function PalettePanel({ steps, userPositions, onAddAction }: PalettePanel
             {chip.label}
           </button>
         ))}
-      </div>
+      </fieldset>
 
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="fl-eyebrow">Actions</span>
@@ -58,7 +64,12 @@ export function PalettePanel({ steps, userPositions, onAddAction }: PalettePanel
       {visible.length > 0 ? (
         <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           {visible.map((item) => (
-            <PaletteRow key={item.action} item={item} onAdd={onAddAction} />
+            <PaletteRow
+              key={item.action}
+              item={item}
+              isDraggable={paletteOpen}
+              onAdd={onAddAction}
+            />
           ))}
         </ul>
       ) : (
