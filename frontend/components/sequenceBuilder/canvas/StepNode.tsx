@@ -3,7 +3,8 @@
 import { Handle, type Node, type NodeProps, Position } from '@xyflow/react';
 import { TokenIcon } from '@/components/positions/TokenIcon';
 import { PlusIcon } from '@/components/ui/PlusIcon';
-import { summarizeStep } from '@/lib/sequenceBuilder/canvas';
+import { XIcon } from '@/components/ui/XIcon';
+import { NODE_WIDTH, summarizeStep } from '@/lib/sequenceBuilder/canvas';
 import type { BuilderStep } from '@/lib/sequenceBuilder/types';
 
 /**
@@ -21,14 +22,16 @@ export type CanvasNodeData = {
   onFocusPalette: () => void;
 };
 
-export type StepFlowNode = Node<CanvasNodeData, 'step'>;
+type StepFlowNode = Node<CanvasNodeData, 'step'>;
 
-/** Invisible edge anchors; connections are disabled at the ReactFlow level. */
+/** Edge anchors only — connections are disabled at the ReactFlow level, so they stay invisible. */
+const HIDDEN_HANDLE = { opacity: 0 };
+
 export function NodeHandles() {
   return (
     <>
-      <Handle type="target" position={Position.Left} isConnectable={false} />
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      <Handle type="target" position={Position.Left} isConnectable={false} style={HIDDEN_HANDLE} />
+      <Handle type="source" position={Position.Right} isConnectable={false} style={HIDDEN_HANDLE} />
     </>
   );
 }
@@ -43,7 +46,7 @@ export function AddPort({ onClick }: { onClick: () => void }) {
         onClick();
       }}
       aria-label="Add step"
-      className="pointer-events-auto absolute top-1/2 -right-6 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-verdant-moss focus-visible:ring-offset-2"
+      className="pointer-events-auto absolute top-1/2 -right-6 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full"
     >
       <span className="grid h-7 w-7 place-items-center rounded-full bg-verdant-moss text-white shadow-organic transition-transform duration-150 hover:scale-110">
         <PlusIcon size={14} />
@@ -58,13 +61,19 @@ export function AddPort({ onClick }: { onClick: () => void }) {
  * `NodeWrapper`'s `hasPointerEvents`) — all of which this read-only canvas
  * deliberately disables. `pointer-events-auto` re-enables input for the card
  * and its buttons without handing React Flow selection semantics we don't want.
+ * The width is the layout constant the lib derives node spacing from.
  */
-export function cardFrame(selected: boolean): string {
-  return `pointer-events-auto relative w-64 rounded-2xl border bg-verdant-surface p-4 shadow-organic transition-[border-color,box-shadow] duration-200 ${
-    selected
-      ? 'border-verdant-moss ring-2 ring-verdant-moss/20'
-      : 'border-verdant-rule hover:border-verdant-rule-strong'
-  }`;
+const CARD_STYLE = { width: NODE_WIDTH };
+
+export function cardFrame(selected: boolean) {
+  return {
+    className: `pointer-events-auto relative rounded-2xl border bg-verdant-surface p-4 shadow-organic transition-[border-color,box-shadow] duration-200 ${
+      selected
+        ? 'border-verdant-moss ring-2 ring-verdant-moss/20'
+        : 'border-verdant-rule hover:border-verdant-rule-strong'
+    }`,
+    style: CARD_STYLE,
+  };
 }
 
 /**
@@ -89,7 +98,7 @@ export function CardFocusButton({
       aria-label={label}
       // Not a toggle: activating it makes this step the current one.
       aria-current={selected ? 'step' : undefined}
-      className="absolute inset-0 rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-verdant-moss focus-visible:ring-offset-2"
+      className="absolute inset-0 rounded-2xl"
     />
   );
 }
@@ -97,17 +106,12 @@ export function CardFocusButton({
 /** Compact, read-only summary card for every non-root step. */
 export function StepNode({ data }: NodeProps<StepFlowNode>) {
   // The root `source` step is DepositNode's; action-select is never a node.
-  // Narrowing them out here is also what lets `tokenIn` be read unconditionally.
   if (data.step.kind === 'source' || data.step.kind === 'action-select') return null;
 
   const summary = summarizeStep(data.step);
-  if (!summary) return null;
-
-  const tokenSymbol = data.step.tokenIn.token;
-  const configuring = summary.chipValue === '';
 
   return (
-    <div className={cardFrame(data.selected)}>
+    <div {...cardFrame(data.selected)}>
       <CardFocusButton
         label={`Configure step ${data.index + 1}: ${summary.title}`}
         selected={data.selected}
@@ -116,14 +120,14 @@ export function StepNode({ data }: NodeProps<StepFlowNode>) {
 
       <div className="pointer-events-none relative flex flex-col gap-3">
         <div className="flex items-start gap-3 pr-6">
-          <TokenIcon symbol={tokenSymbol} className="h-9 w-9 shrink-0" />
+          <TokenIcon symbol={data.step.tokenIn.token} className="h-9 w-9 shrink-0" />
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-verdant-text-primary">
               {summary.title}
             </div>
             <div
               className={`truncate text-xs ${
-                configuring ? 'italic text-verdant-teak' : 'text-verdant-text-muted'
+                summary.configuring ? 'italic text-verdant-teak' : 'text-verdant-text-muted'
               }`}
             >
               {summary.subline}
@@ -137,13 +141,13 @@ export function StepNode({ data }: NodeProps<StepFlowNode>) {
           </div>
         )}
 
-        {summary.chipValue ? (
-          <div className="self-start rounded-lg bg-verdant-pine px-2.5 py-1 font-mono text-xs tabular-nums text-verdant-glacial">
-            {summary.chipValue}
-          </div>
-        ) : (
+        {summary.configuring ? (
           <div className="self-start rounded-lg border border-dashed border-verdant-rule-strong px-2.5 py-1 font-mono text-[11px] text-verdant-text-muted">
             Awaiting details
+          </div>
+        ) : (
+          <div className="self-start rounded-lg bg-verdant-pine px-2.5 py-1 font-mono text-xs tabular-nums text-verdant-glacial">
+            {summary.chipValue}
           </div>
         )}
       </div>
@@ -155,17 +159,10 @@ export function StepNode({ data }: NodeProps<StepFlowNode>) {
           data.onRemove(data.index);
         }}
         aria-label="Remove step"
-        className="absolute -top-2 -right-2 grid h-11 w-11 place-items-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-verdant-loss focus-visible:ring-offset-2"
+        className="absolute -top-2 -right-2 grid h-11 w-11 place-items-center rounded-full focus-visible:outline-verdant-loss"
       >
         <span className="grid h-6 w-6 place-items-center rounded-full border border-verdant-rule bg-verdant-surface text-verdant-text-muted shadow-organic transition-colors duration-150 hover:border-verdant-loss hover:text-verdant-loss">
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              d="M6 6l12 12M18 6L6 18"
-              stroke="currentColor"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-            />
-          </svg>
+          <XIcon size={11} strokeWidth={2.5} />
         </span>
       </button>
 

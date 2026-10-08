@@ -1282,11 +1282,13 @@ components/
     ├── Badge.tsx
     ├── Card.tsx
     ├── CloseButton.tsx             # Shared dismiss control (Modal header, sheets)
+    ├── FilterChip.tsx              # Toggle-style aria-pressed filter chip (positions, palette)
     ├── Modal.tsx                   # Dialog shell: focus trap, Escape, scroll lock
     ├── PlusIcon.tsx                # Shared "+" glyph
     ├── Spinner.tsx
     ├── Tooltip.tsx
     ├── WarningBanner.tsx
+    ├── XIcon.tsx                   # Shared "x" glyph
     └── HealthFactor.tsx            # Colour-coded health factor display
 ```
 

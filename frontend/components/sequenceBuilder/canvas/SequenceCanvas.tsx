@@ -9,6 +9,7 @@ import {
   type EdgeProps,
   type Node as FlowNode,
   getBezierPath,
+  type NodeOrigin,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -17,6 +18,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import {
   ACTION_DRAG_MIME,
   isActionType,
@@ -71,6 +73,7 @@ function LabeledEdge({
 const nodeTypes = { step: StepNode, deposit: DepositNode };
 const edgeTypes = { labeled: LabeledEdge };
 const FIT_VIEW_OPTIONS = { padding: 0.3, maxZoom: 1 };
+const NODE_ORIGIN: NodeOrigin = [0, 0.5];
 // The attribution link is an external, dialog-escaping tab stop inside a modal
 // with a focus trap; React Flow is credited in SPECS §16.2 instead.
 const PRO_OPTIONS = { hideAttribution: true };
@@ -80,10 +83,12 @@ const PRO_OPTIONS = { hideAttribution: true };
  * removed, but also a card that grew (placeholder → metric row → chip) without
  * changing the count. Must live under ReactFlowProvider.
  */
-function FitOnGraphChange({ count }: { count: number }) {
+function FitOnGraphChange() {
   const { fitView } = useReactFlow();
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   // Node measurement lands in the store after layout, so subscribe to the
-  // measured sizes rather than guessing from `count` alone.
+  // measured sizes rather than the node count: adding or removing a node
+  // changes the hash too, since the lookup is rebuilt on every nodes change.
   // A primitive hash, not a built string: this selector runs on *every* store
   // commit (including each viewport frame of a pan or the fitView animation),
   // so it must not allocate. `Object.is` on the number keeps re-renders at zero.
@@ -97,13 +102,14 @@ function FitOnGraphChange({ count }: { count: number }) {
   });
 
   useEffect(() => {
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    // Nothing measured yet: the `fitView` prop owns the initial fit.
+    if (measuredKey === 0) return;
     // Defer a frame so freshly mounted nodes are measured before fitting.
     const frame = requestAnimationFrame(() => {
-      void fitView({ ...FIT_VIEW_OPTIONS, duration: reduce ? 0 : 200 });
+      void fitView({ ...FIT_VIEW_OPTIONS, duration: reduceMotion ? 0 : 200 });
     });
     return () => cancelAnimationFrame(frame);
-  }, [count, measuredKey, fitView]);
+  }, [measuredKey, reduceMotion, fitView]);
   return null;
 }
 
@@ -135,7 +141,7 @@ export function SequenceCanvas({
     const nodes: CanvasFlowNode[] = graph.nodes.map((n) => ({
       id: n.id,
       type: n.isRoot ? 'deposit' : 'step',
-      position: { x: n.x, y: n.y },
+      position: n.position,
       draggable: false,
       selectable: false,
       data: {
@@ -237,11 +243,11 @@ export function SequenceCanvas({
           preventScrolling={false}
           zoomOnDoubleClick={false}
           deleteKeyCode={null}
-          nodeOrigin={[0, 0.5]}
+          nodeOrigin={NODE_ORIGIN}
           proOptions={PRO_OPTIONS}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
-          <FitOnGraphChange count={nodes.length} />
+          <FitOnGraphChange />
         </ReactFlow>
       </ReactFlowProvider>
       {isDragOver && (

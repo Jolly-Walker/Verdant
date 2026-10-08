@@ -9,52 +9,47 @@ import { formatCompactUsd, formatPercent, formatToken, formatUsd } from '@/lib/u
 import type { Position } from '@/types/position';
 import type { BridgeId, ChainId } from '@/types/shared';
 import { getEligibleActions } from './logic';
-import type { ActionType, BuilderStep, DepositDestination, TokenState } from './types';
+import type { ActionStep, ActionType, BuilderStep, DepositDestination, TokenState } from './types';
 
 // ---------------------------------------------------------------------------
 // Palette
 // ---------------------------------------------------------------------------
 
-export const PALETTE_METADATA: Record<ActionType, { label: string; description: string }> = {
-  deposit: {
-    label: 'Deposit',
-    description: 'Earn yield in a protocol',
-  },
-  repay: {
-    label: 'Repay',
-    description: 'Pay down existing debt',
-  },
+/** The one per-action table: label, palette blurb, and the row glyph. */
+export const PALETTE_METADATA: Record<
+  ActionType,
+  { label: string; description: string; glyph: string }
+> = {
+  deposit: { label: 'Deposit', description: 'Earn yield in a protocol', glyph: '↓' },
+  repay: { label: 'Repay', description: 'Pay down existing debt', glyph: '↩' },
   repayAndWithdraw: {
     label: 'Repay & Withdraw',
     description: 'Repay debt, free collateral',
+    glyph: '↹',
   },
-  bridge: {
-    label: 'Bridge',
-    description: 'Move to another chain',
-  },
-  swap: {
-    label: 'Swap',
-    description: 'Exchange for another token',
-  },
-  withdraw: {
-    label: 'Withdraw',
-    description: 'Exit protocol position',
-  },
+  bridge: { label: 'Bridge', description: 'Move to another chain', glyph: '⇄' },
+  swap: { label: 'Swap', description: 'Exchange for another token', glyph: '⇅' },
+  withdraw: { label: 'Withdraw', description: 'Exit protocol position', glyph: '↑' },
 };
 
 export type PaletteFilter = 'all' | ActionType;
 
-export const PALETTE_FILTERS: Array<{ id: PaletteFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'deposit', label: 'Deposit' },
-  { id: 'bridge', label: 'Bridge' },
-  { id: 'swap', label: 'Swap' },
-  { id: 'repay', label: 'Repay' },
-  { id: 'withdraw', label: 'Withdraw' },
-  { id: 'repayAndWithdraw', label: 'Repay & Withdraw' },
+/** Chip order differs from the metadata's key order: the common actions lead. */
+const CHIP_ORDER: ActionType[] = [
+  'deposit',
+  'bridge',
+  'swap',
+  'repay',
+  'withdraw',
+  'repayAndWithdraw',
 ];
 
-export type PaletteItem = { action: ActionType; label: string; description: string };
+const PALETTE_FILTERS: Array<{ id: PaletteFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  ...CHIP_ORDER.map((id) => ({ id, label: PALETTE_METADATA[id].label })),
+];
+
+export type PaletteItem = { action: ActionType } & (typeof PALETTE_METADATA)[ActionType];
 
 /** dataTransfer MIME type used when a palette row is dragged onto the canvas. */
 export const ACTION_DRAG_MIME = 'application/x-verdant-action';
@@ -68,26 +63,20 @@ export function isPaletteOpen(steps: BuilderStep[]): boolean {
   return steps.length > 0 && steps[steps.length - 1].kind === 'action-select';
 }
 
-/** Addable actions for the trailing action-select, or `null` when the palette is closed. */
-export function getPaletteItems(
-  steps: BuilderStep[],
-  userPositions: Position[],
-): PaletteItem[] | null {
-  // Doubles as the TypeScript narrowing `isPaletteOpen` cannot express.
-  const trailing = steps[steps.length - 1];
-  if (trailing?.kind !== 'action-select') return null;
-  return getEligibleActions(trailing.tokenIn, userPositions).map((action) => ({
+/** The step the side panel is showing; a stale index falls back to the tail. */
+export function activeStep(steps: BuilderStep[], activeStepIndex: number): BuilderStep {
+  return steps[activeStepIndex] ?? steps[steps.length - 1];
+}
+
+/** Addable actions for the token an open palette is acting on. */
+export function getPaletteItems(tokenIn: TokenState, userPositions: Position[]): PaletteItem[] {
+  return getEligibleActions(tokenIn, userPositions).map((action) => ({
     action,
     ...PALETTE_METADATA[action],
   }));
 }
 
-function filterPaletteItems(items: PaletteItem[], filter: PaletteFilter): PaletteItem[] {
-  if (filter === 'all') return items;
-  return items.filter((item) => item.action === filter);
-}
-
-export type PaletteView = {
+type PaletteView = {
   /** Only the chips whose kind is actually addable right now (plus "All"). */
   chips: Array<{ id: PaletteFilter; label: string }>;
   /** `filter`, or `'all'` when the requested chip is no longer offered. */
@@ -106,12 +95,61 @@ export function visiblePaletteFilters(items: PaletteItem[], filter: PaletteFilte
     (f) => f.id === 'all' || items.some((i) => i.action === f.id),
   );
   const effectiveFilter = chips.some((c) => c.id === filter) ? filter : 'all';
-  return { chips, effectiveFilter, visible: filterPaletteItems(items, effectiveFilter) };
+  const visible =
+    effectiveFilter === 'all' ? items : items.filter((item) => item.action === effectiveFilter);
+  return { chips, effectiveFilter, visible };
+}
+
+// ---------------------------------------------------------------------------
+// Step predicates
+// ---------------------------------------------------------------------------
+
+/**
+ * The output token a successor would act on, or `null` for terminal kinds
+ * (deposit/repay) and for anything still unconfigured. Placeholders carry
+ * `{} as TokenState`, so "has a token symbol" is the configured test.
+ */
+export function stepOutputToken(step: BuilderStep): TokenState | null {
+  return 'tokenOut' in step && step.tokenOut.token ? step.tokenOut : null;
+}
+
+/** True once the per-kind config card has filled the placeholder in. */
+export function isStepConfigured(step: ActionStep): boolean {
+  switch (step.kind) {
+    case 'deposit':
+      return Boolean(step.destination.id);
+    case 'repay':
+      return Boolean(step.targetPositionId);
+    case 'withdraw':
+      return stepOutputToken(step) !== null;
+    case 'repayAndWithdraw':
+      return Boolean(step.targetPositionId) && stepOutputToken(step) !== null;
+    case 'bridge':
+      return Boolean(step.toChain) && stepOutputToken(step) !== null;
+    case 'swap':
+      return Boolean(step.toToken) && stepOutputToken(step) !== null;
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Step mutations
 // ---------------------------------------------------------------------------
+
+/** Replaces `steps[idx]` and drops everything after it: a change invalidates its successors. */
+export function replaceStepAt(steps: BuilderStep[], idx: number, step: BuilderStep): BuilderStep[] {
+  return [...steps.slice(0, idx), step];
+}
+
+/**
+ * `replaceStepAt`, then reopens the palette on the step's output token. A
+ * step with nothing to act on (terminal, or still a placeholder) is committed
+ * as the new tail instead — this is the only place an action-select is built.
+ */
+export function commitStep(steps: BuilderStep[], idx: number, step: BuilderStep): BuilderStep[] {
+  const tokenIn = stepOutputToken(step);
+  const updated = replaceStepAt(steps, idx, step);
+  return tokenIn ? [...updated, { kind: 'action-select', tokenIn }] : updated;
+}
 
 /**
  * Replaces the trailing action-select with a fresh placeholder of `action`.
@@ -173,83 +211,53 @@ export function appendStepOfKind(steps: BuilderStep[], action: ActionType): Buil
       break;
   }
 
-  const updated = steps.slice(0, steps.length - 1);
-  updated.push(newStep);
-  return updated;
+  return replaceStepAt(steps, steps.length - 1, newStep);
 }
 
 /**
- * Removes `steps[idx]` and everything after it. When the exposed predecessor
- * still has an output token to act on (source or a transit step), a fresh
- * action-select is re-derived from it so the palette reopens; a terminal
- * predecessor (deposit/repay) is already submittable and gets a plain truncation.
+ * Removes `steps[idx]` and everything after it by re-committing the exposed
+ * predecessor: when it still has an output token the palette reopens on it,
+ * otherwise (terminal or unconfigured) the pipeline is simply truncated.
  * Root (idx 0), out-of-range, and action-select targets are no-ops.
  */
 export function removeStepAt(steps: BuilderStep[], idx: number): BuilderStep[] {
   if (idx <= 0 || idx >= steps.length) return steps;
   if (steps[idx].kind === 'action-select') return steps;
-
-  const truncated = steps.slice(0, idx);
-  const prev = truncated[truncated.length - 1];
-
-  switch (prev.kind) {
-    case 'source':
-    case 'withdraw':
-    case 'repayAndWithdraw':
-    case 'bridge':
-    case 'swap':
-      // Placeholders carry `{} as TokenState`, so a predecessor left unconfigured
-      // has no output to feed the palette. Unreachable via appendStepOfKind (a
-      // placeholder is always the tail), but this is an exported pure function:
-      // enforce the invariant rather than rely on call-site positioning.
-      return prev.tokenOut?.token
-        ? [...truncated, { kind: 'action-select', tokenIn: prev.tokenOut }]
-        : truncated;
-    default:
-      return truncated;
-  }
+  return commitStep(steps, idx - 1, steps[idx - 1]);
 }
 
 // ---------------------------------------------------------------------------
 // Graph
 // ---------------------------------------------------------------------------
 
-export type GraphNode = {
+type GraphNode = {
   id: string;
   index: number;
   step: BuilderStep;
-  x: number;
-  y: number;
+  position: { x: number; y: number };
   isRoot: boolean;
   selected: boolean;
 };
 
-export type GraphEdge = { id: string; source: string; target: string; label: string };
+type GraphEdge = { id: string; source: string; target: string; label: string };
 
-export const NODE_SPACING_X = 360;
-export const NODE_Y = 0;
-
-/** Deterministic left-to-right placement — the sole source of truth for node position. */
-export function layoutPosition(index: number): { x: number; y: number } {
-  return { x: index * NODE_SPACING_X, y: NODE_Y };
-}
+/** Card width in px — the node components apply it, so the spacing below is derived from it. */
+export const NODE_WIDTH = 256;
+/** Room between two cards for the edge's token-amount pill. */
+const NODE_GAP = 104;
+export const NODE_SPACING_X = NODE_WIDTH + NODE_GAP;
 
 function formatTokenAmount(token: TokenState | undefined): string {
   if (!token?.token) return '';
   return `${formatToken(token.amount)} ${token.token}`;
 }
 
-/** The asset flowing INTO `step`, e.g. "1,000 USDC". Empty for the root. */
-export function edgeLabelForStep(step: BuilderStep): string {
-  if (step.kind === 'source') return '';
-  return formatTokenAmount(step.tokenIn);
-}
-
 /**
- * Materializes every non-action-select step as a node (id `step-${index}`) and
- * connects consecutive materialized nodes. Exactly one node — the one at
- * `activeStepIndex` — is `selected`; action-select itself is never a node (the
- * "+" port on the last real node covers that role).
+ * Materializes every non-action-select step as a node (id `step-${index}`)
+ * laid out left-to-right, and connects consecutive nodes with an edge labelled
+ * by the asset flowing into the target ("1,000 USDC"). Exactly one node — the
+ * one at `activeStepIndex` — is `selected`; action-select itself is never a
+ * node (the "+" port on the last real node covers that role).
  */
 export function stepsToGraph(
   steps: BuilderStep[],
@@ -258,13 +266,11 @@ export function stepsToGraph(
   const nodes: GraphNode[] = [];
   steps.forEach((step, index) => {
     if (step.kind === 'action-select') return;
-    const { x, y } = layoutPosition(nodes.length);
     nodes.push({
       id: `step-${index}`,
       index,
       step,
-      x,
-      y,
+      position: { x: nodes.length * NODE_SPACING_X, y: 0 },
       isRoot: index === 0,
       selected: index === activeStepIndex,
     });
@@ -278,7 +284,8 @@ export function stepsToGraph(
       id: `edge-${source.index}-${target.index}`,
       source: source.id,
       target: target.id,
-      label: edgeLabelForStep(target.step),
+      // Narrowing only: a target is never the root, so it always has a tokenIn.
+      label: target.step.kind === 'source' ? '' : formatTokenAmount(target.step.tokenIn),
     });
   }
 
@@ -294,88 +301,64 @@ export type StepSummary = {
   subline: string;
   metric: string;
   chipValue: string;
+  /** True while the step is still a placeholder awaiting its config card. */
+  configuring: boolean;
 };
 
-const CONFIGURING = 'Configuring…';
-
-function incomplete(title: string): StepSummary {
-  return { title, subline: CONFIGURING, metric: '', chipValue: '' };
-}
-
 /**
- * Derives the compact-card content for a materialized step purely from fields
- * already on the step — no fetch. Returns `null` for the two kinds that never
- * render a StepNode (action-select is never a card; the root `source` step is
- * DepositNode's job) and a safe "Configuring…" shape while a step is still a
- * placeholder.
+ * Derives the compact-card content for an action step purely from fields
+ * already on the step — no fetch. A placeholder yields a safe "Configuring…"
+ * shape until its config card fills it in.
  */
-export function summarizeStep(step: BuilderStep): StepSummary | null {
-  switch (step.kind) {
-    case 'action-select':
-    case 'source':
-      return null;
+export function summarizeStep(step: ActionStep): StepSummary {
+  const label = PALETTE_METADATA[step.kind].label;
+  if (!isStepConfigured(step)) {
+    return { title: label, subline: 'Configuring…', metric: '', chipValue: '', configuring: true };
+  }
+  const base = { subline: label, configuring: false };
 
-    case 'deposit': {
-      const dest = step.destination;
-      if (!dest?.id) return incomplete(PALETTE_METADATA.deposit.label);
+  switch (step.kind) {
+    case 'deposit':
       return {
-        title: dest.displayName,
-        subline: PALETTE_METADATA.deposit.label,
-        metric: `APY ${formatPercent(dest.apy)} · TVL ${formatCompactUsd(dest.tvlUsd)}`,
+        ...base,
+        title: step.destination.displayName,
+        metric: `APY ${formatPercent(step.destination.apy)} · TVL ${formatCompactUsd(step.destination.tvlUsd)}`,
         chipValue: formatTokenAmount(step.tokenIn),
       };
-    }
-
-    case 'repay': {
-      if (!step.targetPositionId) return incomplete(PALETTE_METADATA.repay.label);
+    case 'repay':
       return {
+        ...base,
         title: `Repay ${step.tokenIn.token}`,
-        subline: PALETTE_METADATA.repay.label,
         metric: getChainDisplayName(step.tokenIn.chain),
         chipValue: formatTokenAmount(step.tokenIn),
       };
-    }
-
-    case 'withdraw': {
-      if (!step.tokenOut?.token) return incomplete(PALETTE_METADATA.withdraw.label);
+    case 'withdraw':
       return {
+        ...base,
         title: `Withdraw ${step.tokenIn.token}`,
-        subline: PALETTE_METADATA.withdraw.label,
         metric: getChainDisplayName(step.tokenOut.chain),
         chipValue: formatTokenAmount(step.tokenOut),
       };
-    }
-
-    case 'repayAndWithdraw': {
-      if (!step.targetPositionId || !step.tokenOut?.token) {
-        return incomplete(PALETTE_METADATA.repayAndWithdraw.label);
-      }
+    case 'repayAndWithdraw':
       return {
+        ...base,
         title: `Repay ${step.tokenIn.token} → ${step.tokenOut.token}`,
-        subline: PALETTE_METADATA.repayAndWithdraw.label,
         metric: getChainDisplayName(step.tokenOut.chain),
         chipValue: formatTokenAmount(step.tokenOut),
       };
-    }
-
-    case 'bridge': {
-      if (!step.toChain || !step.tokenOut?.token) return incomplete(PALETTE_METADATA.bridge.label);
+    case 'bridge':
       return {
+        ...base,
         title: `→ ${getChainDisplayName(step.toChain)}`,
-        subline: PALETTE_METADATA.bridge.label,
         metric: `Fee ${formatUsd(step.feeUsd)} · via ${step.bridgeId}`,
         chipValue: formatTokenAmount(step.tokenOut),
       };
-    }
-
-    case 'swap': {
-      if (!step.toToken || !step.tokenOut?.token) return incomplete(PALETTE_METADATA.swap.label);
+    case 'swap':
       return {
+        ...base,
         title: `${step.tokenIn.token} → ${step.toToken}`,
-        subline: PALETTE_METADATA.swap.label,
         metric: `Fee ${formatUsd(step.feeUsd)}`,
         chipValue: formatTokenAmount(step.tokenOut),
       };
-    }
   }
 }

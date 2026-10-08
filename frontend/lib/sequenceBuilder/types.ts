@@ -56,3 +56,6 @@ export type BuilderStep =
       tokenOut: TokenState;
     }
   | { kind: 'swap'; tokenIn: TokenState; toToken: string; feeUsd: number; tokenOut: TokenState };
+
+/** A step the user configures via a card — everything but the root and the pending action-select. */
+export type ActionStep = Exclude<BuilderStep, { kind: 'source' | 'action-select' }>;

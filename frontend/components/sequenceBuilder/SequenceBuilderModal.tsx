@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CloseButton } from '@/components/ui/CloseButton';
@@ -11,7 +12,13 @@ import { usePositions } from '@/hooks/usePositions';
 import { useSequencer } from '@/hooks/useSequencer';
 import { useWallet } from '@/hooks/useWallet';
 import { DEMO_WALLET_ADDRESS } from '@/lib/demo/wallet';
-import { appendStepOfKind, removeStepAt } from '@/lib/sequenceBuilder/canvas';
+import {
+  activeStep,
+  appendStepOfKind,
+  commitStep,
+  removeStepAt,
+  replaceStepAt,
+} from '@/lib/sequenceBuilder/canvas';
 import { builderStepsToSequencePlan, canSubmit } from '@/lib/sequenceBuilder/logic';
 import type {
   ActionType,
@@ -20,9 +27,27 @@ import type {
   TokenState,
 } from '@/lib/sequenceBuilder/types';
 import type { BridgeId, ChainId } from '@/types/shared';
-import { SequenceCanvas } from './canvas/SequenceCanvas';
 import { SidePanel } from './canvas/SidePanel';
 import { SummaryBar } from './SummaryBar';
+
+// `@xyflow/react` is ~90 KB gzipped and only the open builder needs it; the
+// dashboard mounts this modal (closed) on every load, so the canvas chunk is
+// split out and fetched the first time the modal actually renders. The
+// placeholder reserves the canvas' frame so the layout does not jump.
+const CANVAS_LAYOUT = 'min-w-0 flex-1';
+
+const SequenceCanvas = dynamic(
+  () => import('./canvas/SequenceCanvas').then((m) => m.SequenceCanvas),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className={`${CANVAS_LAYOUT} rounded-2xl border border-verdant-rule`}
+        aria-hidden="true"
+      />
+    ),
+  },
+);
 
 interface SequenceBuilderModalProps {
   isOpen: boolean;
@@ -78,10 +103,7 @@ export function SequenceBuilderModal({
           sourcePositionId: pos.id,
           positionType: pos.positionType === 'supply' ? 'supply' : 'wallet',
         };
-        setSteps([
-          { kind: 'source', tokenOut },
-          { kind: 'action-select', tokenIn: tokenOut },
-        ]);
+        setSteps(commitStep([], 0, { kind: 'source', tokenOut }));
         setActiveStepIndex(1);
       }
     } else if (isOpen && !initialPositionId) {
@@ -142,21 +164,12 @@ export function SequenceBuilderModal({
 
   if (!isOpen) return null;
 
-  // Truncates subsequent steps when a change occurs at idx
-  const updateStepsAndTruncate = (idx: number, newStep: BuilderStep) => {
-    const updated = steps.slice(0, idx + 1);
-    updated[idx] = newStep;
+  // Commits the active step, reopens the palette on its output token, and
+  // advances focus to it.
+  const commitStepAndAdvance = (updatedStep: BuilderStep) => {
+    const updated = commitStep(steps, activeStepIndex, updatedStep);
     setSteps(updated);
-  };
-
-  // Commits the active step, appends a fresh action-select fed by its output
-  // token, and advances focus to it.
-  const commitStepAndAdvance = (updatedStep: BuilderStep, tokenOut: TokenState) => {
-    const updated = steps.slice(0, activeStepIndex + 1);
-    updated[activeStepIndex] = updatedStep;
-    updated.push({ kind: 'action-select', tokenIn: tokenOut });
-    setSteps(updated);
-    setActiveStepIndex(activeStepIndex + 1);
+    setActiveStepIndex(updated.length - 1);
     // The confirm button the user just pressed unmounts with its config card.
     setPanelFocusNonce((n) => n + 1);
   };
@@ -167,8 +180,7 @@ export function SequenceBuilderModal({
   // mid-typing). The root's "+" port / the panel's "Choose next action" CTA
   // move focus to the palette.
   const handleSourceSelect = (tokenOut: TokenState) => {
-    const newStep: BuilderStep = { kind: 'source', tokenOut };
-    setSteps([newStep, { kind: 'action-select', tokenIn: tokenOut }]);
+    setSteps(commitStep([], 0, { kind: 'source', tokenOut }));
   };
 
   const handleActionSelect = (action: ActionType) => {
@@ -184,30 +196,28 @@ export function SequenceBuilderModal({
     const currentStep = steps[activeStepIndex];
     if (currentStep.kind !== 'deposit') return;
 
-    const updatedStep: BuilderStep = { ...currentStep, destination };
-    updateStepsAndTruncate(activeStepIndex, updatedStep);
+    setSteps(replaceStepAt(steps, activeStepIndex, { ...currentStep, destination }));
   };
 
   const handleRepaySelect = (targetPositionId: string) => {
     const currentStep = steps[activeStepIndex];
     if (currentStep.kind !== 'repay') return;
 
-    const updatedStep: BuilderStep = { ...currentStep, targetPositionId };
-    updateStepsAndTruncate(activeStepIndex, updatedStep);
+    setSteps(replaceStepAt(steps, activeStepIndex, { ...currentStep, targetPositionId }));
   };
 
   const handleWithdrawConfirm = (tokenOut: TokenState) => {
     const currentStep = steps[activeStepIndex];
     if (currentStep.kind !== 'withdraw') return;
 
-    commitStepAndAdvance({ ...currentStep, tokenOut }, tokenOut);
+    commitStepAndAdvance({ ...currentStep, tokenOut });
   };
 
   const handleRepayAndWithdrawSelect = (targetPositionId: string, tokenOut: TokenState) => {
     const currentStep = steps[activeStepIndex];
     if (currentStep.kind !== 'repayAndWithdraw') return;
 
-    commitStepAndAdvance({ ...currentStep, targetPositionId, tokenOut }, tokenOut);
+    commitStepAndAdvance({ ...currentStep, targetPositionId, tokenOut });
   };
 
   const handleBridgeSelect = (
@@ -219,14 +229,14 @@ export function SequenceBuilderModal({
     const currentStep = steps[activeStepIndex];
     if (currentStep.kind !== 'bridge') return;
 
-    commitStepAndAdvance({ ...currentStep, toChain, bridgeId, feeUsd, tokenOut }, tokenOut);
+    commitStepAndAdvance({ ...currentStep, toChain, bridgeId, feeUsd, tokenOut });
   };
 
   const handleSwapSelect = (toToken: string, feeUsd: number, tokenOut: TokenState) => {
     const currentStep = steps[activeStepIndex];
     if (currentStep.kind !== 'swap') return;
 
-    commitStepAndAdvance({ ...currentStep, toToken, feeUsd, tokenOut }, tokenOut);
+    commitStepAndAdvance({ ...currentStep, toToken, feeUsd, tokenOut });
   };
 
   const handleExecute = async () => {
@@ -269,8 +279,8 @@ export function SequenceBuilderModal({
     />
   );
 
-  // Same predicate SidePanel uses to pick palette-vs-form, spelled once.
-  const paletteMode = steps[activeStepIndex]?.kind === 'action-select';
+  // Same step SidePanel resolves to pick palette-vs-form.
+  const paletteMode = activeStep(steps, activeStepIndex).kind === 'action-select';
   const sheetLabel = paletteMode ? 'Add step' : 'Configure step';
 
   return (
@@ -307,7 +317,7 @@ export function SequenceBuilderModal({
     >
       <div className="relative flex h-[clamp(420px,60dvh,640px)] gap-4">
         <SequenceCanvas
-          className="min-w-0 flex-1"
+          className={CANVAS_LAYOUT}
           steps={steps}
           activeStepIndex={activeStepIndex}
           onFocusStep={handleStepFocus}
