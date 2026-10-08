@@ -12,11 +12,5 @@
   --xy-background-color-default: theme("colors.verdant.paper.DEFAULT");
   --xy-background-pattern-dots-color-default: theme("colors.verdant.rule.strong");
   --xy-edge-stroke-default: theme("colors.verdant.rule.strong");
-  --xy-edge-stroke-selected-default: theme("colors.verdant.moss.DEFAULT");
   --xy-edge-stroke-width-default: 1.5;
-}
-
-/* Handles exist only to anchor edges; connections are disabled. */
-.flow.flow :global(.react-flow__handle) {
-  opacity: 0;
 }

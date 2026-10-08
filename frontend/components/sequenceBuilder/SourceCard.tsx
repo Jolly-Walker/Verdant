@@ -39,26 +39,25 @@ export function SourceCard({ step, isActive, userPositions, onSelect, onFocus }:
   });
 
   // Synchronize internal state with step prop changes (e.g. pre-seeding).
+  // Keyed on the token's fields, not the `step` object: the parent emits a
+  // fresh step on every valid keystroke, and re-running on identity would
+  // write `amount.toString()` back over what the user is typing.
+  const { amount, sourcePositionId, positionType, token, chain } = step.tokenOut;
   useEffect(() => {
-    if (step.tokenOut.amount > 0) {
-      // Only re-seed when the step really carries a different number than the
-      // box does. The parent emits a fresh `step` object on every valid
-      // keystroke, and writing `amount.toString()` back unconditionally would
-      // eat a trailing separator mid-typing ("55." → 55 → "55", so "55.5"
-      // could never be typed). The functional form reads the current text
-      // without making the effect re-run on every keystroke.
+    if (amount > 0) {
+      // Re-seed only when the box really holds a different number: a trailing
+      // separator or leading dot ("55.", ".5") parses to the same amount and
+      // must survive mid-typing.
       setAmountStr((current) =>
-        Number.parseFloat(current) === step.tokenOut.amount
-          ? current
-          : step.tokenOut.amount.toString(),
+        Number.parseFloat(current) === amount ? current : amount.toString(),
       );
     }
-    if (step.tokenOut.sourcePositionId) {
-      setSelectedPositionId(step.tokenOut.sourcePositionId);
-    } else if (step.tokenOut.positionType === 'wallet' && step.tokenOut.token) {
-      setSelectedPositionId(`wallet-${step.tokenOut.token}-${step.tokenOut.chain}`);
+    if (sourcePositionId) {
+      setSelectedPositionId(sourcePositionId);
+    } else if (positionType === 'wallet' && token) {
+      setSelectedPositionId(`wallet-${token}-${chain}`);
     }
-  }, [step]);
+  }, [amount, sourcePositionId, positionType, token, chain]);
 
   const handlePositionClick = (pos: Position) => {
     const id = pos.positionType === 'wallet' ? `wallet-${pos.asset}-${pos.chain}` : pos.id;

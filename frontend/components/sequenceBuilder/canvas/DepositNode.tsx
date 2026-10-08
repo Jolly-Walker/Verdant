@@ -6,7 +6,7 @@ import { getChainDisplayName } from '@/lib/utils/chains';
 import { formatToken, formatUsd } from '@/lib/utils/formatting';
 import { AddPort, type CanvasNodeData, CardFocusButton, cardFrame, NodeHandles } from './StepNode';
 
-export type DepositFlowNode = Node<CanvasNodeData, 'deposit'>;
+type DepositFlowNode = Node<CanvasNodeData, 'deposit'>;
 
 /**
  * Root card — the source of funds, styled after a "Simulate deposit" card:
@@ -18,7 +18,7 @@ export function DepositNode({ data }: NodeProps<DepositFlowNode>) {
   const filled = Boolean(out.token) && out.amount > 0;
 
   return (
-    <div className={cardFrame(data.selected)}>
+    <div {...cardFrame(data.selected)}>
       <CardFocusButton
         label="Configure source of funds"
         selected={data.selected}

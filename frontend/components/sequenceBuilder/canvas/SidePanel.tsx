@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { isPaletteOpen, PALETTE_METADATA } from '@/lib/sequenceBuilder/canvas';
+import { activeStep, isPaletteOpen, PALETTE_METADATA } from '@/lib/sequenceBuilder/canvas';
 import type {
   ActionType,
   BuilderStep,
@@ -73,7 +73,7 @@ export function SidePanel({
     if (focusNonce > 0) headingRef.current?.focus();
   }, [focusNonce]);
 
-  const step = steps[activeStepIndex] ?? steps[steps.length - 1];
+  const step = activeStep(steps, activeStepIndex);
   const paletteMode = step.kind === 'action-select';
   const focusSelf = () => onFocusStep(activeStepIndex);
   // The palette is open behind a step the user navigated back to (or is still
@@ -102,7 +102,11 @@ export function SidePanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {paletteMode ? (
-          <PalettePanel steps={steps} userPositions={userPositions} onAddAction={onAddAction} />
+          <PalettePanel
+            tokenIn={step.tokenIn}
+            userPositions={userPositions}
+            onAddAction={onAddAction}
+          />
         ) : (
           // Re-key on index so switching between two steps of the same kind
           // remounts the card and re-seeds its internal state from the step.

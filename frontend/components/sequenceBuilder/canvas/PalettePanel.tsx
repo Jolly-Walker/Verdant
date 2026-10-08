@@ -1,34 +1,30 @@
 'use client';
 
 import { useState } from 'react';
+import { FilterChip } from '@/components/ui/FilterChip';
 import {
   getPaletteItems,
-  isPaletteOpen,
   type PaletteFilter,
   visiblePaletteFilters,
 } from '@/lib/sequenceBuilder/canvas';
-import type { ActionType, BuilderStep } from '@/lib/sequenceBuilder/types';
+import type { ActionType, TokenState } from '@/lib/sequenceBuilder/types';
 import type { Position } from '@/types/position';
 import { PaletteRow } from './PaletteRow';
 
 interface PalettePanelProps {
-  steps: BuilderStep[];
+  /** The token the trailing action-select is acting on. */
+  tokenIn: TokenState;
   userPositions: Position[];
   onAddAction: (kind: ActionType) => void;
 }
 
-/**
- * Filter chips + the addable-action rows for the trailing action-select.
- * `SidePanel` only mounts this while the palette is open, so a closed palette
- * (`getPaletteItems` → `null`) is not a state this component renders.
- */
-export function PalettePanel({ steps, userPositions, onAddAction }: PalettePanelProps) {
+/** Filter chips + the addable-action rows for the trailing action-select. */
+export function PalettePanel({ tokenIn, userPositions, onAddAction }: PalettePanelProps) {
   const [filter, setFilter] = useState<PaletteFilter>('all');
   const { chips, effectiveFilter, visible } = visiblePaletteFilters(
-    getPaletteItems(steps, userPositions) ?? [],
+    getPaletteItems(tokenIn, userPositions),
     filter,
   );
-  const paletteOpen = isPaletteOpen(steps);
 
   return (
     <div className="flex h-full flex-col">
@@ -38,19 +34,13 @@ export function PalettePanel({ steps, userPositions, onAddAction }: PalettePanel
       <fieldset className="flex flex-wrap gap-2 px-4 pt-4">
         <legend className="sr-only">Filter actions</legend>
         {chips.map((chip) => (
-          <button
-            type="button"
+          <FilterChip
             key={chip.id}
+            pressed={chip.id === effectiveFilter}
             onClick={() => setFilter(chip.id)}
-            aria-pressed={chip.id === effectiveFilter}
-            className={`min-h-[36px] whitespace-nowrap rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150 ${
-              chip.id === effectiveFilter
-                ? 'bg-verdant-moss text-white'
-                : 'border border-verdant-rule bg-verdant-surface text-verdant-text-muted hover:bg-verdant-surface-accent hover:text-verdant-text-primary'
-            }`}
           >
             {chip.label}
-          </button>
+          </FilterChip>
         ))}
       </fieldset>
 
@@ -64,12 +54,7 @@ export function PalettePanel({ steps, userPositions, onAddAction }: PalettePanel
       {visible.length > 0 ? (
         <ul className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
           {visible.map((item) => (
-            <PaletteRow
-              key={item.action}
-              item={item}
-              isDraggable={paletteOpen}
-              onAdd={onAddAction}
-            />
+            <PaletteRow key={item.action} item={item} onAdd={onAddAction} />
           ))}
         </ul>
       ) : (

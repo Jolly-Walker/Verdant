@@ -1,3 +1,4 @@
+import { FilterChip } from '@/components/ui/FilterChip';
 import type { PositionType } from '@/types/shared';
 
 type FilterValue = PositionType | 'all' | 'pendle';
@@ -19,19 +20,9 @@ export function PositionTypeFilter({ selected, onChange }: PositionTypeFilterPro
   return (
     <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
       {types.map((t) => (
-        <button
-          type="button"
-          key={t.value}
-          onClick={() => onChange(t.value)}
-          aria-pressed={selected === t.value}
-          className={`px-4 py-2 min-h-[36px] rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-            selected === t.value
-              ? 'bg-verdant-moss text-white'
-              : 'bg-verdant-surface text-verdant-text-muted hover:text-verdant-text-primary border border-verdant-rule hover:bg-verdant-surface-accent'
-          }`}
-        >
+        <FilterChip key={t.value} pressed={selected === t.value} onClick={() => onChange(t.value)}>
           {t.label}
-        </button>
+        </FilterChip>
       ))}
     </div>
   );
